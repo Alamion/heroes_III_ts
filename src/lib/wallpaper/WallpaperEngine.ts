@@ -37,11 +37,13 @@ export async function readFileFromPath(filePath: string): Promise<Uint8Array> {
 
 export function getDevFilePaths(): {
   lodPath: string;
+  hotaLodPath: string | null;
   mapPath: string;
 } {
   return {
     lodPath: "/dev-assets/H3sprite.lod",
-    mapPath: "/dev-assets/Arrogance.h3m",
+    hotaLodPath: null, // Set to "/dev-assets/HotA.lod" if available
+    mapPath: "/dev-assets/[HotA] The Devil Is in the Detail.h3m",
   };
 }
 

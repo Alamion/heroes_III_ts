@@ -285,26 +285,28 @@ export function App() {
 
   function handlePropertiesChange(properties: WallpaperProperties): void {
     const lodPath = resolveFilePath(properties.lodfile as string | undefined);
+    const hotaLodPath = resolveFilePath(properties.hotalodfile as string | undefined);
     const mapPath = resolveFilePath(properties.mapfile as string | undefined);
 
     if (DEBUG_MODE) {
-      console.log("[App] Properties changed:", { lodPath, mapPath });
+      console.log("[App] Properties changed:", { lodPath, hotaLodPath, mapPath });
     }
 
     if (lodPath && mapPath) {
-      loadFiles(lodPath, mapPath);
+      loadFiles(lodPath, hotaLodPath, mapPath);
     }
   }
 
   async function loadDevFiles(): Promise<void> {
     const devPaths = getDevFilePaths();
-    await loadFiles(devPaths.lodPath, devPaths.mapPath);
+    await loadFiles(devPaths.lodPath, devPaths.hotaLodPath, devPaths.mapPath);
   }
 
-  async function loadFiles(lodPath: string, mapPath: string): Promise<void> {
+  async function loadFiles(lodPath: string, hotaLodPath: string | null, mapPath: string): Promise<void> {
     try {
       debugLog(`=== Loading Started ===`);
       debugLog(`LOD path: ${lodPath}`);
+      debugLog(`HotA LOD path: ${hotaLodPath}`);
       debugLog(`Map path: ${mapPath}`);
 
       const lodData = await readFileFromPath(lodPath);
@@ -338,7 +340,38 @@ export function App() {
       debugLog(`Has underground: ${h3mMap.header.hasUnderground}`);
       debugLog(`Total tiles: ${h3mMap.tiles.length}`);
 
-      const { textures, defList } = await loadTerrainTextures(lodReader, archive);
+      let { textures, defList } = await loadTerrainTextures(lodReader, archive);
+
+      if (hotaLodPath) {
+        try {
+          const hotaLodData = await readFileFromPath(hotaLodPath);
+          const hotaLodReader = new LodReader(hotaLodData);
+          const hotaArchive = hotaLodReader.read();
+
+          debugLog(`HotA LOD: ${hotaArchive.isHota18 ? "HotA 1.8+ (encrypted)" : "HotA LOD"}`);
+          debugLog(`HotA LOD files: ${hotaArchive.files.length}`);
+
+          const hotaTextures = await loadTerrainTextures(hotaLodReader, hotaArchive);
+
+          hotaTextures.textures.forEach((value, key) => {
+            if (!textures.has(key)) {
+              textures.set(key, { terrain: [], river: [], road: [] });
+            }
+            const existing = textures.get(key)!;
+            existing.terrain = value.terrain;
+          });
+
+          for (const def of hotaTextures.defList) {
+            if (!defList.some(d => d.name === def.name)) {
+              defList.push(def);
+            }
+          }
+
+          debugLog(`Merged HotA textures`);
+        } catch (hotaErr) {
+          debugLog(`Failed to load HotA LOD:`, hotaErr);
+        }
+      }
 
       debugLog(`=== DEF List ===`);
       for (const def of defList) {
