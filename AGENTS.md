@@ -1,239 +1,124 @@
-# AGENTS.md - Development Guidelines for heroes_iii_dynam
+# AGENTS.md — Development Guide for heroes_iii_dynam
 
-## Project Overview
+A live wallpaper that renders Heroes of Might and Magic III maps (terrain, objects, heroes,
+towns — animated) from game files supplied by the user. Targets: plain browser, Wallpaper
+Engine, Lively Wallpaper, KDE Plasma.
 
-Wallpaper Engine wallpaper that renders Heroes 3 game maps using extracted sprites from LOD archives.
+**The project constitution is [.specify/memory/constitution.md](.specify/memory/constitution.md).
+Read it first. If this file conflicts with it, the constitution wins — fix this file.**
 
-**Target Environment:** Wallpaper Engine CEF (Chromium Embedded Framework)
+---
 
-## Tech Stack
+## Current State
 
-- **Framework:** Preact + TypeScript
-- **Package Manager:** yarn
-- **Bundler:** Vite
-- **Testing:** Vitest
-- **Rendering:** Pixi.js
-- **State Management:** Zustand or Valtio
-- **Compression:** fflate (for LOD extraction - supports LZMA and zlib), pako (gzip)
-- **Caching:** idb-keyval (IndexedDB)
+The code in `src/` is an old proof of concept (Pixi.js + Preact, terrain only, SoD maps only)
+and is scheduled for a near-complete rewrite. Do not extend its structure; use it only as a
+record of what was learned. Known problems:
+
+- `TerrainRenderer` sizes the canvas to the whole map and creates a sprite per tile per layer —
+  a 252×252 map allocates a ~24000×12000 surface and crashes the GPU driver.
+- Palette animation bakes a new canvas/texture per rotation step.
+- `H3mReader` skips a fixed 5 bytes per object (wrong for most object types); HotA parsing fails.
+- `LodReader` has no LZMA support and no name decryption for HotA 1.8+ archives.
+- `DefReader` decodes through growing JS arrays (slow, memory-heavy).
+- `scripts/sync.js` hardcodes a Windows Wallpaper Engine path.
+
+The target architecture, stack, and folder layout are decided by the foundation spec under
+`specs/` (see [TODO.md](TODO.md)). Until it lands, follow the constitution's principles:
+layered core (formats → state → simulation → renderer → adapters), screen-bound rendering,
+platform-agnostic core, script-verifiable features.
 
 ---
 
 ## Commands
 
 ```bash
-yarn dev          # Start Vite dev server with HMR
-yarn build        # TypeScript type-check + Vite production build
-yarn preview      # Preview production build locally
-yarn sync         # Build + sync to Wallpaper Engine project folder
-yarn sync:watch   # Watch dist/ changes and auto-sync (dev workflow)
-yarn test         # Run Vitest tests
-yarn test:watch   # Run Vitest in watch mode
-yarn test:coverage # Run tests with coverage report
+yarn dev            # Vite dev server (browser dev harness)
+yarn build          # Type-check + production build
+yarn preview        # Preview production build
+yarn test           # Vitest, run once
+yarn test:watch     # Vitest, watch mode
+yarn test:coverage  # Coverage report
 ```
 
----
-
-## Testing
-
-Tests are located in `test/` directory and use Vitest.
-
-### Running Tests
-
-```bash
-yarn test         # Run all tests once
-yarn test:watch   # Watch mode for development
-yarn test:coverage # Generate coverage report
-```
-
-### Test Files
-
-- `test/lod.test.ts` - LOD parser tests
-- `test/h3m.test.ts` - H3M map parser tests
-- `test/test-utils.ts` - Test utilities and fixtures
-
-### Test Data
-
-Test fixtures are stored in ` public/dev-assets/`:
-- `H3sprite.lod` - Standard Heroes 3 sprite archive
-- `Arrogance.h3m` - SoD map (36x36 with underground)
-- `[HotA] The Devil Is in the Detail.h3m` - HotA map (252x252)
+`yarn sync` / `yarn sync:watch` copy `dist/` to a hardcoded Windows Wallpaper Engine folder and
+do not work on Linux; they will be replaced by a platform adapter build step.
 
 ---
 
-## Code Style Guidelines
+## Workflow
 
-- **Strict TypeScript** - all strict flags enabled, avoid `any`
-- **Type imports** - separate `import type { ... }` statements
-- **Preact** - functional components with hooks, use `preact/hooks`
-- **Imports** - group: external → internal → relative, sort alphabetically
-- **Naming** - PascalCase components, camelCase hooks/utils, SCREAMING_SNAKE_CASE config
-- **Async/await** - over `.then()` chains, always wrap in try/catch
-
----
-
-## File Organization
-
-```
-src/
-├── lib/
-│   ├── utils/           # Shared utilities
-│   │   ├── BinaryReader.ts  # Base class for binary parsing
-│   │   └── index.ts     # Re-exports
-│   ├── utils.ts         # Debug logging utilities
-│   ├── def/             # DEF sprite format parsing
-│   │   ├── DefReader.ts     # DEF sprite parser
-│   │   └── DefTypes.ts      # TypeScript types
-│   ├── h3m/             # H3M map format parsing
-│   │   ├── H3mReader.ts     # H3M map parser
-│   │   └── H3mTypes.ts      # TypeScript types
-│   ├── lod/             # LOD archive parsing
-│   │   ├── LodReader.ts     # LOD archive reader
-│   │   └── LodArchive.ts    # LOD entry types
-│   ├── terrain/         # Terrain type definitions
-│   │   └── TerrainTypes.ts  # Terrain constants
-│   ├── rendering/       # Pixi.js rendering
-│   │   └── TerrainRenderer.ts  # Terrain rendering
-│   └── wallpaper/      # Wallpaper Engine integration
-│       └── WallpaperEngine.ts  # WE utilities
-├── App.tsx              # Main application component
-└── main.tsx             # Entry point
-```
-src/
-├── components/       # Preact components
-├── hooks/           # Custom hooks
-├── lib/             # Utilities
-│   ├── lod/         # LOD file parsing (see Reference Implementation)
-│   ├── h3m/         # Map format parsing
-│   ├── wallpaper/  # Wallpaper Engine integration
-│   └── rendering/  # Pixi.js rendering
-├── stores/          # Zustand/Valtio stores
-└── types/           # TypeScript types
-test/
-├── *.test.ts        # Test files
-└── test-utils.ts   # Test utilities
-```
+- Spec Kit: `/speckit-specify` → `/speckit-clarify` (optional) → `/speckit-plan` →
+  `/speckit-tasks` → `/speckit-implement`. Feature specs live in `specs/`.
+- Every plan includes a Constitution Check. Every visible feature ships with a headless check
+  (data-level and/or image diff against reference captures) that runs on Linux without a human.
+- Development happens on Linux. No Windows-only paths, tools, or scripts in shared tooling.
+- Code, comments, commits, and docs are in English.
 
 ---
 
-## Reference Implementation
+## Local-Only Folders (git-ignored — never commit their contents)
 
-**Primary Reference:** `tmp/heroes_iii_android/` - Kotlin Android implementation
+| Folder | Contents |
+| --- | --- |
+| `public/dev-assets/` | Game files for development (see below) |
+| `context/` | Third-party reference code and docs (see below) |
+| `reference-captures/` | Screenshots/recordings from the original game, used by fidelity checks |
 
-### LOD Format (`tmp/heroes_iii_android/core/src/main/kotlin/com/homm3/livewallpaper/parser/lod/`)
+Never commit game files or anything derived from them (extracted frames, atlases, palettes,
+caches, captures). Tests needing real game files must skip with a clear message when absent.
 
-- **LodReader.kt** - Parses LOD archive header, supports:
-  - Standard H3 LOD format
-  - HoTA 1.8+ encrypted format (XOR decryption)
-- **LodArchive.kt** - Data structures for entries
-- **Compression:** LZMA (method 2), zlib (method 3), or raw
+### Dev assets (`public/dev-assets/`)
 
-### DEF Sprite Format (`tmp/heroes_iii_android/core/src/main/kotlin/com/homm3/livewallpaper/parser/def/`)
+- `H3sprite.lod` — base game sprite archive (Complete edition)
+- `Arrogance.h3m` — SoD map, 36×36 with underground
+- `По праву силы.h3m` — map with non-ASCII file name
+- `[HotA] The Devil Is in the Detail.h3m` — HotA map, 252×252 (HotA support comes later; useful
+  as a size stress test once HotA parsing exists)
 
-- **DefReader.kt** - Full parser with 4 compression types (0-3)
-- Palette-based (256 colors), supports animation groups
+### Reference material (`context/`)
 
-### H3M Map Format (`tmp/heroes_iii_android/core/src/main/kotlin/com/homm3/livewallpaper/parser/h3m/`)
+| Folder | What | License → allowed use |
+| --- | --- | --- |
+| `homm3-parser/` | TS parsers for H3M (RoE/AB/SoD incl. object details), LOD, DEF, PCX | MIT → may port code, with attribution in a third-party notices file |
+| `heroes_iii_android/` | Kotlin/libGDX Android live wallpaper (github.com/IlyaPomaskin/h3lwp): LOD/DEF/H3M readers, terrain palette rotation, rendering | No license → study only, never copy code |
+| `example_wallpaper_engine/` | Someone else's Wallpaper Engine web wallpaper | Study packaging/`project.json` only |
+| `wallpaper_dev_wiki/` | Wallpaper Engine web wallpaper docs (user properties, property listener, FPS limiter, debugging) | Reference |
 
-- **H3mReader.kt** - Complete map parser (terrain, objects, heroes, towns)
-- Supports RoE, AB, SoD, and HotA versions
-- Map files use `.h3m` extension (NOT .sav)
-
----
-
-## User Configuration (project.json)
-
-Use Wallpaper Engine user properties for configuration:
-
-```json
-"properties": {
-  "lodfile": { "type": "file", "text": "H3sprite.lod File" },
-  "hotalodfile": { "type": "file", "text": "HotA.lod (Optional)" },
-  "mapfile": { "type": "file", "text": "Map File (.h3m)" }
-}
-```
-
-**Important:** Do not set `fileType` to restrict files - use just `"type": "file"` to allow all file types.
-
-File property paths are automatically resolved with `file:///` prefix by `src/lib/wallpaper/WallpaperEngine.ts`.
+Also: VCMI is a good format/behavior reference but is GPL — study only, never copy code.
+Online Wallpaper Engine docs: <https://docs.wallpaperengine.io/>
 
 ---
 
-## Development vs Production
+## Baseline Game (fidelity reference)
 
-The app automatically detects its environment:
-
-- **Development (browser):** Uses hardcoded paths from `getDevFilePaths()` in `src/lib/wallpaper/WallpaperEngine.ts`
-- **Wallpaper Engine:** Listens for property changes via `window.wallpaperPropertyListener`
-
-The detection is handled by `isWallpaperEngine()` which checks for the presence of `window.wallpaperPropertyListener`.
-
-### Development Workflow
-
-1. Edit file paths in `src/lib/wallpaper/WallpaperEngine.ts` -> `getDevFilePaths()` if needed
-2. Run `yarn dev` or `yarn preview` to start Vite server
-3. Open browser at http://localhost:5173 (or whatever port Vite uses)
-
-### Wallpaper Engine Workflow
-
-1. Build: `yarn build`
-2. Sync to Wallpaper Engine: `yarn sync` or `yarn sync:watch`
-3. Configure LOD and map files via Wallpaper Engine property panel
+- Heroes of Might and Magic III: **Complete** (GOG), unmodified. Not HD Mod, not HotA.
+- On Linux: Heroic Games Launcher + Proton, per <https://h3hota.com/ru/x_linux>. The guide ends by
+  launching `h3hota HD.exe`; for reference captures run the original `Heroes3.exe` instead.
 
 ---
 
-## Chrome DevTools Integration
+## Wallpaper Engine Notes
 
-The project includes Chrome DevTools MCP for debugging. Use it to:
-- Inspect the rendered page
-- Debug JavaScript/TypeScript
-- Analyze network requests
-- Take screenshots for verification
-
-See Chrome DevTools documentation for usage in opencode.
-
-See `tmp/example_wallpaper_engine` for full example of web-based wallpaper engine project and `tmp/wallpaper_dev_wiki` for wallpaper engine web documentation.
+- User files come in through `project.json` properties of `"type": "file"`. Do not set
+  `fileType`; it blocks selection of some files.
+- File property values arrive as local paths and must be resolved to `file:///` URLs.
+- Wallpaper Engine is detected via `window.wallpaperPropertyListener`. Pause events arrive
+  through the same listener (`setPaused`); Wallpaper Engine also freezes the process itself, but
+  other hosts may not, so the core must stop rendering on pause/hidden from any adapter.
 
 ---
 
-## Required Assets
+## Code Style
 
-| File | Required | Source |
-|------|----------|--------|
-| `H3sprite.lod` | Yes | Heroes 3 Data folder |
-| `HotA.lod` | No | HoTA Data folder (pre-1.8 only) - Required for HIGHLND.DEF and WASTLND.DEF terrain textures |
-| `*.h3m` | Yes | Map file |
+- Strict TypeScript, no `any` without a justified local comment; `import type` for type-only
+  imports.
+- Format parsers and simulation must not touch the DOM and must run in Node.
+- Game data tables (object classes, timings, palette rotation ranges, player colors) live in
+  typed data modules, not scattered literals.
+- Parsers are bounds-checked and throw typed errors with file name, offset, version, and
+  structure; never guess byte skips.
+- Log through the project logger, never bare `console.log`; never swallow errors silently.
 
-**Note:** Some terrain textures (HIGHLND.DEF, WASTLND.DEF) are only available in HotA.lod, not the base H3sprite.lod. These terrains will be skipped when only H3sprite.lod is provided.
-
----
-
-## Error Handling & Logging
-
-Use `src/lib/utils.ts` for debug logging (only outputs in DEV mode):
-```typescript
-import { debugLog, debugWarn, debugError } from './lib/utils'
-```
-
-- Never silently swallow errors
-- Log meaningful context (file paths, operation names)
-
----
-
-## Wallpaper Engine Resources
-
-**Local:** `tmp/wallpaper_dev_wiki/` - Full documentation
-- `user_properties.md` - Property types and usage
-- `wallpaper_property_listener.md` - Event handling
-- `fps_limiter.md` - Performance optimization
-- `audio_visualization.md` - Audio processing
-
-**Online:** https://docs.wallpaperengine.io/
-
----
-
-## What NOT To Do
-
-- Do NOT use `console.log` - use debug logging utilities
-- Do NOT commit secrets, API keys, or game assets
-- Do NOT assume file paths - use proper path resolution
+Note: skills under `.opencode/skills/` (e.g. `developing-preact`) predate the constitution; if a
+plan drops Preact, ignore that skill.

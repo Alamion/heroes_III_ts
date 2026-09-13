@@ -23,6 +23,14 @@ dist-ssr
 *.sln
 *.sw?
 
-tmp/
-public/dev-assets/
 nul
+
+# Local-only material (constitution Principle I): game files, third-party references,
+# captures from the original game, and anything derived from them
+tmp/
+context/
+public/dev-assets/
+reference-captures/
+
+# Agent-local settings (may hold credentials)
+.claude/settings.local.json
