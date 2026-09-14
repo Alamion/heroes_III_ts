@@ -1,0 +1,12 @@
+{
+  "_comment": "Copy to reference-env.config.json (git-ignored). Environment variables override these values.",
+  "_comment_bundleDir": "H3REF_BUNDLE_DIR. Complete edition folder containing Heroes3.exe, h3maped.exe and Data/.",
+  "bundleDir": "/home/<user>/.wine/drive_c/Games/Heroes of Might and Magic III Complete",
+  "_comment_wineBinary": "H3REF_WINE. Wine executable on PATH or absolute path.",
+  "wineBinary": "wine",
+  "_comment_stateDir": "H3REF_STATE_DIR. Outside the repo. Default: $XDG_STATE_HOME/h3-reference or ~/.local/state/h3-reference.",
+  "_comment_capturesDir": "H3REF_CAPTURES_DIR. Must be git-ignored. Default: <repo>/reference-captures.",
+  "_comment_mapSearchDirs": "Folders searched for --map file names. Default: [<repo>/public/dev-assets, <bundleDir>/Maps].",
+  "_comment_timeouts": "Milliseconds. Defaults: still 120000, clipBase 60000, editor 120000, step 30000, lockWait 300000.",
+  "timeouts": {}
+}

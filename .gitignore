@@ -31,6 +31,7 @@ tmp/
 context/
 public/dev-assets/
 reference-captures/
+reference-env.config.json
 
 # Agent-local settings (may hold credentials)
 .claude/settings.local.json

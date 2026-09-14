@@ -12,7 +12,8 @@
     "sync:watch": "yarn run build && node scripts/sync.js --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "ref": "node tools/reference-env/cli.ts"
   },
   "dependencies": {
     "fflate": "^0.8.2",

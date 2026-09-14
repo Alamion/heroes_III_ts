@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "capture-record.schema.json",
+  "title": "CaptureRecord",
+  "type": "object",
+  "required": ["schemaVersion", "id", "createdAt", "source", "kind", "map", "level", "requested", "visible", "mapping", "positionSource", "visibility", "cursor", "executable", "archives", "settings", "display", "files", "tooling"],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "point": { "type": "object", "required": ["x", "y"], "additionalProperties": false, "properties": { "x": { "type": "integer", "minimum": 0 }, "y": { "type": "integer", "minimum": 0 } } },
+    "rect": { "type": "object", "required": ["x", "y", "w", "h"], "additionalProperties": false, "properties": { "x": { "type": "integer", "minimum": 0 }, "y": { "type": "integer", "minimum": 0 }, "w": { "type": "integer", "minimum": 1 }, "h": { "type": "integer", "minimum": 1 } } },
+    "fileHash": { "type": "object", "required": ["file", "sha256"], "additionalProperties": false, "properties": { "file": { "type": "string" }, "sha256": { "$ref": "#/$defs/sha256" } } }
+  },
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "source": { "enum": ["game", "editor"] },
+    "kind": { "enum": ["still", "clip"] },
+    "map": {
+      "type": "object",
+      "required": ["name", "key", "sha256", "sizeTiles", "hasUnderground", "formatVersion"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "key": { "type": "string" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "sizeTiles": { "type": "integer", "minimum": 1 },
+        "hasUnderground": { "type": "boolean" },
+        "formatVersion": { "enum": ["RoE", "AB", "SoD"] }
+      }
+    },
+    "level": { "enum": [0, 1] },
+    "requested": { "$ref": "#/$defs/point" },
+    "clamped": { "type": "boolean" },
+    "visible": {
+      "type": "object",
+      "required": ["x0", "y0", "x1", "y1", "partialEdges"],
+      "additionalProperties": false,
+      "properties": {
+        "x0": { "type": "integer" }, "y0": { "type": "integer" },
+        "x1": { "type": "integer" }, "y1": { "type": "integer" },
+        "partialEdges": { "type": "array", "items": { "enum": ["left", "top", "right", "bottom"] } }
+      }
+    },
+    "mapping": {
+      "type": "object",
+      "required": ["tileSize", "originTile", "originPixel", "viewport"],
+      "additionalProperties": false,
+      "properties": {
+        "tileSize": { "const": 32 },
+        "originTile": { "$ref": "#/$defs/point" },
+        "originPixel": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "integer" }, "y": { "type": "integer" } } },
+        "viewport": { "$ref": "#/$defs/rect" }
+      }
+    },
+    "positionSource": { "enum": ["minimap-rect", "editor-view"] },
+    "startSetup": {
+      "oneOf": [
+        { "type": "object", "required": ["mode", "choices"], "additionalProperties": false, "properties": { "mode": { "const": "fixed" }, "choices": { "type": "object", "required": ["town", "hero", "bonus"], "properties": { "town": { "type": "string" }, "hero": { "type": "string" }, "bonus": { "type": "string" } } } } },
+        { "type": "object", "required": ["mode"], "additionalProperties": false, "properties": { "mode": { "const": "random" } } }
+      ]
+    },
+    "visibility": {
+      "oneOf": [
+        { "type": "object", "required": ["method", "code", "verified"], "additionalProperties": false, "properties": { "method": { "const": "cheat" }, "code": { "type": "string" }, "verified": { "const": true } } },
+        { "type": "object", "required": ["method"], "additionalProperties": false, "properties": { "method": { "const": "editor" }, "overlays": { "type": "array", "items": { "type": "string" } } } }
+      ]
+    },
+    "cursor": {
+      "type": "object",
+      "required": ["drawnByX", "parkedAt"],
+      "additionalProperties": false,
+      "properties": { "drawnByX": { "const": false }, "parkedAt": { "oneOf": [{ "$ref": "#/$defs/point" }, { "type": "null" }] } }
+    },
+    "executable": {
+      "type": "object",
+      "required": ["file", "sha256", "label"],
+      "additionalProperties": false,
+      "properties": { "file": { "type": "string" }, "sha256": { "$ref": "#/$defs/sha256" }, "label": { "enum": ["Heroes3.exe (original)", "Heroes3_HD.exe (HD Mod vanilla profile)", "h3maped.exe (original)"] } }
+    },
+    "archives": { "type": "array", "items": { "$ref": "#/$defs/fileHash" } },
+    "settings": { "type": "object", "required": ["profileId", "values"], "properties": { "profileId": { "type": "string" }, "values": { "type": "object" } } },
+    "display": { "type": "object", "required": ["width", "height", "depth"], "properties": { "width": { "type": "integer" }, "height": { "type": "integer" }, "depth": { "type": "integer" } } },
+    "files": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "still": { "type": "string" }, "volatileMask": { "type": "string" }, "frames": { "type": "string" }, "timeline": { "type": "string" } }
+    },
+    "clip": {
+      "type": "object",
+      "required": ["grabFps", "durationMs", "distinctFrames", "shortestStepMs", "resolvesAllSteps"],
+      "additionalProperties": false,
+      "properties": {
+        "grabFps": { "type": "integer", "minimum": 1 },
+        "durationMs": { "type": "integer", "minimum": 1 },
+        "distinctFrames": { "type": "integer", "minimum": 1 },
+        "shortestStepMs": { "type": "number" },
+        "resolvesAllSteps": { "type": "boolean" }
+      }
+    },
+    "tooling": {
+      "type": "object",
+      "required": ["version", "gitCommit", "wine", "ffmpeg", "xvfb", "xdotool"],
+      "properties": { "version": { "type": "string" }, "gitCommit": { "type": "string" }, "wine": { "type": "string" }, "ffmpeg": { "type": "string" }, "xvfb": { "type": "string" }, "xdotool": { "type": "string" } }
+    }
+  }
+}

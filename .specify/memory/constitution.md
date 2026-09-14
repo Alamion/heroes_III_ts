@@ -1,37 +1,32 @@
 <!--
 Sync Impact Report
 ==================
-Version change: (unversioned template) → 1.0.0
-Bump rationale: initial ratification; all principles and sections defined for the first time.
+Version change: 1.0.0 → 1.1.0
+Bump rationale: MINOR — Principles II and V materially changed guidance on how the baseline is
+obtained and run (plain Wine from a local install instead of GOG + Heroic/Proton) and added a
+narrow, placement-only allowance for the HotA map editor. Intent (unmodified Complete-edition
+game as the fidelity baseline) is unchanged.
 
-Principles (all new):
-  I.    User-Supplied Assets Only (NON-NEGOTIABLE)
-  II.   Fidelity to the Complete Edition
-  III.  Script-Verifiable by Default
-  IV.   Screen-Bound Performance
-  V.    Platform-Agnostic Core, Linux-First Development
-  VI.   Layered, State-Driven Architecture
-  VII.  Robust Parsing, Honest Failure
-  VIII. Lean Dependencies and Small Footprint
+Modified principles:
+  II. Fidelity to the Complete Edition — baseline defined by the original SoD/Complete
+      executable + Complete data files from a local install, not by the GOG release; HotA map
+      editor allowed for placement-only reference captures, labeled as such.
+  V.  Platform-Agnostic Core, Linux-First Development — baseline runs under Wine on a virtual
+      display, driven by scripts; Heroic/Proton no longer mandated.
 
-Added sections:
-  - Technical Constraints & Budgets
-  - Development Workflow & Quality Gates
-  - Governance
+Modified sections:
+  - Development Workflow & Quality Gates → "Reference capture" bullet.
 
-Removed sections: none
+Added/removed sections: none
 
 Templates / dependent files:
-  ✅ .specify/templates/plan-template.md — reads constitution at runtime ("Constitution Check"); no edit needed
-  ✅ .specify/templates/spec-template.md — no constitution-specific slots; no edit needed
-  ✅ .specify/templates/tasks-template.md — no constitution-specific slots; no edit needed
-  ⚠ AGENTS.md — outdated (references tmp/, Pixi/Preact/Zustand stack, Windows sync path);
-    must be rewritten to align with this constitution (deferred, outside constitution scope)
-  ⚠ .gitignore — context/ and reference captures not yet ignored (deferred)
+  ✅ .specify/templates/*.md — no constitution-specific slots; no edit needed
+  ✅ AGENTS.md — "Baseline Game" section updated in the same change
+  ✅ specs/001-reference-environment/ — spec and plan already assume the amended wording
+  ⚠ TODO.md item 1 — still mentions Heroic/Proton/GOG; historical task note, superseded by spec 001
 
 Deferred TODOs:
-  - Budget numbers in "Technical Constraints & Budgets" are initial targets; confirm or tune
-    once the first measurement harness exists (amend as PATCH if only numbers change).
+  - Budget numbers in "Technical Constraints & Budgets" remain initial targets (unchanged).
 -->
 
 # heroes_iii_dynam Constitution
@@ -63,9 +58,14 @@ of the game and supplies it.
 
 ### II. Fidelity to the Complete Edition
 
-- The visual and behavioral baseline is **Heroes of Might and Magic III: Complete** (GOG
-  release), run unmodified. HD Mod and HotA builds MUST NOT be used as the baseline for
-  base-game features.
+- The visual and behavioral baseline is **Heroes of Might and Magic III: Complete**, run
+  unmodified: the original Shadow of Death/Complete executable (`Heroes3.exe`) with the
+  Complete-edition data archives, from a local installation (it MAY share a folder with HotA/HD
+  Mod as long as neither is loaded). HD Mod and HotA builds MUST NOT be used as the baseline for
+  base-game graphics, animation, or behavior.
+- Exception: when the original map editor (`h3maped.exe`) is unavailable, the HotA map editor
+  MAY be used for object *placement* reference captures only; such captures MUST be labeled as
+  coming from the HotA editor and MUST NOT serve as a pixel baseline.
 - Tile selection, mirroring, palette rotation ranges, animation frame order, animation speed,
   object placement, draw order, and player colors MUST match the baseline. Any intentional
   deviation (e.g. optional scaling, extra interactive features) MUST be documented in the
@@ -127,8 +127,9 @@ previous PoC crashed the machine by sizing everything to the map.
 - Every development, build, test, and verification step MUST work on Linux. Windows-only paths,
   tools, or scripts are forbidden in shared tooling; platform-specific install locations come
   from environment/config.
-- The baseline game is run on Linux through Heroic Games Launcher with Proton (per
-  h3hota.com/ru/x_linux) for capturing reference material.
+- The baseline game is run on Linux under Wine, on a virtual display driven by scripts, for
+  capturing reference material; machine-specific paths (install folder, Wine binary, prefix)
+  come from local configuration.
 
 **Rationale:** multiple wallpaper hosts must share one engine, and daily development happens on
 Linux.
@@ -201,8 +202,8 @@ make saves, HotA, and interactivity additive instead of rewrites.
   MUST include a Constitution Check against every principle above.
 - **Local-only folders** (git-ignored): `public/dev-assets/` (game files for dev), `context/`
   (third-party reference code and docs), and the reference-capture folder from the baseline game.
-- **Reference capture:** the baseline game (Complete edition via Heroic + Proton) is used to
-  capture screenshots/recordings of chosen maps and regions; captures are indexed by map, region,
+- **Reference capture:** the baseline game (Complete edition under Wine, see Principles II
+  and V) is used to capture screenshots/recordings of chosen maps and regions; captures are indexed by map, region,
   and timestamp so image-level checks can locate them.
 - **Merge gates** (all MUST pass): strict type-check; unit tests; budget checks; fidelity checks
   for every feature touched; no game assets or derived data in the diff; no Windows-only
@@ -225,4 +226,4 @@ make saves, HotA, and interactivity additive instead of rewrites.
 - **Compliance review:** at the end of each feature (before merge), re-check the Constitution
   Check in its plan against the actual implementation; record any accepted deviations there.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-13 | **Last Amended**: 2026-09-13
+**Version**: 1.1.0 | **Ratified**: 2026-09-13 | **Last Amended**: 2026-09-13

@@ -4,7 +4,12 @@ Each item runs in its own chat with its own `/speckit-specify`. Read
 [.specify/memory/constitution.md](.specify/memory/constitution.md) and [AGENTS.md](AGENTS.md)
 first.
 
-## 1. Reference environment
+## 1. Reference environment — done
+
+Implemented in [specs/001-reference-environment/](specs/001-reference-environment/) (`yarn ref …`,
+see AGENTS.md). Uses a local Wine install of the Complete edition instead of Heroic/Proton/GOG
+(constitution v1.1.0). Original notes kept below for history.
+
 
 Set up a reference environment (Heroic Games Launcher, Proton, GOG Complete edition, a capture
 workflow). Run `/speckit-specify` for it. (look at <https://h3hota.com/ru/x_linux> and
@@ -23,6 +28,10 @@ Notes:
   noise is useful for placement checks.
 
 ## 2. Foundation rewrite
+
+Requirement from item 1: the H3M object parser must be able to list tiles covered by random
+objects (random monsters, artifacts, resources, dwellings, towns/heroes) so reference checks can
+treat them as floating (`yarn ref selfcheck --floating-tiles`, later image-diff masks).
 
 The layered structure, format parsers, a renderer that only draws what's on screen, the headless
 checking scripts and budget checks. Run `/speckit-specify`.
@@ -46,7 +55,9 @@ Notes:
 One `/speckit-specify` each and roughly in this order:
 
 1. **Objects and animations** — map objects, heroes, towns, monsters; draw order; player colors;
-   animation timings verified against captures.
+   animation timings verified against captures. Random-object tiles are floating in automated
+   checks and verified less often, visually; if specific random outcomes need verifying, build an
+   object atlas (as in the PoC) on a separate git branch and inspect it directly.
 2. **Platform adapters** — plain browser (file picker / drag-and-drop), Wallpaper Engine,
    Lively Wallpaper, KDE Plasma wallpaper plugin; pause/visibility handling; scale setting
    (32px default); packaging without any game files.
