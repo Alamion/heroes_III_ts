@@ -11,7 +11,7 @@ import { grabRaw, writePng, type RawFrame } from './grab.ts'
 import { createInput, type Input } from './input.ts'
 import { runProcess, sleep } from './process.ts'
 import { stagingRoot } from './session.ts'
-import { applyStaging, planStaging } from './staging.ts'
+import { STAGED_MAP_NAME, applyStaging, planStaging } from './staging.ts'
 import { killAll, launch, wineContext } from './wine.ts'
 import { startDisplay, type VirtualDisplay } from './xvfb.ts'
 
@@ -46,13 +46,13 @@ export async function openEditor(cfg: ReferenceConfig, mapPath: string, timeoutM
     },
   }
   try {
-    const winPath = `Z:${join(root, 'Maps', basename(mapPath)).replace(/\//g, '\\')}`
+    const winPath = `Z:${join(root, 'Maps', STAGED_MAP_NAME).replace(/\//g, '\\')}`
     launch(wine, EDITOR_EXE, { display: display.display, cwd: root, loadDllLog: false, args: [winPath], keepLocale: true })
     const env = { ...process.env, DISPLAY: display.display }
     const deadline = Date.now() + timeoutMs
     let geometry = ''
     for (;;) {
-      const r = await runProcess('xdotool', ['search', '--name', basename(mapPath, '.h3m')], { env, check: false, timeoutMs: 5000 })
+      const r = await runProcess('xdotool', ['search', '--name', basename(STAGED_MAP_NAME, '.h3m')], { env, check: false, timeoutMs: 5000 })
       const id = r.stdout.toString().trim().split('\n').filter(Boolean).at(-1)
       if (id !== undefined) {
         const g = await runProcess('xdotool', ['getwindowgeometry', '--shell', id], { env, check: false, timeoutMs: 5000 })

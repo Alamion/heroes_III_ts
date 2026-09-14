@@ -206,7 +206,7 @@ synthetic buffers/fixtures only (no game files, Principle I); live tests run onl
 - [X] T072 Concurrency check: start two `still` commands concurrently in a live test; assert the second waits for the lock and both captures succeed (or the second fails with `LOCKED` when `timeouts.lockWait` is set to 5 s), in test/reference-env/live-lock.test.ts
 - [X] T073 [P] Update specs/001-reference-environment/quickstart.md with any command or option changes made during implementation and the measured spike outcomes (executable choice, message-line key)
 - [X] T074 [P] If S0–S6 changed any decision (executable, cheat code, positioning), update the Clarifications/FR text in specs/001-reference-environment/spec.md and the matching sections of specs/001-reference-environment/research.md so no contradictory text remains
-- [ ] T075 Run the full quickstart.md validation: `yarn build`, `yarn test`, `H3REF_LIVE=1 yarn test`, `yarn ref doctor`, the Story 1–5 commands, and confirm `git status --porcelain` shows no files from `reference-captures/`, `reference-env.config.json`, or the state directory (SC-007); record timings for SC-001 and SC-005 in research.md "Spike results"
+- [X] T075 Run the full quickstart.md validation: `yarn build`, `yarn test`, `H3REF_LIVE=1 yarn test`, `yarn ref doctor`, the Story 1–5 commands, and confirm `git status --porcelain` shows no files from `reference-captures/`, `reference-env.config.json`, or the state directory (SC-007); record timings for SC-001 and SC-005 in research.md "Spike results"
 - [X] T076 Mark TODO.md item 1 as done with a link to specs/001-reference-environment/ and a one-line note that the environment uses a local Wine install instead of Heroic/Proton/GOG
 
 ---
@@ -287,6 +287,9 @@ Deviations from the task text, all reflected in code and research.md "Spike resu
   choice, so `yarn ref editor --launches N` (default 3) builds the volatile mask across launches.
 - T060: the shared capture pipeline is `tools/reference-env/commands/session.ts`
   (`runGameCapture`), the game session is `tools/reference-env/env/session.ts`.
-- T071/T075: the reduced live selfcheck (`--runs 3 --samples 2`) passed position agreement 4/4 but
-  failed reproducibility because random monsters are re-rolled per launch (open known deviation
-  in spec.md). The full `--runs 5 --samples 10` run (~50 min) was not executed.
+- T071/T075 (2026-09-14, Fedora 43): full `H3REF_LIVE=1 yarn test` passed 7/7 — stills (both levels,
+  Cyrillic map name via a renamed copy), HotA map rejection, 5 s clip, editor, lock, and
+  `selfcheck --runs 5 --samples 10` with the random monster's footprint as floating tiles
+  (reproducible 4/4 comparisons, position agreement 20/20). Earlier full runs found and fixed:
+  clipped view-rectangle misread, Cyrillic file names not listed by the game, 1 px correction step,
+  incomplete floating footprint (details in research.md).

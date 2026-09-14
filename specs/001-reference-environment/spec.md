@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-13
 
-**Status**: Draft
+**Status**: Implemented (2026-09-14)
 
 **Input**: User description: "let's do first item from TODO.md" — TODO item 1: set up a reference
 environment (Heroic Games Launcher, Proton, GOG Complete edition, a capture workflow), following

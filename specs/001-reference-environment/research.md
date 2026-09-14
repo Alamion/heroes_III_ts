@@ -411,8 +411,34 @@ dedicated prefix `~/.local/state/h3-reference/prefix` (wineboot ≈ 50 s); stagi
   them; their appearance is verified less often and visually. `yarn ref selfcheck
   --floating-tiles "x,y;x,y"` reports differences on such tiles separately (`floatingTiles`) and
   does not fail on them. The list will come from the H3M object parser (TODO item 2); until then
-  it is given by hand (Arrogance: `20,24;20,25;21,25` for the view centred on (18, 18)).
+  it is given by hand (Arrogance: `20,24;21,24;20,25;21,25` for the view centred on (18, 18)).
+  A floating area is the object's whole sprite footprint, not only its tile: monster sprites are
+  2×2 tiles (up and left of the object tile), so a large creature also changes the tile above —
+  the first full run showed differences on (21, 24).
 - Verified: `selfcheck --runs 3 --samples 0 --floating-tiles "20,24;20,25;21,25"` → ok, 0 differing
   non-floating pixels in both comparisons (3 min 50 s).
 - If specific random outcomes need verifying, an object atlas (as in the PoC) on a separate git
   branch is inspected directly instead of relying on a map.
+
+### 2026-09-14 — full live test run: fixes
+
+The first full `H3REF_LIVE=1` run found three problems, all fixed:
+
+- **`По праву силы.h3m` is a HotA map** (format 0x20), not a base-game map; the tooling rejects it
+  correctly with `MAP_UNSUPPORTED`. The non-ASCII name check now uses a temporary renamed copy
+  of Arrogance, and the live suite asserts the HotA rejection separately.
+- **Non-ASCII map file names:** under the English locale the game lists no scenario for a
+  Cyrillic file name and falls back to the random-map screen. Maps are now staged as
+  `Maps/reference.h3m` (records keep the original name), and navigation fails with
+  `MAP_UNSUPPORTED` when the scenario name field is empty (yellow text pixels: 401 listed vs 0 on
+  the random-map screen). The scenario screen's left-hand art is random per launch, so it is not
+  used as a probe.
+- **Clipped view rectangle misread:** a click on tile y = 7 of Arrogance *does* give view origin
+  y = −1, but the rectangle's top edge is clipped and the side dashes can start in a dash gap below
+  the minimap top, so the bounding box looked unclipped and was read as origin 0 (the game-vs-editor
+  registration exposed a one-tile shift). Edges are now recognised as drawn only when a dashed line
+  runs along them. Correction clicks also move by whole tiles in minimap pixels (the old 1 px step
+  was below one tile on 36×36 maps).
+- **Occasional crash under Wine:** once `Heroes3.exe` hit an unhandled page fault while loading a
+  map (not reproducible on retry). `winedbg` is disabled in the prefix so a crashed game exits;
+  a capture whose game process exited fails with `GAME_CRASHED` and is retried once.

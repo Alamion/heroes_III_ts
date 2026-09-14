@@ -89,7 +89,7 @@ caches, captures). Tests needing real game files must skip with a clear message 
 
 - `H3sprite.lod` — base game sprite archive (Complete edition)
 - `Arrogance.h3m` — SoD map, 36×36 with underground
-- `По праву силы.h3m` — map with non-ASCII file name
+- `По праву силы.h3m` — map with non-ASCII file name; HotA format (0x20), rejected by the base-game tooling
 - `[HotA] The Devil Is in the Detail.h3m` — HotA map, 252×252 (HotA support comes later; useful
   as a size stress test once HotA parsing exists)
 

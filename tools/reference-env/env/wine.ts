@@ -21,7 +21,8 @@ export function wineEnv(ctx: WineContext, extra: Env = {}): Env {
     ...process.env,
     WINEPREFIX: ctx.prefix,
     // No audio (captures must not play sound on the developer's machine), no desktop menu entries.
-    WINEDLLOVERRIDES: 'winemenubuilder.exe=d;winepulse.drv=d;winealsa.drv=d',
+    // No debugger either: a crashed program must exit so the tooling can detect it and retry.
+    WINEDLLOVERRIDES: 'winemenubuilder.exe=d;winepulse.drv=d;winealsa.drv=d;winedbg.exe=d',
     WINEDEBUG: '-all',
     ...extra,
   }

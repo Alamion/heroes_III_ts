@@ -1,7 +1,7 @@
 // One running instance of the original game on its own virtual display, driven to a map view.
 import { mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { findViewRect, rectToViewOrigin, shroudFraction } from '../analysis/minimap.ts'
+import { drawnEdges, findViewRect, rectToViewOrigin, shroudFraction } from '../analysis/minimap.ts'
 import { tileToMinimapPoint, viewMapping } from '../analysis/geometry.ts'
 import { assertNoForbiddenDlls, parseLoadedDlls } from '../analysis/loaddll.ts'
 import { regionHash, waitUntilStable } from '../analysis/stability.ts'
@@ -25,6 +25,11 @@ const RIGHT_PANEL: Rect = { x: 608, y: 0, w: 192, h: 600 }
 /** Screen regions that identify menu screens (the cursor is parked away from them first). */
 const MENU_BUTTONS_RECT: Rect = { x: 540, y: 30, w: 230, h: 540 }
 const SCENARIO_BUTTONS_RECT: Rect = { x: 410, y: 530, w: 340, h: 50 }
+/**
+ * "Scenario name" field. It shows the map's name when the scenario is listed and is empty on the
+ * random-map screen the game falls back to when no scenario could be listed.
+ */
+const SCENARIO_NAME_RECT: Rect = { x: 420, y: 48, w: 280, h: 22 }
 
 export function stagingRoot(stateDir: string): string {
   return join(stateDir, 'game-root')
@@ -102,6 +107,7 @@ export async function openGame(config: ReferenceConfig, opts: OpenOptions): Prom
 
     await menuStep(session, GAME_LAYOUT.mainNewGame, PROBES.newGameMenu, MENU_BUTTONS_RECT, opts, recordedProbes, 'main menu: new game')
     await menuStep(session, GAME_LAYOUT.newGameScenario, PROBES.scenarioScreen, SCENARIO_BUTTONS_RECT, opts, recordedProbes, 'new game: scenario')
+    await assertScenarioListed(session)
     if (opts.start === 'fixed') await applyFixedStart(session, opts.stepTimeoutMs)
 
     await input.click(GAME_LAYOUT.scenarioBegin)
@@ -113,9 +119,22 @@ export async function openGame(config: ReferenceConfig, opts: OpenOptions): Prom
     return { session, recordedProbes }
   } catch (err) {
     await saveFailureShot(config.stateDir, session, err)
+    const crashed = await gameExited(session)
     await session.close()
-    throw err
+    throw crashed ? crashError(err) : err
   }
+}
+
+/** True when the game process has already exited (e.g. crashed under Wine). */
+export async function gameExited(session: GameSession): Promise<boolean> {
+  const app = session.app as LaunchedApp | undefined
+  if (app === undefined) return false
+  const code = await Promise.race([app.proc.exited, sleep(10).then(() => undefined)])
+  return code !== undefined
+}
+
+export function crashError(cause: unknown): RefError {
+  return new RefError(ERROR_CODES.GAME_CRASHED, `Heroes3.exe exited unexpectedly (${cause instanceof Error ? cause.message : String(cause)})`, { cause })
 }
 
 /** Calibration only: without probes, the main menu is the first screen that stops changing. */
@@ -140,6 +159,25 @@ async function skipIntro(session: GameSession, timeoutMs: number): Promise<void>
     })
   }
   throw new RefError(ERROR_CODES.INPUT_IGNORED, 'the main menu did not appear (intro not skipped)', { step: 'intro', details: { log: session.app.logPath } })
+}
+
+async function assertScenarioListed(session: GameSession): Promise<void> {
+  const f = await session.grab()
+  // Count yellow text pixels: measured 401 with a listed scenario name, 0 on the random-map screen.
+  let text = 0
+  const r = SCENARIO_NAME_RECT
+  for (let y = r.y; y < r.y + r.h; y++) {
+    for (let x = r.x; x < r.x + r.w; x++) {
+      const i = (y * f.width + x) * 3
+      if ((f.rgb[i] as number) > 180 && (f.rgb[i + 1] as number) > 150 && (f.rgb[i + 2] as number) < 140) text++
+    }
+  }
+  if (text < 40) {
+    throw new RefError(ERROR_CODES.MAP_UNSUPPORTED, 'the game did not list the staged map as a scenario (random-map screen shown)', {
+      step: 'new game: scenario',
+      details: { namePixels: text },
+    })
+  }
 }
 
 /** Neutral cursor spot in menus: no button under it, so no hover highlight in probe regions. */
@@ -317,7 +355,7 @@ export async function readView(session: GameSession, level: Level, mapSize: numb
   const f = await session.grab()
   const rect = findViewRect(f, GAME_LAYOUT.minimap, GAME_LAYOUT.viewRectColor)
   if (rect === undefined) throw new RefError(ERROR_CODES.POSITION_MISMATCH, 'view rectangle not found on the minimap')
-  const view = rectToViewOrigin(rect, GAME_LAYOUT.minimap, mapSize, GAME_VIEW.viewTiles)
+  const view = rectToViewOrigin(rect, GAME_LAYOUT.minimap, mapSize, GAME_VIEW.viewTiles, drawnEdges(f, rect, GAME_LAYOUT.viewRectColor))
   const origin = { x: view.originX, y: view.originY }
   const { visible, mapping } = viewMapping(origin, GAME_VIEW.originTilePixel, GAME_VIEW.viewport, mapSize)
   return { level, origin, visible, mapping, minimapRect: rect }
@@ -338,7 +376,10 @@ export async function positionView(session: GameSession, level: Level, target: P
     const dy = want.y - view.origin.y
     if (dx === 0 && dy === 0) return view
     log.debug('position correction', { attempt, want, got: view.origin })
-    click = { x: click.x + Math.sign(dx), y: click.y + Math.sign(dy) }
+    // Move the click by the tile difference in minimap pixels (at least one pixel per axis).
+    const scale = GAME_LAYOUT.minimap.w / mapSize
+    const step = (d: number) => (d === 0 ? 0 : Math.sign(d) * Math.max(1, Math.round(Math.abs(d) * scale)))
+    click = { x: click.x + step(dx), y: click.y + step(dy) }
   }
   throw new RefError(ERROR_CODES.POSITION_MISMATCH, `view did not centre on tile (${target.x}, ${target.y})`, {
     details: { want, got: view?.origin },

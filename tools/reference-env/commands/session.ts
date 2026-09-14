@@ -5,11 +5,11 @@ import { SETTINGS_PROFILE } from '../data/settings-profile.ts'
 import { GAME_EXE } from '../data/staging-whitelist.ts'
 import { PROBES, requireCalibration } from '../env/calibration.ts'
 import { acquireLock } from '../env/lock.ts'
-import { openGame, positionView, revealMap, saveFailureShot, showLevel, waitForMessageClear, type GameSession, type ViewState } from '../env/session.ts'
+import { crashError, gameExited, openGame, positionView, revealMap, saveFailureShot, showLevel, waitForMessageClear, type GameSession, type ViewState } from '../env/session.ts'
 import { toolVersions } from '../env/tooling.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 import { log } from '../log.ts'
-import type { CaptureRecord, FileHash, Kind, ReferenceConfig } from '../model/types.ts'
+import type { CaptureRecord, FileHash, Kind, ReferenceConfig, StartMode } from '../model/types.ts'
 import { requirePrereqs } from './doctor.ts'
 import { opt, stagedHashes, startMode, targetContext, type TargetContext } from './common.ts'
 
@@ -44,6 +44,29 @@ export async function runGameCapture<T>(
   const ctx = await targetContext(cfg, args)
   const start = startMode(opt(args, 'start'))
   const lock = await acquireLock(cfg.stateDir, cfg.timeouts.lockWait, `${kind} ${ctx.map.name}`)
+  try {
+    // The original game occasionally crashes under Wine while loading a map; retry once.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await captureAttempt(cfg, ctx, start, kind, timeoutMs, grab)
+      } catch (err) {
+        if (attempt >= 2 || !(err instanceof RefError) || err.code !== ERROR_CODES.GAME_CRASHED) throw err
+        log.warn(`game crashed (${err.message}); retrying the capture once`)
+      }
+    }
+  } finally {
+    lock.release()
+  }
+}
+
+async function captureAttempt<T>(
+  cfg: ReferenceConfig,
+  ctx: TargetContext,
+  start: StartMode,
+  kind: Kind,
+  timeoutMs: number,
+  grab: (state: CaptureState) => Promise<T>,
+): Promise<T> {
   let session: GameSession | undefined
   try {
     const work = (async () => {
@@ -64,14 +87,16 @@ export async function runGameCapture<T>(
     work.catch(() => undefined)
     return await withTimeout(timeoutMs, `${kind} capture`, work)
   } catch (err) {
-    const s = session as GameSession | undefined
-    if (s !== undefined) await saveFailureShot(cfg.stateDir, s, err)
-    throw err
-  } finally {
     // `session` is assigned inside the async work; TS cannot see that across the closure.
     const s = session as GameSession | undefined
+    if (s !== undefined) {
+      await saveFailureShot(cfg.stateDir, s, err)
+      if (!(err instanceof RefError && err.code === ERROR_CODES.GAME_CRASHED) && (await gameExited(s))) throw crashError(err)
+    }
+    throw err
+  } finally {
+    const s = session as GameSession | undefined
     if (s !== undefined) await s.close()
-    lock.release()
   }
 }
 

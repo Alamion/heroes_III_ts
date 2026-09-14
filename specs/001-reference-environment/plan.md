@@ -74,6 +74,11 @@ install and run under plain Wine; HotA editor allowed for labeled placement-only
 data model and contracts introduce no committed derived data (calibration is local), no runtime
 dependencies, and keep the bundle read-only.
 
+**Post-implementation compliance review (2026-09-14):** Spike S0 selected the original `Heroes3.exe`,
+so the Principle II gate was never triggered and no HD Mod code exists; constitution v1.1.0 holds.
+Accepted deviations (random map objects as floating tiles, editor per-launch animation frames) are
+recorded in spec.md.
+
 ## Project Structure
 
 ### Documentation (this feature)

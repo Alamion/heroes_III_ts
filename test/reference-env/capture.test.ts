@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { FrameTimelineBuilder, frameAt, toTimeline } from '../../tools/reference-env/analysis/frame-timeline.ts'
 import { cropForRegion, tileToMinimapPoint, viewMapping } from '../../tools/reference-env/analysis/geometry.ts'
-import { findViewRect, rectToViewOrigin, shroudFraction } from '../../tools/reference-env/analysis/minimap.ts'
+import { drawnEdges, findViewRect, rectToViewOrigin, shroudFraction } from '../../tools/reference-env/analysis/minimap.ts'
 import { buildVolatileMask, compareWithMasks } from '../../tools/reference-env/analysis/volatile-mask.ts'
 import { aggregate } from '../../tools/reference-env/commands/doctor.ts'
 import { GAME_LAYOUT, GAME_VIEW } from '../../tools/reference-env/data/game-layout.ts'
@@ -60,12 +60,16 @@ describe('minimap', () => {
         { x: 5, y: 7 },
         { x: -9, y: -8 },
         { x: size - 10, y: size - 9 },
+        // Top edge clipped by one tile: on 36×36 the side dashes start in a gap below the minimap
+        // top, which used to be misread as an unclipped edge at origin 0.
+        { x: 1, y: -1 },
+        { x: -1, y: 3 },
       ]
       for (const origin of origins) {
         const frame = screenWithView(size, origin)
         const rect = findViewRect(frame, MM, COLOR)
         expect(rect).toBeDefined()
-        const view = rectToViewOrigin(rect!, MM, size, GAME_VIEW.viewTiles)
+        const view = rectToViewOrigin(rect!, MM, size, GAME_VIEW.viewTiles, drawnEdges(frame, rect!, COLOR))
         expect({ x: view.originX, y: view.originY }).toEqual(origin)
       }
     })
@@ -126,7 +130,7 @@ describe('staging plan', () => {
     expect(froms).toContain('/b/BINKW32.DLL')
     expect(froms).toContain('/b/Data/H3ab_spr.lod')
     expect(froms.some((f) => /hota|_hd3_|heroes3_hd/i.test(f as string))).toBe(false)
-    expect(plan.filter((a) => a.kind === 'map')).toEqual([{ kind: 'map', from: '/maps/A.h3m', to: 'Maps/A.h3m' }])
+    expect(plan.filter((a) => a.kind === 'map')).toEqual([{ kind: 'map', from: '/maps/A.h3m', to: 'Maps/reference.h3m' }])
     expect(plan.find((a) => a.to === 'Heroes3.exe')?.kind).toBe('copy')
   })
   it('reports missing required files', () => {

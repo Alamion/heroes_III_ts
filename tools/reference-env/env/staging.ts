@@ -15,6 +15,9 @@ import { basename, dirname, join } from 'node:path'
 import { NEVER_STAGE, STAGING_WHITELIST } from '../data/staging-whitelist.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 
+/** File name of the map inside the staging root's Maps/ folder. */
+export const STAGED_MAP_NAME = 'reference.h3m'
+
 export interface StagingAction {
   kind: 'copy' | 'symlink' | 'mkdir' | 'map'
   from?: string
@@ -59,7 +62,9 @@ export function planStaging(bundleDir: string, mapPath: string | undefined, list
       details: { bundleDir, missing },
     })
   }
-  if (mapPath !== undefined) actions.push({ kind: 'map', from: mapPath, to: `Maps/${basename(mapPath)}` })
+  // The map is staged under a fixed ASCII name: the game lists no scenarios when the file name
+  // cannot be represented in the Windows code page (e.g. Cyrillic names under an English locale).
+  if (mapPath !== undefined) actions.push({ kind: 'map', from: mapPath, to: `Maps/${STAGED_MAP_NAME}` })
   return actions
 }
 

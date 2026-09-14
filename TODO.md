@@ -30,7 +30,8 @@ Notes:
 ## 2. Foundation rewrite
 
 Requirement from item 1: the H3M object parser must be able to list tiles covered by random
-objects (random monsters, artifacts, resources, dwellings, towns/heroes) so reference checks can
+objects (random monsters, artifacts, resources, dwellings, towns/heroes) — the whole sprite
+footprint, not just the object's tile (monster sprites span 2×2 tiles) — so reference checks can
 treat them as floating (`yarn ref selfcheck --floating-tiles`, later image-diff masks).
 
 The layered structure, format parsers, a renderer that only draws what's on screen, the headless

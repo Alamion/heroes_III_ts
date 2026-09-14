@@ -50,17 +50,43 @@ export interface ViewTiles {
 }
 
 /**
- * Converts the minimap rectangle to the view's top-left tile. The rectangle is clipped to the
- * minimap, so a clipped edge is reconstructed from the opposite edge and the known view size.
+ * Which edges of the bounding box are real dashed lines. A clipped edge only has the few pixels of
+ * the perpendicular dashes, which may even start in a dash gap, so the bounding box alone cannot
+ * tell a clipped edge from a drawn one.
  */
-export function rectToViewOrigin(rect: Rect, minimap: Rect, mapSize: number, viewTiles: { w: number; h: number }): ViewTiles {
-  const scale = minimap.w / mapSize
-  const clipped = {
-    left: rect.x <= minimap.x,
-    top: rect.y <= minimap.y,
-    right: rect.x + rect.w >= minimap.x + minimap.w,
-    bottom: rect.y + rect.h >= minimap.y + minimap.h,
+export function drawnEdges(frame: Frame, rect: Rect, color: Rgb): { left: boolean; top: boolean; right: boolean; bottom: boolean } {
+  const countRow = (y: number) => {
+    let n = 0
+    for (let x = rect.x; x < rect.x + rect.w; x++) if (pixelIs(frame, x, y, color)) n++
+    return n
   }
+  const countCol = (x: number) => {
+    let n = 0
+    for (let y = rect.y; y < rect.y + rect.h; y++) if (pixelIs(frame, x, y, color)) n++
+    return n
+  }
+  const line = (n: number, len: number) => n >= Math.max(4, Math.floor(len * 0.3))
+  return {
+    top: line(countRow(rect.y), rect.w),
+    bottom: line(countRow(rect.y + rect.h - 1), rect.w),
+    left: line(countCol(rect.x), rect.h),
+    right: line(countCol(rect.x + rect.w - 1), rect.h),
+  }
+}
+
+/**
+ * Converts the minimap rectangle to the view's top-left tile. A clipped edge is reconstructed from
+ * the opposite, drawn edge and the known view size.
+ */
+export function rectToViewOrigin(
+  rect: Rect,
+  minimap: Rect,
+  mapSize: number,
+  viewTiles: { w: number; h: number },
+  edges: { left: boolean; top: boolean; right: boolean; bottom: boolean },
+): ViewTiles {
+  const scale = minimap.w / mapSize
+  const clipped = { left: !edges.left, top: !edges.top, right: !edges.right, bottom: !edges.bottom }
   const axis = (start: number, len: number, mmStart: number, clipStart: boolean, clipEnd: boolean, viewLen: number): number => {
     if (!clipStart) return Math.round((start - mmStart) / scale)
     if (!clipEnd) return Math.round((start + len - mmStart) / scale) - viewLen
