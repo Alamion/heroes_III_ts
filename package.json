@@ -1,5 +1,5 @@
 {
-  "name": "herose_iii_dynam",
+  "name": "heroes_iii_dynam",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -8,26 +8,18 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "sync": "yarn run build && node scripts/sync.js",
-    "sync:watch": "yarn run build && node scripts/sync.js --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "ref": "node tools/reference-env/cli.ts"
+    "ref": "node tools/reference-env/cli.ts",
+    "h3": "node tools/inspect/cli.ts",
+    "verify": "node tools/checks/cli.ts"
   },
-  "dependencies": {
-    "fflate": "^0.8.2",
-    "lzma-purejs": "^0.9.3",
-    "pako": "^2.1.0",
-    "pixi.js": "^7.4.2",
-    "preact": "^10.29.0"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@preact/preset-vite": "^2.10.4",
     "@types/node": "^25.5.0",
-    "@types/pako": "^2.0.4",
     "@vitest/coverage-v8": "^4.1.2",
-    "chokidar": "^4.0.3",
+    "playwright-core": "^1.63.0",
     "typescript": "~5.9.3",
     "vite": "^8.0.1",
     "vitest": "^4.1.2"
