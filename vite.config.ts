@@ -1,45 +1,45 @@
 /// <reference types="vitest/config" />
+import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
-import preact from '@preact/preset-vite'
-import { promises as fs } from 'fs'
-import path from 'path'
 
+const repoRoot = import.meta.dirname
+const harnessRoot = resolve(repoRoot, 'src/adapters/dev-harness')
 
-
-// https://vite.dev/config/
-export default defineConfig({
-  plugins: [
-    preact(),
-    {
-      name: 'copy-project-json',
-      closeBundle: async () => {
-        await fs.copyFile(
-          path.resolve(__dirname, 'project.json'),
-          path.resolve(__dirname, 'dist', 'project.json')
-        )
+// The dev harness is the Vite root so `yarn dev` serves it at `/`. The build emits the harness
+// page and the render page used by headless checks (contracts/engine-api.md).
+export default defineConfig(({ command }) => ({
+  root: harnessRoot,
+  base: './',
+  // public/ holds git-ignored game files for development; never copy it into build output
+  // (constitution Principle I).
+  publicDir: command === 'serve' ? resolve(repoRoot, 'public') : false,
+  build: {
+    outDir: resolve(repoRoot, 'dist'),
+    emptyOutDir: true,
+    target: 'es2022',
+    rollupOptions: {
+      input: {
+        index: resolve(harnessRoot, 'index.html'),
+        render: resolve(harnessRoot, 'render.html'),
       },
     },
-  ],
-  base: './',
+  },
+  worker: {
+    format: 'es',
+  },
+  server: {
+    fs: { allow: [repoRoot] },
+  },
   test: {
-    globals: true,
+    root: repoRoot,
+    globals: false,
     environment: 'node',
     include: ['test/**/*.test.ts'],
+    testTimeout: 60_000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      include: ['src/**/*.ts'],
+      include: ['src/core/**/*.ts'],
     },
   },
-  server: {
-    fs: {
-      allow: ['..'],
-    },
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-    },
-  },
-  optimizeDeps: {
-    exclude: ['fflate', 'pako'],
-  },
-})
+}))

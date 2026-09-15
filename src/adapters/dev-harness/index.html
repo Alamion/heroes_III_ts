@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>heroes_iii_dynam — dev harness</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font: 13px/1.4 system-ui, sans-serif; color: #ddd; }
+      canvas { display: block; width: 100vw; height: 100vh; image-rendering: pixelated; }
+      #panel { position: fixed; top: 8px; left: 8px; background: rgba(0, 0, 0, 0.7); padding: 8px 10px; border-radius: 6px; max-width: 46ch; }
+      #panel label { display: block; margin: 2px 0; }
+      #status { margin-top: 4px; white-space: pre-wrap; }
+      #status.error { color: #f88; }
+      #panel.hidden > :not(#toggle) { display: none; }
+      #toggle { float: right; margin-left: 8px; cursor: pointer; background: none; color: inherit; border: 1px solid #666; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <canvas id="map"></canvas>
+    <div id="panel">
+      <button id="toggle" title="Hide panel (H)">×</button>
+      <label>Sprite archive (h3sprite.lod) <input id="archive" type="file" accept=".lod" /></label>
+      <label>Map (.h3m) <input id="mapfile" type="file" accept=".h3m" /></label>
+      <div>Arrows/drag: scroll · U: level · H: panel</div>
+      <div id="status">Choose the sprite archive and a map.</div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

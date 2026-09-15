@@ -1,0 +1,76 @@
+// Local cache of decoded data keyed by source identity (constitution IV, research.md §8). Any
+// failure (private mode, quota, blocked) degrades to a cache miss with a warning.
+
+import { log } from '../core/util/log.ts'
+import { CACHE_SCHEMA, noCache } from './cache-key.ts'
+import type { CacheStore, DecodedCache } from './cache-key.ts'
+
+export { cacheKey, CACHE_SCHEMA, noCache } from './cache-key.ts'
+export type { CacheStore, DecodedCache } from './cache-key.ts'
+
+export const CACHE_DB = 'h3dynam'
+
+function request<T>(req: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error ?? new Error('IndexedDB request failed'))
+  })
+}
+
+class IdbCache implements DecodedCache {
+  private db: Promise<IDBDatabase | undefined> | undefined
+
+  private open(): Promise<IDBDatabase | undefined> {
+    this.db ??= new Promise((resolve) => {
+      try {
+        const req = indexedDB.open(CACHE_DB, CACHE_SCHEMA)
+        req.onupgradeneeded = () => {
+          const db = req.result
+          for (const name of Array.from(db.objectStoreNames)) db.deleteObjectStore(name)
+          db.createObjectStore('atlas')
+          db.createObjectStore('world')
+        }
+        req.onsuccess = () => resolve(req.result)
+        req.onerror = () => {
+          log.warn('cache unavailable, decoding without cache', String(req.error))
+          resolve(undefined)
+        }
+        req.onblocked = () => {
+          log.warn('cache upgrade blocked, decoding without cache')
+          resolve(undefined)
+        }
+      } catch (err) {
+        log.warn('cache unavailable, decoding without cache', String(err))
+        resolve(undefined)
+      }
+    })
+    return this.db
+  }
+
+  async get<T>(store: CacheStore, key: string): Promise<T | undefined> {
+    try {
+      const db = await this.open()
+      if (db === undefined) return undefined
+      const value = await request(db.transaction(store, 'readonly').objectStore(store).get(key))
+      return value as T | undefined
+    } catch (err) {
+      log.warn(`cache read failed for ${key}`, String(err))
+      return undefined
+    }
+  }
+
+  async put(store: CacheStore, key: string, value: unknown): Promise<void> {
+    try {
+      const db = await this.open()
+      if (db === undefined) return
+      await request(db.transaction(store, 'readwrite').objectStore(store).put(value, key))
+    } catch (err) {
+      log.warn(`cache write failed for ${key}`, String(err))
+    }
+  }
+}
+
+export function openCache(enabled: boolean): DecodedCache {
+  if (!enabled || typeof indexedDB === 'undefined') return noCache
+  return new IdbCache()
+}

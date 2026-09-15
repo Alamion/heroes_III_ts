@@ -35,3 +35,6 @@ reference-env.config.json
 
 # Agent-local settings (may hold credentials)
 .claude/settings.local.json
+
+# Reports from yarn verify (may contain images rendered from game files)
+check-reports/

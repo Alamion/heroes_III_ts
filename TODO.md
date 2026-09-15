@@ -27,7 +27,13 @@ Notes:
 - Also capture the map editor (`h3maped.exe`) views: static object placement without animation
   noise is useful for placement checks.
 
-## 2. Foundation rewrite
+## 2. Foundation rewrite — done
+
+Implemented in [specs/002-foundation-rewrite/](specs/002-foundation-rewrite/) (`yarn h3 …`,
+`yarn verify …`, see AGENTS.md): no runtime dependencies, WebGL 1.0 terrain renderer, all
+base-game formats, floating tiles, fidelity and budget checks. Open follow-ups for later items:
+mud/lava river palettes, roads and map corners are not yet confirmed by game captures; the capture
+tooling fails on some maps (see AGENTS.md). Original notes kept below for history.
 
 Requirement from item 1: the H3M object parser must be able to list tiles covered by random
 objects (random monsters, artifacts, resources, dwellings, towns/heroes) — the whole sprite
@@ -72,4 +78,7 @@ One `/speckit-specify` each and roughly in this order:
 
 ## Housekeeping
 
-- Refresh or drop `.opencode/skills/developing-preact` if the foundation plan removes Preact.
+- ~~Refresh or drop `.opencode/skills/developing-preact`~~ — dropped with Preact (item 2).
+- Reference tooling (item 1): fix the one-tile mapping error of stills clamped at the top map
+  edge, and `still` failures on `Shadow Valleys.h3m` (level switch) and `Merchant Princes.h3m`
+  (reveal cheat) — needed to confirm roads against game stills.
