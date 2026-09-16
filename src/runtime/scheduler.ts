@@ -1,8 +1,7 @@
-// Frame scheduler (constitution IV, research.md §7): a frame is requested only when something
-// visible changed or the next palette step is due for animated tiles in view. While hidden or
-// paused nothing is pending — no animation frame, no timer.
+// Frame scheduler (constitution IV, spec 003 research §9): a frame is requested only when something
+// visible changed or the time the renderer reports as its next visible change (palette step or
+// object tick) is due. While hidden or paused nothing is pending — no animation frame, no timer.
 
-import { PALETTE_STEP_MS } from '../core/data/palette-rotation.ts'
 import type { Clock } from '../core/util/clock.ts'
 
 export interface SchedulerHost {
@@ -13,8 +12,8 @@ export interface SchedulerHost {
 }
 
 export interface FrameCallbacks {
-  /** Draws a frame at `timeMs`; returns whether animated content is in view. */
-  draw(timeMs: number): boolean
+  /** Draws a frame at `timeMs`; returns the time of the next visible change, or null. */
+  draw(timeMs: number): number | null
 }
 
 export class FrameScheduler {
@@ -26,8 +25,7 @@ export class FrameScheduler {
   private visible = true
   private paused = false
   private dirty = true
-  private animating = false
-  private lastStep = -1
+  private nextChange: number | null = null
   /** Frames drawn (for tests and budget checks). */
   frames = 0
 
@@ -95,15 +93,13 @@ export class FrameScheduler {
     this.frameHandle = undefined
     if (!this.active) return
     const now = this.clock.now()
-    const step = Math.floor(now / PALETTE_STEP_MS)
-    if (this.dirty || (this.animating && step !== this.lastStep)) {
-      this.animating = this.callbacks.draw(now)
+    if (this.dirty || (this.nextChange !== null && now >= this.nextChange)) {
+      this.nextChange = this.callbacks.draw(now)
       this.frames++
       this.dirty = false
-      this.lastStep = step
     }
-    if (this.animating) {
-      const wait = Math.max(1, (step + 1) * PALETTE_STEP_MS - this.clock.now())
+    if (this.nextChange !== null) {
+      const wait = Math.max(1, this.nextChange - this.clock.now())
       this.timerHandle = this.host.setTimer(() => {
         this.timerHandle = undefined
         this.schedule()

@@ -1,5 +1,5 @@
 import type { Command } from '../cli.ts'
-import { listCaptures } from '../store/lookup.ts'
+import { listCaptures, mapHashChecker, scanRecords } from '../store/lookup.ts'
 import { config, opt } from './common.ts'
 import { parseKind, parseSource } from './find.ts'
 
@@ -15,5 +15,10 @@ export const listCommand: Command = async (args) => {
     ...(kind !== undefined ? { kind } : {}),
     ...(before !== undefined ? { before } : {}),
   })
-  return { ok: true, captures }
+  const hashMatches = mapHashChecker(cfg.mapSearchDirs)
+  const byId = new Map(scanRecords(cfg.capturesDir).map((c) => [c.record.id, c.record]))
+  return { ok: true, captures: captures.map((c) => {
+    const record = byId.get(c.id)
+    return { ...c, mapSha256Matches: record === undefined ? null : hashMatches(record) }
+  }) }
 }

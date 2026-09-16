@@ -6,6 +6,8 @@ import { decodeFrame, parseDef } from '../../src/core/formats/def/def.ts'
 import { parseH3mFile } from '../../src/core/formats/h3m/h3m.ts'
 import { readTile } from '../../src/core/formats/h3m/types.ts'
 import { parseObjectsTxt } from '../../src/core/formats/text/objects-txt.ts'
+import { parseArtTraits } from '../../src/core/formats/text/artraits.ts'
+import { parseRiffPal } from '../../src/core/formats/pal/riff-pal.ts'
 import { NodeFileSource } from '../../tools/shared/node-source.ts'
 import { requireGameFile } from '../../tools/shared/game-files.ts'
 
@@ -72,5 +74,15 @@ describe.skipIf(bitmaps === null)('Objects.txt from h3bitmap.lod', () => {
     expect(rows.length).toBeGreaterThan(1000)
     expect(rows.some((r) => r.classId === 54)).toBe(true)
     expect(rows.some((r) => r.classId === 98)).toBe(true)
+  })
+})
+
+describe.skipIf(bitmaps === null)('h3bitmap.lod data files (spec 003)', () => {
+  it('reads artifact classes and the player palette', async () => {
+    const lod = await LodArchive.open(await NodeFileSource.open(bitmaps as string))
+    const classes = parseArtTraits(await lod.read('artraits.txt'))
+    expect(classes.length).toBeGreaterThanOrEqual(141)
+    expect(classes.slice(0, 7).every((c) => c === 'special')).toBe(true)
+    expect(parseRiffPal(await lod.read('game.pal'), 'game.pal')).toHaveLength(768)
   })
 })

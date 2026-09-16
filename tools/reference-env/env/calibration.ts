@@ -32,7 +32,7 @@ export function requireCalibration(stateDir: string, gameExeSha256: string): Cal
 }
 
 /** Probes a capture needs; calibrations written by older tooling lack some of them. */
-export const REQUIRED_PROBES = ['mainMenu', 'newGameMenu', 'scenarioScreen', 'scenarioIntroOk', 'levelSurface'] as const
+export const REQUIRED_PROBES = ['mainMenu', 'newGameMenu', 'scenarioScreen', 'scenarioIntroOk'] as const
 
 export function writeCalibration(stateDir: string, cal: Calibration): string {
   const path = calibrationPath(stateDir)
@@ -51,6 +51,4 @@ export const PROBES = {
   scenarioScreen: 'scenarioScreen',
   /** OK button of the scenario intro message (absent on maps without one). */
   scenarioIntroOk: 'scenarioIntroOk',
-  /** Level toggle button look while the surface is shown. */
-  levelSurface: 'levelSurface',
 } as const

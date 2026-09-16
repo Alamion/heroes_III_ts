@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { viewMapping } from '../../tools/reference-env/analysis/geometry.ts'
+import { viewRectProblem } from '../../tools/reference-env/analysis/minimap.ts'
 import { registerCaptures, type Capture } from '../../tools/reference-env/analysis/register.ts'
 import { mulberry32, parseTiles } from '../../tools/reference-env/commands/selfcheck.ts'
 import type { Point, Rect } from '../../tools/reference-env/model/types.ts'
@@ -67,5 +68,31 @@ describe('mulberry32', () => {
     const xs = [a(), a(), a()]
     expect([b(), b(), b()]).toEqual(xs)
     expect(xs.every((v) => v >= 0 && v < 1)).toBe(true)
+  })
+})
+
+describe('viewRectProblem (spec 003 rectangle guard)', () => {
+  const mm = { x: 630, y: 26, w: 144, h: 144 }
+  const tiles = { w: 19, h: 17 }
+  const all = { left: true, top: true, right: true, bottom: true }
+
+  it('accepts fully drawn rectangles of the view size at scales 1–4', () => {
+    for (const size of [144, 108, 72, 36]) {
+      const s = mm.w / size
+      const rect = { x: mm.x + Math.round(5 * s), y: mm.y + Math.round(5 * s), w: Math.round(19 * s), h: Math.round(17 * s) }
+      expect(viewRectProblem(rect, mm, size, tiles, all)).toBeNull()
+    }
+  })
+
+  it('accepts a top-clipped rectangle that starts in a dash gap next to the border', () => {
+    // 36×36 map, view origin y = −1: the top line is outside; side dashes start 3 px down.
+    const rect = { x: mm.x + 4, y: mm.y + 3, w: 76, h: 16 * 4 - 3 }
+    expect(viewRectProblem(rect, mm, 36, tiles, { ...all, top: false })).toBeNull()
+  })
+
+  it('rejects the misread of commit a869065 (clipped edge far from the border, wrong size)', () => {
+    const rect = { x: mm.x + 4, y: mm.y + 9, w: 76, h: 60 }
+    expect(viewRectProblem(rect, mm, 36, tiles, { ...all, top: false })).toMatch(/vertical/)
+    expect(viewRectProblem({ x: mm.x + 4, y: mm.y + 4, w: 76, h: 60 }, mm, 36, tiles, all)).toMatch(/vertical: drawn edges span 60/)
   })
 })

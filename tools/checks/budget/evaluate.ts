@@ -2,12 +2,14 @@
 
 import { CHECK_THRESHOLDS } from '../../../src/core/data/thresholds.ts'
 import { PALETTE_STEP_MS } from '../../../src/core/data/palette-rotation.ts'
+import { OBJECT_FRAME_MS } from '../../../src/core/data/animation.ts'
 
 export const LIMITS = {
   runtimeJsGzipBytes: 100 * 1024,
   coldStartMs: 10_000,
   warmStartMs: 2_000,
   memoryBytes: 300 * 1024 * 1024,
+  objectAtlasBytes: 64 * 1024 * 1024,
 } as const
 
 export interface BudgetEntry {
@@ -31,7 +33,9 @@ export interface MapMeasurement {
   hiddenPending: number
   idleFrames: number
   idleWindowMs: number
+  /** Palette-animated tiles or animated objects were in view. */
   animatedInView: boolean
+  objectAtlasBytes?: number
 }
 
 export function entry(id: string, measured: number, limit: number, unit: string, map?: string, note?: string): BudgetEntry {
@@ -40,7 +44,8 @@ export function entry(id: string, measured: number, limit: number, unit: string,
 
 export function evaluateMap(m: MapMeasurement): BudgetEntry[] {
   const maxSurface = m.display.width * m.display.dpr * m.display.height * m.display.dpr
-  const idleLimit = m.animatedInView ? Math.floor(m.idleWindowMs / PALETTE_STEP_MS) + 1 : 1
+  // Visible changes happen at palette steps and object ticks (research.md §9): one frame per change.
+  const idleLimit = m.animatedInView ? Math.floor(m.idleWindowMs / Math.min(PALETTE_STEP_MS, OBJECT_FRAME_MS)) + 1 : 1
   return [
     entry('cold-start', m.coldStartMs, LIMITS.coldStartMs, 'ms', m.map),
     entry('warm-start', m.warmStartMs, LIMITS.warmStartMs, 'ms', m.map),
@@ -49,6 +54,7 @@ export function evaluateMap(m: MapMeasurement): BudgetEntry[] {
     entry('hidden-frames', m.hiddenFrames, 0, 'frames', m.map),
     entry('hidden-timers', m.hiddenPending, 0, 'callbacks', m.map),
     entry('idle-cadence', m.idleFrames, idleLimit, 'frames', m.map, `${m.idleWindowMs} ms idle, ${m.animatedInView ? 'animated content in view' : 'static view'}`),
+    ...(m.objectAtlasBytes !== undefined ? [entry('object-atlas-bytes', m.objectAtlasBytes, LIMITS.objectAtlasBytes, 'bytes', m.map)] : []),
   ]
 }
 
@@ -57,6 +63,7 @@ export interface FrameWork {
   /** Vertex buffer capacity for the view (vertices actually drawn depend on map content). */
   vertices: number
   gpuBytes: number
+  objectQuads: number
   medianFrameCpuMs: number
 }
 
@@ -65,7 +72,8 @@ export function evaluateSc007(small: FrameWork, large: FrameWork): BudgetEntry[]
   const cpuAllowed = Math.max(small.medianFrameCpuMs * (1 + CHECK_THRESHOLDS.sc007CpuTolerance), small.medianFrameCpuMs + CHECK_THRESHOLDS.sc007CpuFloorMs)
   const bytesAllowed = small.gpuBytes * (1 + CHECK_THRESHOLDS.gpuBytesTolerance)
   return [
-    entry('sc007-draw-calls', large.drawCalls, small.drawCalls, 'calls', undefined, 'large map vs small map, same view'),
+    entry('sc007-draw-calls', large.drawCalls, small.drawCalls, 'calls', undefined, 'terrain and object draw calls, large map vs small map, same view'),
+    entry('sc007-object-quads', large.objectQuads, small.objectQuads, 'quads', undefined, 'objects drawn, large map vs small map, same view'),
     entry('sc007-vertices', large.vertices, small.vertices, 'vertices', undefined, 'vertex buffer capacity, large map vs small map, same view'),
     entry('sc007-gpu-bytes', large.gpuBytes, bytesAllowed, 'bytes', undefined, `small map ${small.gpuBytes}`),
     entry('sc007-frame-cpu', large.medianFrameCpuMs, cpuAllowed, 'ms', undefined, `small map median ${small.medianFrameCpuMs.toFixed(3)} ms`),

@@ -99,3 +99,35 @@ export function rectToViewOrigin(
     clipped,
   }
 }
+
+/** How far (px) a clipped edge's bounding box may start from the minimap border (dash gaps). */
+export const CLIPPED_EDGE_TOLERANCE = 4
+/** Allowed difference (px) between the drawn rectangle and the expected view size. */
+export const RECT_SIZE_TOLERANCE = 2
+
+/**
+ * Checks a view rectangle read from the minimap before it is trusted (specs/003-map-objects/
+ * research.md §10): drawn opposite edges must span the view size, clipped edges must lie on the
+ * minimap border. Returns a description of the problem, or null when the rectangle is plausible.
+ */
+export function viewRectProblem(
+  rect: Rect,
+  minimap: Rect,
+  mapSize: number,
+  viewTiles: { w: number; h: number },
+  edges: { left: boolean; top: boolean; right: boolean; bottom: boolean },
+): string | null {
+  const scale = minimap.w / mapSize
+  const axis = (name: string, start: number, len: number, mmStart: number, mmLen: number, drawnStart: boolean, drawnEnd: boolean, viewLen: number): string | null => {
+    const expected = viewLen * scale
+    if (drawnStart && drawnEnd && Math.abs(len - expected) > RECT_SIZE_TOLERANCE) return `${name}: drawn edges span ${len} px, expected ${expected.toFixed(1)}`
+    if (!drawnStart && start - mmStart > CLIPPED_EDGE_TOLERANCE) return `${name}: start edge not drawn but ${start - mmStart} px inside the minimap`
+    if (!drawnEnd && mmStart + mmLen - (start + len) > CLIPPED_EDGE_TOLERANCE) return `${name}: end edge not drawn but ${mmStart + mmLen - (start + len)} px inside the minimap`
+    if (drawnStart !== drawnEnd && len > expected + RECT_SIZE_TOLERANCE) return `${name}: one edge clipped but the rectangle is ${len} px, longer than the view`
+    return null
+  }
+  return (
+    axis('horizontal', rect.x, rect.w, minimap.x, minimap.w, edges.left, edges.right, viewTiles.w) ??
+    axis('vertical', rect.y, rect.h, minimap.y, minimap.h, edges.top, edges.bottom, viewTiles.h)
+  )
+}

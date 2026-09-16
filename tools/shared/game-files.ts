@@ -1,7 +1,8 @@
 // Locates game files: public/dev-assets/ first, then the local install configured for item 1
 // (`bundleDir`: Maps/ and Data/). Nothing found here is ever copied into the repository.
 
-import { existsSync, readdirSync, statSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { loadConfig } from '../reference-env/config.ts'
 import { ERROR_CODES, RefError } from '../reference-env/errors.ts'
@@ -44,11 +45,6 @@ export function gameDirs(env: Record<string, string | undefined> = process.env, 
     dataDir: findDir(bundleDir, 'Data'),
   }
   return cached
-}
-
-/** Clears the cached directory lookup (tests change env/config). */
-export function resetGameDirs(): void {
-  cached = undefined
 }
 
 function findIn(dir: string | undefined, name: string): string | undefined {
@@ -100,4 +96,21 @@ export function installMaps(dirs: GameDirs = gameDirs()): string[] {
     .filter((f) => f.toLowerCase().endsWith('.h3m'))
     .sort()
     .map((f) => join(dirs.mapsDir as string, f))
+}
+
+/** sha256 of the primary check map `test_map.h3m` (specs/003-map-objects/spec.md Context). */
+export const TEST_MAP_SHA256 = '6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c'
+
+/**
+ * For checks and tests: the path of `test_map.h3m`, or null with a logged skip reason. Warns when
+ * the file was edited since its zones were measured (spec 003 Context must then be updated).
+ */
+export function requireTestMap(dirs: GameDirs = gameDirs()): string | null {
+  const path = requireGameFile('test_map.h3m', dirs)
+  if (path === null) return null
+  const sha = createHash('sha256').update(readFileSync(path)).digest('hex')
+  if (sha !== TEST_MAP_SHA256) {
+    log.warn(`test_map.h3m changed (sha256 ${sha}); update the zones and hash in specs/003-map-objects/spec.md`)
+  }
+  return path
 }

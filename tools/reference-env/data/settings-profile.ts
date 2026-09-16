@@ -13,8 +13,13 @@ export const SETTINGS_PROFILE = {
 } as const
 
 export const CHEAT_INPUT = {
-  /** Only the first code works in the original build; the second is HD Mod-specific. */
-  codes: ['nwcwhatisthematrix', 'nwctheone'] as readonly string[],
+  /**
+   * Codes in the order they are typed. Only `nwcwhatisthematrix` works in the original build
+   * (`nwctheone` is HD Mod-specific). It is repeated because a scenario intro message the probe
+   * does not recognise (another size, e.g. Merchant Princes.h3m) swallows the first attempt, whose
+   * Return closes the message (spec 003 research §11).
+   */
+  codes: ['nwcwhatisthematrix', 'nwcwhatisthematrix', 'nwcwhatisthematrix', 'nwctheone'] as readonly string[],
   messageLineKey: 'Tab',
   /** The Russian build types Cyrillic by key position unless Ctrl is held. */
   holdKey: 'Control_L',

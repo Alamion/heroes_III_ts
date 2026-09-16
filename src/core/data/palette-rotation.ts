@@ -28,16 +28,16 @@ export const PALETTE_STEP_MS = 180
 export const PHASE_MODEL: 'global' | 'independent' = 'global'
 
 /**
- * Rotating ranges. Water, clear river and lava are verified against reference captures (lava rotates
- * nine colours, 246–254, not h3lwp's eight); mud and lava rivers follow h3lwp and are not yet seen
- * in a capture.
+ * Rotating ranges, all verified against reference captures. Lava rotates nine colours (246–254, not
+ * h3lwp's eight). Mud river rotates twelve colours 228–239 and lava river nine colours 240–248
+ * (measured on test_map.h3m stills 2026-09-16; h3lwp's 183–188 + 240–245 and 240–247 do not match).
  */
 export const ANIMATED_DEFS = [
   { defName: 'watrtl.def', rotations: [{ start: 229, length: 12 }, { start: 242, length: 12 }] },
   { defName: 'lavatl.def', rotations: [{ start: 246, length: 9 }] },
   { defName: 'clrrvr.def', rotations: [{ start: 183, length: 12 }, { start: 195, length: 6 }] },
-  { defName: 'mudrvr.def', rotations: [{ start: 183, length: 6 }, { start: 240, length: 6 }] },
-  { defName: 'lavrvr.def', rotations: [{ start: 240, length: 8 }] },
+  { defName: 'mudrvr.def', rotations: [{ start: 228, length: 12 }] },
+  { defName: 'lavrvr.def', rotations: [{ start: 240, length: 9 }] },
 ] as const satisfies readonly AnimatedDef[]
 
 export function rotationsFor(defName: string): readonly PaletteRotation[] {

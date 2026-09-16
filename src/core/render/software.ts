@@ -7,23 +7,29 @@ import type { Atlas } from './atlas.ts'
 import type { Camera } from './camera.ts'
 import { VERTEX_SIZE, VERTICES_PER_QUAD } from './draw-plan.ts'
 import type { DrawPlan } from './draw-plan.ts'
+import { FLAG_INDEX, SHADOW_MARKER_ALPHA, shadowChannel } from '../data/animation.ts'
+import type { ObjectAtlas } from './object-atlas.ts'
+import { OBJECT_VERTEX_SIZE, OBJECT_VERTICES_PER_QUAD } from './object-plan.ts'
+import type { ObjectPlan } from './object-plan.ts'
 
 /** Renders into an RGBA buffer of camera.width × camera.height (scale 1). `palettes` = rotated palette texture data. */
-export function rasterize(plan: DrawPlan, atlas: Atlas, palettes: Uint8Array, cam: Camera, background: [number, number, number] = [0, 0, 0]): Uint8Array {
+export function rasterize(plan: DrawPlan, atlas: Atlas, palettes: Uint8Array, cam: Camera, background: [number, number, number] = [0, 0, 0], quads: { from: number; to: number } = { from: 0, to: plan.quadCount }, target?: Uint8Array): Uint8Array {
   if (cam.scale !== 1) throw new RangeError('software rasterizer supports scale 1 only')
   const { width, height } = cam
-  const out = new Uint8Array(width * height * 4)
-  for (let i = 0; i < width * height; i++) {
-    out[i * 4] = background[0]
-    out[i * 4 + 1] = background[1]
-    out[i * 4 + 2] = background[2]
-    out[i * 4 + 3] = 255
+  const out = target ?? new Uint8Array(width * height * 4)
+  if (target === undefined) {
+    for (let i = 0; i < width * height; i++) {
+      out[i * 4] = background[0]
+      out[i * 4 + 1] = background[1]
+      out[i * 4 + 2] = background[2]
+      out[i * 4 + 3] = 255
+    }
   }
   const { size } = atlas.layout
   const originX = plan.range.x0 * TILE_SIZE - cam.offsetX
   const originY = plan.range.y0 * TILE_SIZE - cam.offsetY
   const v = plan.vertices
-  for (let q = 0; q < plan.quadCount; q++) {
+  for (let q = quads.from; q < quads.to; q++) {
     const b = q * VERTICES_PER_QUAD * VERTEX_SIZE
     // Vertex 0 is the top-left corner, vertex 5 the bottom-right (see writeQuad).
     const x0 = (v[b] as number) + originX
@@ -104,4 +110,126 @@ export function rasterizeRows(plan: DrawPlan, atlas: Atlas, palettes: Uint8Array
     }
   }
   return out
+}
+
+export interface SceneObjects {
+  plan: ObjectPlan
+  atlas: ObjectAtlas
+  /** 9 × RGB flag colours (players 0–7, neutral). */
+  flagColors: Uint8Array
+}
+
+/**
+ * Terrain, rivers and roads, then objects, then the map border — the renderer's layer order
+ * (research.md §2). `owners`, when given, receives the render-object index of the topmost object
+ * body drawn at each pixel, or of a shadow over no object (−1 = none).
+ */
+export function rasterizeScene(plan: DrawPlan, atlas: Atlas, palettes: Uint8Array, cam: Camera, objects: SceneObjects | undefined, owners?: Int32Array): Uint8Array {
+  const borderFrom = plan.quadCount - plan.layerQuads.border
+  const out = rasterize(plan, atlas, palettes, cam, [0, 0, 0], { from: 0, to: borderFrom })
+  if (objects !== undefined) drawObjects(out, objects, cam, owners)
+  else owners?.fill(-1)
+  rasterize(plan, atlas, palettes, cam, [0, 0, 0], { from: borderFrom, to: plan.quadCount }, out)
+  return out
+}
+
+/** 8-bit display channel ↔ 5/6-bit value of the game's 16-bit colour. */
+function toBits(v: number, max: number): number {
+  return Math.round((v * max) / 255)
+}
+function fromBits(c: number, max: number): number {
+  return Math.round((c * 255) / max)
+}
+
+/** Applies `dark` then `light` shadow steps to an RGB display colour in 565 space. */
+export function shadowColor(r: number, g: number, b: number, dark: number, light: number): [number, number, number] {
+  let r5 = toBits(r, 31)
+  let g6 = toBits(g, 63)
+  let b5 = toBits(b, 31)
+  for (let i = 0; i < dark; i++) {
+    r5 = shadowChannel(r5, 'dark')
+    g6 = shadowChannel(g6, 'dark')
+    b5 = shadowChannel(b5, 'dark')
+  }
+  for (let i = 0; i < light; i++) {
+    r5 = shadowChannel(r5, 'light')
+    g6 = shadowChannel(g6, 'light')
+    b5 = shadowChannel(b5, 'light')
+  }
+  return [fromBits(r5, 31), fromBits(g6, 63), fromBits(b5, 31)]
+}
+
+/**
+ * Draws an object plan over `out` (RGBA, camera-sized): palette lookup and flag colour for body
+ * pixels; shadow pixels are counted per kind since the last body pixel and applied at the end in
+ * 16-bit colour (research.md T046). The WebGL renderer uses the same model, so both stay bit-equal.
+ */
+export function drawObjects(out: Uint8Array, objects: SceneObjects, cam: Camera, owners?: Int32Array): void {
+  const { plan, atlas, flagColors } = objects
+  const { width, height } = cam
+  owners?.fill(-1)
+  const dark = new Uint8Array(width * height)
+  const light = new Uint8Array(width * height)
+  const size = atlas.layout.pageSize
+  const originX = plan.range.x0 * TILE_SIZE - cam.offsetX
+  const originY = plan.range.y0 * TILE_SIZE - cam.offsetY
+  const v = plan.vertices
+  for (let q = 0; q < plan.quadCount; q++) {
+    const b = q * OBJECT_VERTICES_PER_QUAD * OBJECT_VERTEX_SIZE
+    const last = b + 5 * OBJECT_VERTEX_SIZE
+    const x0 = (v[b] as number) + originX
+    const y0 = (v[b + 1] as number) + originY
+    const x1 = (v[last] as number) + originX
+    const y1 = (v[last + 1] as number) + originY
+    const u0 = Math.round((v[b + 2] as number) * size)
+    const v0 = Math.round((v[b + 3] as number) * size)
+    const u1 = Math.round((v[last + 2] as number) * size)
+    const row = v[b + 4] as number
+    const page = atlas.pages[v[b + 5] as number] as Uint8Array
+    const owner = v[b + 6] as number
+    const object = plan.quadObjects[q] as number
+    const stepU = u1 > u0 ? 1 : -1
+    const startU = stepU > 0 ? u0 : u0 - 1
+    for (let dy = 0; dy < y1 - y0; dy++) {
+      const sy = y0 + dy
+      if (sy < 0 || sy >= height) continue
+      const ty = v0 + dy
+      for (let dx = 0; dx < x1 - x0; dx++) {
+        const sx = x0 + dx
+        if (sx < 0 || sx >= width) continue
+        const idx = page[ty * size + startU + stepU * dx] as number
+        const p = (row * 256 + idx) * 4
+        const a = atlas.palettes[p + 3] as number
+        if (a === 0) continue
+        const i = sy * width + sx
+        // A shadow keeps the owner of the object it darkens, so that object's frame stays searchable.
+        if (owners !== undefined && (a === 255 || owners[i] === -1)) owners[i] = object
+        if (a !== 255) {
+          if (a === SHADOW_MARKER_ALPHA.dark) dark[i] = (dark[i] as number) + 1
+          else light[i] = (light[i] as number) + 1
+          continue
+        }
+        dark[i] = 0
+        light[i] = 0
+        const o = i * 4
+        if (idx === FLAG_INDEX) {
+          out[o] = flagColors[owner * 3] as number
+          out[o + 1] = flagColors[owner * 3 + 1] as number
+          out[o + 2] = flagColors[owner * 3 + 2] as number
+        } else {
+          out[o] = atlas.palettes[p] as number
+          out[o + 1] = atlas.palettes[p + 1] as number
+          out[o + 2] = atlas.palettes[p + 2] as number
+        }
+      }
+    }
+  }
+  for (let i = 0; i < width * height; i++) {
+    if (dark[i] === 0 && light[i] === 0) continue
+    const o = i * 4
+    const [r, g, bl] = shadowColor(out[o] as number, out[o + 1] as number, out[o + 2] as number, dark[i] as number, light[i] as number)
+    out[o] = r
+    out[o + 1] = g
+    out[o + 2] = bl
+  }
 }

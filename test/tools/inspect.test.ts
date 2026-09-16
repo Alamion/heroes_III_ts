@@ -8,6 +8,7 @@ import { writeLod } from '../fixtures/synthetic/lod.ts'
 import { writePcxIndexed } from '../fixtures/synthetic/pcx.ts'
 import { allBodiesMap, writeH3mGz } from '../fixtures/synthetic/h3m.ts'
 import { runTool } from '../fixtures/run-tool.ts'
+import { writeSyntheticFiles } from '../fixtures/synthetic/terrain-archive.ts'
 
 const dir = mkdtempSync(join(tmpdir(), 'inspect-'))
 afterAll(() => rmSync(dir, { recursive: true, force: true }))
@@ -62,6 +63,30 @@ describe('yarn h3 (synthetic files)', () => {
     expect(one.json).toMatchObject({ ok: true, object: { index: 0 } })
     const all = await h3(['map', 'parse-all', '--dir', dir])
     expect(all.json).toMatchObject({ ok: true, parsed: 1, failed: [] })
+  })
+
+  it('lists the object draw list and random outcomes (spec 003)', async () => {
+    const files = writeSyntheticFiles([{ name: 'objects.h3m', size: 36, underground: true }])
+    const common = ['--archive', files.archive, '--data-archive', files.dataArchive]
+    const map = files.maps['objects.h3m'] as string
+    const list = await h3(['map', 'draw-list', map, '--level', '0', '--region', '0,0,18,16', '--tick', '3', ...common])
+    expect(list.code).toBe(0)
+    const json = list.json as { ok: boolean; tick: number; entries: { className: string; kind: string; x: number; y: number; frame: number; frameCount: number; phase: number; flat: boolean }[]; hidden: { className: string }[] }
+    expect(json).toMatchObject({ ok: true, tick: 3 })
+    expect(json.hidden.map((h) => h.className)).toEqual(['event'])
+    expect(json.entries.some((e) => e.className === 'event')).toBe(false)
+    const heroParts = json.entries.filter((e) => e.kind !== 'object')
+    expect(heroParts.filter((e) => e.kind === 'heroBody').length).toBeGreaterThan(0)
+    expect(heroParts.filter((e) => e.kind === 'heroFlag').length).toBe(heroParts.filter((e) => e.kind === 'heroBody').length)
+    // Flat objects first; animated frames follow tick + phase.
+    const firstStanding = json.entries.findIndex((e) => !e.flat)
+    expect(json.entries.slice(firstStanding).every((e) => !e.flat)).toBe(true)
+    for (const e of json.entries) expect(e.frame).toBe((3 + e.phase) % e.frameCount)
+    const random = await h3(['map', 'random', map, '--seed', '5', ...common])
+    expect(random.code).toBe(0)
+    const outcomes = (random.json as { outcomes: { className: string; resolved: { classId: number } }[] }).outcomes
+    expect(outcomes.filter((o) => o.className === 'random_monster').every((o) => o.resolved.classId === 54)).toBe(true)
+    rmSync(files.dir, { recursive: true, force: true })
   })
 
   it('uses documented exit codes and error JSON', async () => {

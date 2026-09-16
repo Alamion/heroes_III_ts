@@ -1,6 +1,6 @@
 // Wine in a dedicated prefix under stateDir. Never touches ~/.wine.
 import { spawn } from 'node:child_process'
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync } from 'node:fs'
+import { closeSync, existsSync, mkdirSync, openSync } from 'node:fs'
 import { join } from 'node:path'
 import { log } from '../log.ts'
 import type { Env, LongRunning } from './process.ts'
@@ -58,23 +58,6 @@ export async function regAdd(ctx: WineContext, key: string, name: string, type: 
   })
 }
 
-/** Reads a REG_SZ/REG_DWORD value from the prefix's user.reg without starting Wine. */
-export function readUserRegValue(ctx: WineContext, key: string, name: string): string | undefined {
-  const path = join(ctx.prefix, 'user.reg')
-  if (!existsSync(path)) return undefined
-  const text = readFileSync(path, 'utf8')
-  const header = `[${key.replace(/^HKCU\\/, '').replace(/\\/g, '\\\\')}]`
-  const start = text.indexOf(header)
-  if (start < 0) return undefined
-  const end = text.indexOf('\n[', start + header.length)
-  const section = text.slice(start, end < 0 ? undefined : end)
-  const m = new RegExp(`^"${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"=(.*)$`, 'm').exec(section)
-  if (m?.[1] === undefined) return undefined
-  const raw = m[1].trim()
-  if (raw.startsWith('dword:')) return String(parseInt(raw.slice(6), 16))
-  return raw.replace(/^"|"$/g, '')
-}
-
 export interface LaunchedApp {
   proc: LongRunning
   logPath: string
@@ -125,7 +108,3 @@ export async function killAll(ctx: WineContext): Promise<void> {
   await sleep(500)
 }
 
-export async function wineVersion(ctx: WineContext): Promise<string> {
-  const r = await runProcess(ctx.wineBinary, ['--version'], { timeoutMs: 10_000 })
-  return r.stdout.toString().trim()
-}

@@ -7,7 +7,9 @@ import type { Atlas } from '../core/render/atlas.ts'
 import { centeredCamera, clampCamera } from '../core/render/camera.ts'
 import type { Camera } from '../core/render/camera.ts'
 import { TerrainRenderer } from '../core/render/webgl-renderer.ts'
-import type { RendererStats } from '../core/render/webgl-renderer.ts'
+import type { FrameAnimation, RendererStats } from '../core/render/webgl-renderer.ts'
+import type { DrawListEntry } from '../core/render/object-plan.ts'
+import { ObjectIndex } from '../core/state/object-index.ts'
 import { applyEvent } from '../core/sim/events.ts'
 import type { WorldState } from '../core/state/world.ts'
 import type { Clock } from '../core/util/clock.ts'
@@ -17,7 +19,7 @@ import { log } from '../core/util/log.ts'
 import type { Logger } from './logger.ts'
 import { installLogger } from './logger.ts'
 import { openCache } from './cache.ts'
-import { decodeArchive, decodeMap } from './decode.ts'
+import { checkDataArchive, decodeArchive, decodeMap, decodeObjects } from './decode.ts'
 import type { WorkerDiagnostic, WorkerRequest, WorkerResponse } from './protocol.ts'
 import { FrameScheduler } from './scheduler.ts'
 import type { SchedulerHost } from './scheduler.ts'
@@ -34,6 +36,10 @@ export interface EngineOptions {
   schedulerHost?: SchedulerHost
   /** Tiles of border the camera may show beyond the map edge. */
   borderTiles?: number
+  /** Decides random-object outcomes (default 1). */
+  seed?: number
+  /** false: draw terrain only. */
+  objects?: boolean
 }
 
 export type Diagnostic = WorkerDiagnostic
@@ -45,6 +51,7 @@ export type LoadResult =
 export interface EngineStatus {
   state: 'idle' | 'loading' | 'ready' | 'error'
   archive: string | null
+  dataArchive: string | null
   map: string | null
   diagnostics: Diagnostic[]
 }
@@ -56,11 +63,18 @@ export interface EngineStats extends RendererStats {
   camera: Camera
   visible: boolean
   paused: boolean
+  /** Time of the next visible change after the last frame (palette step or object tick), or null. */
+  nextChangeMs: number | null
 }
 
 export interface Engine {
   loadArchive(file: Blob, name?: string): Promise<LoadResult>
   loadMap(file: Blob, name?: string): Promise<LoadResult>
+  /** h3bitmap.lod: Objects.txt, artraits.txt and game.pal; objects are drawn only with it. */
+  loadDataArchive(file: Blob, name?: string): Promise<LoadResult>
+  setObjectsVisible(visible: boolean): void
+  /** Objects drawn in the last frame, in draw order (collected with preserveDrawingBuffer only). */
+  drawList(): DrawListEntry[]
   setLevel(level: number): void
   toggleLevel(): void
   scrollBy(dxCss: number, dyCss: number): void
@@ -71,13 +85,16 @@ export interface Engine {
   setVisible(visible: boolean): void
   setPaused(paused: boolean): void
   /** Draws one frame now at a given palette step (checks); returns false if not ready. */
-  renderNow(anim: { step: number } | { timeMs: number }): boolean
+  renderNow(anim: FrameAnimation): boolean
   onStatus(listener: (s: EngineStatus) => void): () => void
   status(): EngineStatus
   stats(): EngineStats
   world(): WorldState | undefined
   dispose(): void
 }
+
+/** Worker request without the id the engine assigns (distributes over the union). */
+type RequestWithoutId = WorkerRequest extends infer R ? (R extends unknown ? Omit<R, 'id'> : never) : never
 
 function browserSchedulerHost(): SchedulerHost {
   return {
@@ -110,9 +127,17 @@ export function createEngine(options: EngineOptions): Engine {
   const renderer = new TerrainRenderer(gl, () => performance.now())
   const cache = openCache(options.cache !== false)
   const listeners = new Set<(s: EngineStatus) => void>()
-  const status: EngineStatus = { state: 'idle', archive: null, map: null, diagnostics: [] }
+  const status: EngineStatus = { state: 'idle', archive: null, dataArchive: null, map: null, diagnostics: [] }
   let world: WorldState | undefined
   let atlas: Atlas | undefined
+  const seed = options.seed ?? 1
+  renderer.setCollectDrawList(options.preserveDrawingBuffer === true)
+  let spriteFile: { file: Blob; name: string; identity: string } | undefined
+  let dataFile: { file: Blob; name: string; identity: string } | undefined
+  let mapIdentity: string | undefined
+  let objectsKey: string | undefined
+  let objectsBuild: Promise<void> | undefined
+  let dataMissingReported = false
   let camera: Camera = { level: 0, offsetX: 0, offsetY: 0, width: canvas.width, height: canvas.height, scale: 1 }
   let dpr = 1
   let visible = true
@@ -144,10 +169,10 @@ export function createEngine(options: EngineOptions): Engine {
 
   const scheduler = new FrameScheduler(options.schedulerHost ?? browserSchedulerHost(), clock, {
     draw: (timeMs) => {
-      if (world === undefined || contextLost) return false
+      if (world === undefined || contextLost) return null
       world = applyEvent(world, { kind: 'setTime', timeMs })
       renderer.render(camera, { timeMs: world.animationTimeMs })
-      return renderer.hasAnimationInView
+      return renderer.nextChangeMs(world.animationTimeMs)
     },
   })
 
@@ -162,18 +187,27 @@ export function createEngine(options: EngineOptions): Engine {
     scheduler.invalidate()
   }
 
-  const run = async (req: Omit<WorkerRequest, 'id'>): Promise<WorkerResponse> => {
+  const run = async (req: RequestWithoutId): Promise<WorkerResponse> => {
     if (worker === undefined) {
       try {
         if (req.kind === 'openArchive') {
           const r = await decodeArchive(req.file, req.name, cache)
           return { id: 0, kind: 'archiveReady', ...r }
         }
+        if (req.kind === 'openDataArchive') {
+          const r = await checkDataArchive(req.file, req.name)
+          return { id: 0, kind: 'dataArchiveReady', ...r }
+        }
+        if (req.kind === 'buildObjects') {
+          if (world === undefined) throw new Error('no map loaded')
+          const r = await decodeObjects(req.sprites, req.data, { world, identity: req.mapIdentity }, req.seed, cache)
+          return { id: 0, kind: 'objectsReady', ...r }
+        }
         const r = await decodeMap(req.file, req.name, cache)
         return { id: 0, kind: 'mapReady', ...r }
       } catch (err) {
         const e = err as { toJSON?: () => SerializedFormatError }
-        return { id: 0, kind: 'failed', error: typeof e.toJSON === 'function' ? e.toJSON() : { level: 'error', code: 'INTERNAL', message: String(err), file: req.name } }
+        return { id: 0, kind: 'failed', error: typeof e.toJSON === 'function' ? e.toJSON() : { level: 'error', code: 'INTERNAL', message: String(err), file: 'name' in req ? req.name : req.data.name } }
       }
     }
     const id = nextId++
@@ -196,6 +230,38 @@ export function createEngine(options: EngineOptions): Engine {
 
   const fileName = (file: Blob, name: string | undefined): string => name ?? (file instanceof File ? file.name : 'unnamed')
 
+  /** Builds the object layer once sprite archive, data archive and map are loaded. */
+  const refreshObjects = async (): Promise<void> => {
+    if (options.objects === false || world === undefined || spriteFile === undefined || mapIdentity === undefined) return
+    if (dataFile === undefined) {
+      if (!dataMissingReported) {
+        dataMissingReported = true
+        diagnose({ level: 'warn', code: 'DATA_ARCHIVE_MISSING', message: 'objects are not drawn: supply the data archive (h3bitmap.lod)' })
+        emit()
+      }
+      return
+    }
+    const key = `${spriteFile.identity}:${dataFile.identity}:${mapIdentity}:${seed}`
+    if (key === objectsKey) return
+    objectsKey = key
+    renderer.setObjects(undefined)
+    const r = await run({ kind: 'buildObjects', sprites: spriteFile, data: dataFile, mapIdentity, seed, useCache: options.cache !== false })
+    if (key !== objectsKey || world === undefined) return
+    if (r.kind === 'failed') {
+      failure(r.error, dataFile.name)
+      return
+    }
+    if (r.kind !== 'objectsReady') return
+    r.warnings.forEach(diagnose)
+    renderer.setObjects({ index: new ObjectIndex(r.objects, world.size, world.levels), atlas: r.atlas, flagColors: r.flagColors })
+    emit()
+    scheduler.invalidate()
+  }
+  const scheduleObjects = (): Promise<void> => {
+    objectsBuild = (objectsBuild ?? Promise.resolve()).then(refreshObjects).catch((err: unknown) => log.error('object layer failed', String(err)))
+    return objectsBuild
+  }
+
   const engine: Engine = {
     async loadArchive(file, name) {
       const n = fileName(file, name)
@@ -207,8 +273,10 @@ export function createEngine(options: EngineOptions): Engine {
       atlas = r.atlas
       renderer.setAtlas(r.atlas)
       status.archive = n
+      spriteFile = { file, name: n, identity: r.identity }
       r.warnings.forEach(diagnose)
       refreshReady()
+      await scheduleObjects()
       return { ok: true, identity: r.identity, fromCache: r.fromCache, warnings: r.warnings }
     },
     async loadMap(file, name) {
@@ -222,11 +290,31 @@ export function createEngine(options: EngineOptions): Engine {
       renderer.setTerrain(r.world)
       status.map = n
       camera = centeredCamera(0, (world.size * TILE_SIZE) / 2, (world.size * TILE_SIZE) / 2, camera.width, camera.height, dpr)
+      mapIdentity = r.identity
+      renderer.setObjects(undefined)
+      objectsKey = undefined
       r.warnings.forEach(diagnose)
       clampAndInvalidate()
       refreshReady()
+      await scheduleObjects()
       return { ok: true, identity: r.identity, fromCache: r.fromCache, warnings: r.warnings }
     },
+    async loadDataArchive(file, name) {
+      const n = fileName(file, name)
+      const r = await run({ kind: 'openDataArchive', file, name: n, useCache: options.cache !== false })
+      if (r.kind === 'failed') return failure(r.error, n)
+      if (r.kind !== 'dataArchiveReady') return failure({ level: 'error', code: 'PROTOCOL', message: 'unexpected worker reply' }, n)
+      dataFile = { file, name: n, identity: r.identity }
+      status.dataArchive = n
+      emit()
+      await scheduleObjects()
+      return { ok: true, identity: r.identity, fromCache: false, warnings: r.warnings }
+    },
+    setObjectsVisible(v) {
+      renderer.setObjectsVisible(v)
+      scheduler.invalidate()
+    },
+    drawList: () => renderer.drawList(),
     setLevel(level) {
       if (world === undefined || level < 0 || level >= world.levels || level === camera.level) return
       camera = { ...camera, level }
@@ -284,6 +372,7 @@ export function createEngine(options: EngineOptions): Engine {
       camera: { ...camera },
       visible,
       paused,
+      nextChangeMs: renderer.nextChangeMs(world?.animationTimeMs ?? 0),
     }),
     world: () => world,
     dispose() {

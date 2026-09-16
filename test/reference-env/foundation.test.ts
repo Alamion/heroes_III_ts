@@ -56,6 +56,19 @@ describe('validateRecord', () => {
     const { startSetup: _omit, ...rest } = makeRecord()
     expectCode(() => validateRecord(rest), ERROR_CODES.CONFIG_INVALID)
   })
+  it('validates the optional verification block (spec 003)', () => {
+    const verification = {
+      minimapRect: { x: 634, y: 27, w: 76, h: 63, drawnEdges: { left: true, top: false, right: true, bottom: true } },
+      level: { method: 'minimap-terrain', agreement: [0.92, 0.2], margin: 0.72 },
+      mapping: { method: 'terrain-render', compared: 75014, differingRecorded: 134, bestShift: { dx: 0, dy: 0 }, bestDiffering: 134 },
+    }
+    expect(() => validateRecord({ ...makeRecord(), verification })).not.toThrow()
+    expectCode(() => validateRecord({ ...makeRecord(), verification: { ...verification, level: { ...verification.level, method: 'button-hash' } } }), ERROR_CODES.CONFIG_INVALID)
+    expectCode(() => validateRecord({ ...makeRecord(), verification: { ...verification, mapping: { ...verification.mapping, bestShift: { dx: 2, dy: 0 } } } }), ERROR_CODES.CONFIG_INVALID)
+  })
+  it('has error codes for level and mapping self-checks', () => {
+    for (const c of ['LEVEL_UNKNOWN', 'LEVEL_MISMATCH', 'MAPPING_UNVERIFIED'] as const) expect(ERROR_CODES[c]).toBe(c)
+  })
   it('rejects level 1 without underground', () => {
     const r = makeRecord({ level: 1, map: { ...makeRecord().map, hasUnderground: false } })
     expectCode(() => validateRecord(r), ERROR_CODES.CONFIG_INVALID)

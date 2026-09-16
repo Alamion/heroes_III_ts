@@ -24,10 +24,30 @@ export async function renderCommand(args: ParsedArgs): Promise<CommandResult> {
   const height = (region.y1 - region.y0 + 1) * TILE_SIZE
   const renderer = await HeadlessRenderer.open({ rebuild: flag(args, 'rebuild'), width: Math.max(width, 64), height: Math.max(height, 64) })
   try {
-    const frame = await renderer.render({ archive, map, width, height, level, originTile: { x: region.x0, y: region.y0 }, originPixel: { x: 0, y: 0 }, step })
+    const tickArg = opt(args, 'tick')
+    const seedArg = opt(args, 'seed')
+    const tick = tickArg !== undefined ? Number(tickArg) : step
+    const seed = seedArg === undefined ? 1 : Number(seedArg)
+    if (!Number.isInteger(tick) || !Number.isInteger(seed)) throw usage('--tick and --seed must be integers')
+    const objects = !flag(args, 'no-objects')
+    const frame = await renderer.render({ archive, map, width, height, level, originTile: { x: region.x0, y: region.y0 }, originPixel: { x: 0, y: 0 }, step, tick, seed, objects, ...(objects ? {} : { dataArchive: null }), drawList: flag(args, 'draw-list') })
     await mkdir(dirname(out), { recursive: true })
     await writeFile(out, encodePng({ width, height, channels: 4, data: frame.rgba }))
-    return { ok: true, out, width, height, level, region, paletteStep: step, visible: region }
+    return {
+      ok: true,
+      out,
+      width,
+      height,
+      level,
+      region,
+      paletteStep: step,
+      tick,
+      seed,
+      visible: region,
+      stats: { objectQuads: frame.stats.objectQuads ?? 0 },
+      ...(frame.drawList !== undefined ? { drawList: frame.drawList } : {}),
+      ...(frame.diagnostics !== undefined ? { diagnostics: frame.diagnostics } : {}),
+    }
   } finally {
     await renderer.close()
   }

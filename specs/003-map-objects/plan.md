@@ -1,0 +1,207 @@
+# Implementation Plan: Map Objects and Animations
+
+**Branch**: `003-map-objects` | **Date**: 2026-09-16 | **Spec**: [spec.md](spec.md)
+
+**Input**: Feature specification from `/specs/003-map-objects/spec.md`
+
+## Summary
+
+Draw every visible map object, hero and town on top of the spec 002 terrain renderer, in the
+original draw order, with player flag colours and shadows, animated on the original timing, and
+extend the fidelity check from terrain-only to whole views. Objects get their own per-map atlas
+(cropped frames, 2048² pages, built in the worker and cached), a spatial index so work depends on
+the view, a second shader program (palette lookup + per-vertex owner colour for palette index 5 +
+exact shadows) and a scheduler driven by `nextChangeMs`. Random objects resolve to one seeded
+outcome and stay floating in checks. The item 1 capture tooling is fixed so stills of road maps,
+top-edge views and the underground of non-red-player maps are taken and verified: level detection
+from minimap/terrain agreement instead of a colour-skinned button hash, a rectangle size guard, a
+terrain-render mapping check before a capture is stored, and a reveal-cheat fix after a diagnostic
+spike. `test_map.h3m` is the primary check map. Unknown game facts (shadow formula, flag colours,
+draw-order keys, hero facing, town sprite by fort state, object frame timing) are measured by spikes
+on its captures before the dependent code: [research.md](research.md).
+
+## Technical Context
+
+**Language/Version**: TypeScript 5.9 (strict, `erasableSyntaxOnly`), ES2023; Node 22 for CLIs and
+tests; Chromium-class hosts at runtime. Unchanged from spec 002.
+
+**Primary Dependencies**: runtime — none (WebGL 1.0, Worker, IndexedDB, `DecompressionStream`).
+Dev — unchanged (Vite, Vitest, TypeScript, `playwright-core`). No new dependency.
+
+**Storage**: IndexedDB `h3dynam` gains the `objectAtlas` store (`CACHE_SCHEMA` bump wipes old
+entries); captures in git-ignored `reference-captures/` (records gain `verification`); reports in
+git-ignored `check-reports/`.
+
+**Testing**: Vitest (Node) for data tables, random resolution, spatial index, object order, object
+atlas packing, object plan, shadow/flag formulas, software rasterizer with objects, minimap level
+detection and mapping verification on synthetic images; headless Chromium for GPU = reference
+rasterizer, determinism, budgets; `yarn verify fidelity` against game captures of `test_map.h3m` and
+`Arrogance.h3m`; real-file tests (skip without game files) render all install maps' objects.
+
+**Target Platform**: browser runtime (dev harness; platform adapters are item 3.2); Linux for all
+development, capture and checks.
+
+**Project Type**: single project — browser library + dev harness + Node CLIs (unchanged).
+
+**Performance Goals**: constitution budgets unchanged (runtime JS ≤ 100 KB gz, warm ≤ 2 s, cold ≤ 10 s,
+memory ≤ 300 MB, surface ≤ display × DPR, 0 frames hidden, idle frames at animation cadence).
+Expected cost: object atlas ≤ 16 MB on the largest install map (measured 15.4 MB of frame pixels on
+`test_map.h3m`), draw calls = 1 terrain + object atlas pages in view (≤ 8), runtime JS +≤ 10 KB gz.
+
+**Constraints**: WebGL 1.0 without required extensions (no vertex texture fetch, no instancing); no
+per-object GPU resources; no per-tick textures; object work bounded by the view through the spatial
+index; exact pixel match with captures including 16-bit shadow blending; no game content or derived
+data committed; `core/{data,formats,state,sim}` DOM-free.
+
+**Scale/Scope**: maps up to 144×144×2 real (`test_map.h3m`: 2 351 objects, 729 DEFs, 3 537 frames)
+and 252×252×2 synthetic; 216 install maps for the render corpus; 11+ capture views of
+`test_map.h3m` plus spec 002's Arrogance views; three previously failing capture cases.
+
+**Thresholds fixed by this plan**: object atlas pages ≤ 8 (`MAX_OBJECT_PAGES`) and
+`object-atlas-bytes` ≤ 64 MB; spatial index bucket 8×8 tiles; sprite extent margin 8 tiles left,
+6 up; still state search allows each sprite ±1 tick (as palette, spec 002); clip object step
+tolerance = one grab interval; level detection requires a margin of 0.1 in agreement between levels;
+mapping verification fails when a one-tile shift has at least 5× fewer differing terrain pixels than
+the recorded mapping and the recorded mapping differs on more than 1 % of compared terrain pixels.
+Not-checkable threshold unchanged (25 %).
+
+## Constitution Check
+
+*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+
+| Principle | Check | Status |
+| --- | --- | --- |
+| I. User-Supplied Assets | Object sprites, `Objects.txt`, `game.pal` read from the user's LODs at run time; flag colours are never committed (only palette shade indices, research §3); `test_map.h3m`, captures, atlases, measured masks stay local and git-ignored; typed tables hold ids/numbers only (creature levels, artifact classes, hero classes, palette shade indices); synthetic object DEFs generated by committed code; h3lwp/VCMI studied for behaviour only. | Pass |
+| II. Fidelity to Complete | Draw order, flag colours, shadows, hero facing, town sprites and animation timing are measured on captures of the original `Heroes3.exe` before being coded; roads, mud/lava rivers and corners confirmed by game stills; editor stills remain placement-only. Intentional deviation: random objects show a seeded outcome (the game's generator cannot be reproduced), documented in spec Assumptions and excluded from checks. | Pass |
+| III. Script-Verifiable | Rendering is a function of (archive, map, camera, time, seed); fidelity compares object pixels and animation (stills and clips) headlessly; draw-list, random and render CLIs; capture tooling verifies its own mapping and level before storing. | Pass |
+| IV. Screen-Bound Performance | Spatial index + view-bounded object plan; atlas memory bounded by distinct sprites; one draw call per page; frames only at `nextChangeMs`; worker builds and IndexedDB caches the object atlas; budgets extended with object entries and synthetic maps with equal object density. | Pass |
+| V. Platform-Agnostic, Linux-First | Object state/resolution/order/atlas packing/plan in `src/core`; browser APIs only in `src/runtime`; capture fixes run under Wine/Xvfb on Linux; no Windows paths. | Pass |
+| VI. Layered, State-Driven | Render objects derived from `WorldState` (heroes from `heroes`, towns from `towns`) so later sim events (moves, captures, removals) only rebuild entries; renderer reads state; new tables in `src/core/data`; `yarn verify layers` unchanged. | Pass |
+| VII. Robust Parsing, Honest Failure | No parser changes beyond using existing bodies; missing sprites and atlas overflow produce diagnostics, the map still renders; capture tooling fails with specific codes instead of storing unverified captures. | Pass |
+| VIII. Lean Dependencies | No new dependency; offscreen shadow pass only if the blend spike requires it (research §3). | Pass |
+
+**Post-design re-check (after Phase 1)**: data model, contracts and quickstart add no dependency, no
+platform API in core, and no committed derived data. The optional offscreen framebuffer pass for
+shadows stays within the surface budget (one surface-sized texture) and is chosen only if the spike
+shows fixed-function blending cannot match. **Pass** — no Complexity Tracking entries.
+
+## Project Structure
+
+### Documentation (this feature)
+
+```text
+specs/003-map-objects/
+├── plan.md
+├── research.md
+├── data-model.md
+├── quickstart.md
+├── contracts/
+│   ├── engine-api.md          # engine/worker/render-page additions
+│   ├── inspect-cli.md         # yarn h3 map draw-list|random, render flags
+│   ├── checks-cli.md          # verify fidelity/budget/determinism, yarn ref changes
+│   └── report.schema.json     # supersedes 002's (additive)
+├── checklists/requirements.md
+└── tasks.md                   # /speckit-tasks
+```
+
+### Source Code (repository root)
+
+```text
+src/core/data/
+├── object-classes.ts          # + HIDDEN_CLASSES, TOWN_SPRITES
+├── heroes.ts                  # new: hero type → class, default idle group/mirror
+├── creatures.ts               # new: creature id → faction, level, upgraded
+├── artifacts.ts               # new: artifact id → class
+├── players.ts                 # + PLAYER_FLAG_SHADES (palette indices, measured)
+└── animation.ts               # new: OBJECT_FRAME_MS, OBJECT_PHASE_MODEL, SHADOW_RULE
+src/core/state/
+├── random.ts                  # new: resolveRandomObjects (seeded)
+├── render-objects.ts          # new: buildRenderObjects (objects, heroes body+flag, towns)
+└── object-index.ts            # new: spatial index by 8×8 buckets
+src/core/render/
+├── object-atlas.ts            # new: cropped frames, shelf packing, pages, palette rows
+├── object-order.ts            # new: draw-order comparator
+├── object-plan.ts             # new: view-bounded object quads, page runs, tick, draw list
+├── animation.ts               # new: AnimationState, frameOf, nextChangeMs
+├── shaders.ts                 # + object program (owner colour, shadow indices)
+├── software.ts                # + variable-size quads, owner colour, exact shadows, per-pixel owner ids
+└── webgl-renderer.ts          # + object pass, page draw calls, stats; optional shadow resolve pass
+src/runtime/
+├── decode.ts / worker.ts / protocol.ts   # + object atlas build, renderObjects in mapReady
+├── cache.ts / cache-key.ts               # + objectAtlas store, schema bump
+├── scheduler.ts                          # nextChangeMs instead of the fixed 180 ms step
+└── engine.ts                             # + seed, objects flag, setObjectsVisible, drawList, stats
+src/adapters/dev-harness/      # O key; render page params seed/tick/objects/objectFrames/drawList
+
+tools/inspect/                 # map draw-list, map random, render --tick/--seed/--no-objects
+tools/checks/fidelity/         # objects compared, per-DEF frame search, clip object steps,
+                               # hash filter + map-changed, schema 003
+tools/checks/budget/           # object entries, test_map.h3m, synthetic object pattern
+tools/checks/determinism.ts    # default target test_map.h3m
+tools/reference-env/
+├── analysis/level-detect.ts   # new: minimap ↔ terrain grid agreement
+├── analysis/mapping-verify.ts # new: terrain render vs capture at recorded mapping and shifts
+├── env/session.ts             # showLevel via level-detect, rectangle guard, reveal fix, --debug-steps
+└── commands/still.ts, clip.ts, calibrate.ts, doctor.ts, find.ts   # verification block, codes
+
+test/fixtures/synthetic/       # object DEFs (static/animated, shadow + flag indices), maps with objects
+test/core/{data,state,render}/ # unit tests for the new modules
+test/tools/                    # fidelity with objects on synthetic captures, ref level/mapping analysis
+test/real/                     # render objects of all install maps (skip without files)
+```
+
+**Structure Decision**: single project, layers unchanged (`core/util` → `data` → `formats` → `state` →
+`sim` → `render` → `runtime` → `adapters`; tools import anything). Object resolution and indexing live
+in `core/state` (no rendering knowledge, DOM-free); atlas packing, ordering and planning in
+`core/render`. The reference tooling may import `core/render/software.ts` for mapping verification.
+
+## Phase outline for tasks
+
+1. **Capture tooling fixes (US3, first — unblocks captures)**: prune stale Arrogance records;
+   rectangle size guard; minimap/terrain level detection replacing the button probe; reveal spike
+   with `--debug-steps`, then the fix; terrain-render mapping verification and `verification` block;
+   calibrate on 144×144; re-run the three failing cases; fidelity hash filter + `map-changed`.
+2. **Captures of `test_map.h3m`**: all zones in quickstart §2 (stills and two clips); terrain-only
+   fidelity with objects excluded to confirm roads, mud/lava rivers and corners (SC-004) and to
+   update research with road offset confirmation.
+3. **Foundation for objects (US1)**: data tables (hidden classes, hero classes, creatures, artifacts,
+   town sprites), random resolution, render objects, spatial index, object atlas + worker/cache,
+   object plan with provisional order, object shader with provisional shadow alpha and flag colour,
+   software rasterizer support, `map draw-list`, `render` flags, harness `O`.
+4. **Spikes on captures (US1)**: flag colours, shadow formula (and blend option choice), draw-order
+   keys, hero facing, town sprite by fort state; update data modules and research; fidelity with
+   objects compared passes on static zones (SC-001).
+5. **Animation (US2)**: clip spike for object step and phase model; `animation.ts`, `nextChangeMs`,
+   scheduler; per-DEF frame search for stills, clip object steps; clips pass (SC-002).
+6. **Budgets and determinism**: synthetic object DEFs and maps, budget entries, determinism target;
+   real-file render of all install maps (SC-005–SC-007).
+7. **Polish**: AGENTS.md (current state, commands, facts), TODO.md, research measurements, constitution
+   compliance review, `git status` hygiene (SC-008).
+
+## Compliance Review (after implementation, 2026-09-17)
+
+| Principle | Implementation | Status |
+| --- | --- | --- |
+| I | No game data committed (hygiene test extended to `.pal` and RGB literals in `players.ts`); flag colours are `game.pal` entry numbers; artifact classes read from the user's `artraits.txt`; captures and reports stay in git-ignored folders; synthetic data archive generated by code. | Pass |
+| II | Shadows, flag colours, town sprites, timing and phases measured on captures of the original game; mud/lava river palettes and roads confirmed or corrected; draw order measured and mostly matched. Known deviations, accepted by the owner on 2026-09-17: draw order in dense mountain clusters, reef frames/shadows (research.md "Accepted deviations"); hero flags drawn under the body's flagpole. | Pass with accepted deviations |
+| III | Deterministic renders (10/10 identical with objects); fidelity compares object pixels with per-object frame search, clips check palette and object step timing; GPU bit-equal to the software reference; inspection CLIs `map draw-list`, `map random`, render flags; capture tooling self-verifies level and mapping. | Pass (fidelity outcomes fail on the listed deviations) |
+| IV | View-bounded object plan via spatial index; one object draw call (pages on units 0–5); atlas ≤ 16 MB on the largest map; surface-sized shadow targets only; frames at `nextChangeMs`; budgets pass (warm start has little margin). | Pass, budget risk noted |
+| V | Object state/resolution/order/atlas/plan in `src/core`; browser APIs in `src/runtime`; tooling on Linux. | Pass |
+| VI | Render objects derived from world state (heroes, towns); typed tables in `core/data`; layers check passes. | Pass |
+| VII | Missing sprites and atlas overflow are diagnostics; data archive missing → terrain only with a diagnostic; capture tooling fails with specific codes and stores nothing unverified. | Pass |
+| VIII | No new dependency; runtime JS 46 KB gzipped. | Pass |
+
+**Deviations from this plan** (recorded in research.md):
+- Object draw: one draw call with pages bound to texture units 0–5 (`MAX_OBJECT_PAGES = 6`) instead of
+  one call per page; shadows use colour + shadow-count render targets and a resolve pass.
+- Animation phase is per object (random per launch in the game), so the fidelity search and report
+  work per object (`objectFramesByObject`), not per DEF; `tickConsistent` dropped.
+- Flag colours come from `game.pal` 64–72, not `PLAYERS.PAL`; artifact classes from `artraits.txt`.
+- Draw order: flat → non-visitable → visitable → y → heroes → map order; a hero's flag before its body.
+- Random dwellings ignore faction/level (no dwelling → creature table in the game's text files).
+- Headless tools stream files over a local HTTP server (100 MB archives crashed request interception).
+- SC-007 budget compares synthetic 96×96×2 with 252×252×2.
+
+## Complexity Tracking
+
+No violations.

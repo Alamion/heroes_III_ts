@@ -61,7 +61,9 @@ Notes:
 
 One `/speckit-specify` each and roughly in this order:
 
-1. **Objects and animations** — map objects, heroes, towns, monsters; draw order; player colors;
+1. ~~**Objects and animations**~~ — done in [specs/003-map-objects/](specs/003-map-objects/) (accepted
+   deviations listed in its research.md: draw order in dense mountain clusters, reef animation).
+   Original note: map objects, heroes, towns, monsters; draw order; player colors;
    animation timings verified against captures. Random-object tiles are floating in automated
    checks and verified less often, visually; if specific random outcomes need verifying, build an
    object atlas (as in the PoC) on a separate git branch and inspect it directly.
@@ -79,6 +81,10 @@ One `/speckit-specify` each and roughly in this order:
 ## Housekeeping
 
 - ~~Refresh or drop `.opencode/skills/developing-preact`~~ — dropped with Preact (item 2).
-- Reference tooling (item 1): fix the one-tile mapping error of stills clamped at the top map
+- ~~Reference tooling (item 1): fix the one-tile mapping error of stills clamped at the top map
   edge, and `still` failures on `Shadow Valleys.h3m` (level switch) and `Merchant Princes.h3m`
-  (reveal cheat) — needed to confirm roads against game stills.
+  (reveal cheat)~~ — fixed in item 3.1 (spec 003); roads, mud/lava rivers and corners confirmed.
+- Object draw order in dense obstacle clusters and reef animation differ from the game in a few
+  percent of pixels (spec 003 research); investigate if they become visible.
+- Warm start with objects is 1.1–1.8 s under 4× CPU throttling (limit 2 s): profile the data
+  archive identity/cache path before adding more start-up work.

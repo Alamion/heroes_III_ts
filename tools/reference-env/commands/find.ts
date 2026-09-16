@@ -1,7 +1,7 @@
 import type { Command } from '../cli.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 import type { Kind, Level, Source } from '../model/types.ts'
-import { findCaptures } from '../store/lookup.ts'
+import { findCaptures, mapHashChecker } from '../store/lookup.ts'
 import { config, intOpt, opt, required } from './common.ts'
 
 export function parseRegion(value: string): { x0: number; y0: number; x1: number; y1: number } {
@@ -39,5 +39,6 @@ export const findCommand: Command = async (args) => {
     ...(kind !== undefined ? { kind } : {}),
     ...(limit !== undefined ? { limit: intOpt(args, 'limit') } : {}),
   })
-  return { ok: true, matches }
+  const hashMatches = mapHashChecker(cfg.mapSearchDirs)
+  return { ok: true, matches: matches.map((m) => ({ ...m, mapSha256Matches: hashMatches(m.record) })) }
 }

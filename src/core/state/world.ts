@@ -50,6 +50,8 @@ export interface PlayerState {
   readonly alive: boolean
   readonly team: number | null
   readonly mainTown: { x: number; y: number; z: number; generateHero: boolean } | null
+  /** Bit f set = the player may have faction f (random towns). */
+  readonly allowedFactions: number
 }
 
 export interface MapIdentity {
@@ -73,6 +75,10 @@ export interface WorldState {
   readonly visited: ReadonlySet<ObjectId>
   readonly removed: ReadonlySet<ObjectId>
   readonly seed: number
+  /** Bit t set = hero type t may appear (random and generated heroes). */
+  readonly allowedHeroes: Uint8Array
+  /** Bit a set = artifact a is disabled (AB+); null in RoE maps. */
+  readonly bannedArtifacts: Uint8Array | null
 }
 
 function ownerOf(body: ObjectBody): number | null {
@@ -119,6 +125,7 @@ export function fromH3m(map: H3mMap, identity: MapIdentity, seed = 1): WorldStat
     alive: p.playable,
     team: map.teams?.[i] ?? null,
     mainTown: p.mainTown === null ? null : { ...p.mainTown.pos, generateHero: p.mainTown.generateHero },
+    allowedFactions: p.allowedFactions,
   }))
   return {
     map: identity,
@@ -134,5 +141,7 @@ export function fromH3m(map: H3mMap, identity: MapIdentity, seed = 1): WorldStat
     visited: new Set(),
     removed: new Set(),
     seed,
+    allowedHeroes: map.allowedHeroes,
+    bannedArtifacts: map.allowedArtifacts,
   }
 }

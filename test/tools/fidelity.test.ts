@@ -17,6 +17,8 @@ import { terrainLayerDefs, TERRAINS } from '../../src/core/data/terrain.ts'
 import { MemorySource } from '../../src/core/util/byte-source.ts'
 import { classifyPixels, countDiffs, decideOutcome, evaluateClipSteps, PIXEL, tileStats } from '../../tools/checks/fidelity/compare.ts'
 import type { CaptureSampler } from '../../tools/checks/fidelity/compare.ts'
+import { mayBeMisaligned, selectCaptures } from '../../tools/checks/fidelity/captures.ts'
+import type { CaptureRecord } from '../../tools/reference-env/model/types.ts'
 import { syntheticTerrainArchive, syntheticTerrainMap } from '../fixtures/synthetic/terrain-archive.ts'
 
 const W = 320
@@ -117,5 +119,32 @@ describe('fidelity comparison', () => {
     expect(skipped.ordered).toBe(false)
     const slow = evaluateClipSteps([0, 250, 500, 750].map((t, i) => ({ tStartMs: t, paletteStep: i })), 72, 60, 180)
     expect(slow.pass).toBe(false)
+  })
+})
+
+describe('capture selection (spec 003 T031)', () => {
+  const rec = (id: string, sha: string, createdAt: string, origin: { x: number; y: number }, verified: boolean): { record: CaptureRecord } => ({
+    record: {
+      id,
+      createdAt,
+      kind: 'still',
+      level: 0,
+      map: { sha256: sha },
+      mapping: { originTile: origin },
+      ...(verified ? { verification: {} } : {}),
+    } as unknown as CaptureRecord,
+  })
+
+  it('keeps captures of the current map file, newest first, one per view, and reports the rest as stale', () => {
+    const all = [rec('old-version', 'b', '2026-09-10', { x: 1, y: 1 }, false), rec('a1', 'a', '2026-09-11', { x: 1, y: 1 }, false), rec('a2', 'a', '2026-09-12', { x: 1, y: 1 }, true), rec('a3', 'a', '2026-09-12', { x: 5, y: 1 }, true)]
+    const { current, stale } = selectCaptures(all, 'a', true)
+    expect(current.map((c) => c.record.id)).toEqual(['a2', 'a3'])
+    expect(stale.map((c) => c.record.id)).toEqual(['old-version'])
+    expect(selectCaptures(all, 'a', false).current.map((c) => c.record.id)).toEqual(['a2', 'a3', 'a1'])
+  })
+
+  it('probes misalignment only for records without verification', () => {
+    expect(mayBeMisaligned(rec('x', 'a', '2026', { x: 0, y: 0 }, false).record)).toBe(true)
+    expect(mayBeMisaligned(rec('y', 'a', '2026', { x: 0, y: 0 }, true).record)).toBe(false)
   })
 })

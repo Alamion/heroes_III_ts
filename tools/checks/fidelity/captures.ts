@@ -109,3 +109,27 @@ export function uiCornerMask(capturesDir: string): UiMask | null {
   }
   return { width: viewport.w, height: viewport.h, mask }
 }
+
+/**
+ * Splits candidate captures by map version: `current` were taken from the map file with `mapSha`
+ * (newest first, one per view when `onePerView`), `stale` from other versions (skip: map-changed).
+ */
+export function selectCaptures<T extends { record: CaptureRecord }>(candidates: T[], mapSha: string, onePerView: boolean): { current: T[]; stale: T[] } {
+  const stale = candidates.filter((t) => t.record.map.sha256 !== mapSha)
+  let current = candidates.filter((t) => t.record.map.sha256 === mapSha).sort((a, b) => b.record.createdAt.localeCompare(a.record.createdAt))
+  if (onePerView) {
+    const seen = new Set<string>()
+    current = current.filter((t) => {
+      const key = `${t.record.kind}:${t.record.level}:${t.record.mapping.originTile.x},${t.record.mapping.originTile.y}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }
+  return { current, stale }
+}
+
+/** Whether a failing capture may be probed for a one-tile misregistration (records without verification). */
+export function mayBeMisaligned(record: CaptureRecord): boolean {
+  return record.verification === undefined
+}

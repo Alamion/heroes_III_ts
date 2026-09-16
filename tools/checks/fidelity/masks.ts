@@ -18,6 +18,19 @@ import type { Footprint } from '../../../src/core/state/footprint.ts'
 import { fromH3m } from '../../../src/core/state/world.ts'
 import type { WorldState } from '../../../src/core/state/world.ts'
 import { NodeFileSource } from '../../shared/node-source.ts'
+import { resolveGameFile } from '../../shared/game-files.ts'
+import { flagColors } from '../../../src/core/data/players.ts'
+import { toDisplayColor } from '../../../src/core/render/atlas.ts'
+import { buildObjectAtlas } from '../../../src/core/render/object-atlas.ts'
+import type { ObjectAtlas } from '../../../src/core/render/object-atlas.ts'
+import { parseRiffPal } from '../../../src/core/formats/pal/riff-pal.ts'
+import { parseArtTraits } from '../../../src/core/formats/text/artraits.ts'
+import { parseObjectsTxt } from '../../../src/core/formats/text/objects-txt.ts'
+import { ObjectIndex } from '../../../src/core/state/object-index.ts'
+import { buildRenderObjects } from '../../../src/core/state/render-objects.ts'
+import type { RenderObject } from '../../../src/core/state/render-objects.ts'
+import { createRng } from '../../../src/core/util/rng.ts'
+import type { DefSprite } from '../../../src/core/formats/def/def.ts'
 import { openGameSprites } from '../../shared/game-sprites.ts'
 
 export interface MapContext {
@@ -31,7 +44,36 @@ export interface MapContext {
   floating: FloatingTileSet
 }
 
-export async function buildMapContext(mapPath: string, archivePath: string): Promise<MapContext> {
+/** What the renderer draws for objects (spec 003), built from the user's archives in Node. */
+export interface ObjectContext {
+  seed: number
+  objects: RenderObject[]
+  index: ObjectIndex
+  atlas: ObjectAtlas
+  flagColors: Uint8Array
+  missing: string[]
+}
+
+/** Render objects, their atlas and flag colours for a map context (data archive: h3bitmap.lod). */
+export async function buildObjectContext(ctx: MapContext, opts: { seed?: number; dataArchive?: string } = {}): Promise<ObjectContext> {
+  const seed = opts.seed ?? ctx.state.seed
+  const data = await LodArchive.open(await NodeFileSource.open(opts.dataArchive ?? resolveGameFile('h3bitmap.lod')))
+  const templates = parseObjectsTxt(await data.read('Objects.txt'))
+  const artifactClasses = parseArtTraits(await data.read('artraits.txt'))
+  const pal = parseRiffPal(await data.read('game.pal'), 'game.pal')
+  const { objects } = buildRenderObjects(ctx.state, { templates, artifactClasses }, createRng(seed))
+  const sprites = await LodArchive.open(await NodeFileSource.open(ctx.archivePath))
+  const defs: DefSprite[] = []
+  const missing: string[] = []
+  for (const name of [...new Set(objects.map((o) => o.def))].sort()) {
+    if (sprites.has(name)) defs.push(parseDef(await sprites.read(name), name))
+    else missing.push(name)
+  }
+  return { seed, objects, index: new ObjectIndex(objects, ctx.state.size, ctx.state.levels), atlas: buildObjectAtlas(defs), flagColors: flagColors({ 'game.pal': pal }, toDisplayColor), missing }
+}
+
+/** `dataArchive` (h3bitmap.lod, for Objects.txt) defaults to the game install's. */
+export async function buildMapContext(mapPath: string, archivePath: string, dataArchive?: string): Promise<MapContext> {
   const bytes = new Uint8Array(await readFile(mapPath))
   const sha256 = createHash('sha256').update(bytes).digest('hex')
   const map = await parseH3mFile(bytes, basename(mapPath))
@@ -40,7 +82,7 @@ export async function buildMapContext(mapPath: string, archivePath: string): Pro
   const inputs = []
   for (const n of terrainLayerDefs()) inputs.push({ def: parseDef(await lod.read(n), n), overlay: !TERRAINS.some((t) => t.defName === n) })
   const atlas = buildAtlas(inputs)
-  const sprites = await openGameSprites()
+  const sprites = await openGameSprites({ sprites: [archivePath], ...(dataArchive !== undefined ? { bitmaps: dataArchive } : {}) })
   await sprites.preloadForState(state)
   const floating = computeFloatingTiles(state, sprites.candidates, sprites.lookup)
   const objects: Footprint[] = Array.from({ length: state.levels }, () => new Map())

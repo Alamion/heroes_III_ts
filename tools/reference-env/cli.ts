@@ -7,7 +7,7 @@ export interface ParsedArgs {
   flags: Map<string, string[]>
 }
 
-const BOOLEAN_FLAGS = new Set(['force', 'dry-run', 'json-only', 'keep-going'])
+const BOOLEAN_FLAGS = new Set(['force', 'dry-run', 'json-only', 'keep-going', 'debug-steps'])
 
 export function parseArgs(argv: string[]): ParsedArgs {
   const flags = new Map<string, string[]>()

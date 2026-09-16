@@ -27,12 +27,22 @@ export async function defDump(args: ParsedArgs): Promise<CommandResult> {
     fullWidth: def.fullWidth,
     fullHeight: def.fullHeight,
     frameCount: def.frameOrder.length,
-    specialIndices: { transparent: 0, shadow: [1, 2, 3, 4], selection: 5, shadowVariants: [6, 7] },
+    specialIndices: { transparent: 0, shadow: [1, 2, 3, 4], selection: 5, flag: 5, shadowVariants: [6, 7] },
     rotations: rotationsFor(def.name),
     groups: def.groups.map((g, gi) => ({
       index: gi,
       type: g.type,
-      frames: g.frames.map((f) => ({ name: f.name, viewIndex: f.viewIndex, offset: f.header.offset, compression: f.header.compression, width: f.header.width, height: f.header.height, x: f.header.x, y: f.header.y })),
+      frames: g.frames.map((f) => ({
+        name: f.name,
+        viewIndex: f.viewIndex,
+        offset: f.header.offset,
+        compression: f.header.compression,
+        width: f.header.width,
+        height: f.header.height,
+        x: f.header.x,
+        y: f.header.y,
+        sharedWith: def.frameOrder.filter((o) => o.header.offset === f.header.offset && o.viewIndex !== f.viewIndex).map((o) => o.viewIndex),
+      })),
     })),
   }
 }

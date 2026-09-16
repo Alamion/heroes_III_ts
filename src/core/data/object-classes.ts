@@ -298,3 +298,33 @@ export const HERO_FLAG_DEFS: readonly string[] = Array.from({ length: 8 }, (_, i
  * bit one tile left of the anchor (active mask byte 5, bit 6).
  */
 export const HERO_VISIT_OFFSET = { dx: -1, dy: 0 } as const
+
+/** Classes the game never draws on the adventure map (research.md §5). */
+export const HIDDEN_CLASSES: ReadonlySet<number> = new Set([C.EVENT, C.GRAIL])
+
+export interface TownSprites {
+  /** Town without a fort. */
+  readonly village: string
+  /** Town with a fort (the variant map templates use). */
+  readonly fort: string
+  /** Town with a capitol. */
+  readonly capitol: string
+}
+
+/**
+ * Adventure-map town sprites per faction 0–8 (Castle … Conflux), lower-case DEF names from
+ * `h3sprite.lod`. Which built state selects which sprite is pending SPIKE T047 (research.md §5):
+ * hypothesis village = `…0`, fort = `…x0` (the one `Objects.txt` lists), capitol = `…z0`.
+ */
+export const TOWN_SPRITES: readonly TownSprites[] = [
+  { village: 'avccast0.def', fort: 'avccasx0.def', capitol: 'avccasz0.def' },
+  { village: 'avcramp0.def', fort: 'avcramx0.def', capitol: 'avcramz0.def' },
+  { village: 'avctowr0.def', fort: 'avctowx0.def', capitol: 'avctowz0.def' },
+  { village: 'avcinft0.def', fort: 'avcinfx0.def', capitol: 'avcinfz0.def' },
+  { village: 'avcnecr0.def', fort: 'avcnecx0.def', capitol: 'avcnecz0.def' },
+  { village: 'avcdung0.def', fort: 'avcdunx0.def', capitol: 'avcdunz0.def' },
+  { village: 'avcstro0.def', fort: 'avcstrx0.def', capitol: 'avcstrz0.def' },
+  { village: 'avcftrt0.def', fort: 'avcftrx0.def', capitol: 'avcforz0.def' },
+  { village: 'avchfor0.def', fort: 'avchforx.def', capitol: 'avchforz.def' },
+]
+

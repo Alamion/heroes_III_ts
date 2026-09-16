@@ -3,20 +3,26 @@ import type { ParsedArgs } from '../cli.ts'
 import { GAME_LAYOUT, GAME_SCREEN } from '../data/game-layout.ts'
 import { SETTINGS_PROFILE } from '../data/settings-profile.ts'
 import { GAME_EXE } from '../data/staging-whitelist.ts'
-import { PROBES, requireCalibration } from '../env/calibration.ts'
+import { requireCalibration } from '../env/calibration.ts'
 import { acquireLock } from '../env/lock.ts'
 import { crashError, gameExited, openGame, positionView, revealMap, saveFailureShot, showLevel, waitForMessageClear, type GameSession, type ViewState } from '../env/session.ts'
+import type { LevelDetection } from '../analysis/level-detect.ts'
+import { buildMapContext } from '../../checks/fidelity/masks.ts'
+import { verifyMapping } from '../analysis/mapping-verify.ts'
+import { mappingCheckInput } from '../analysis/mapping-verify-terrain.ts'
+import { resolveGameFile } from '../../shared/game-files.ts'
 import { toolVersions } from '../env/tooling.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 import { log } from '../log.ts'
-import type { CaptureRecord, FileHash, Kind, ReferenceConfig, StartMode } from '../model/types.ts'
+import type { CaptureRecord, CaptureVerification, FileHash, Kind, ReferenceConfig, StartMode, TileMapping } from '../model/types.ts'
 import { requirePrereqs } from './doctor.ts'
-import { opt, stagedHashes, startMode, targetContext, type TargetContext } from './common.ts'
+import { flag, levelTerrains, opt, stagedHashes, startMode, targetContext, type TargetContext } from './common.ts'
 
 export interface CaptureState {
   ctx: TargetContext
   session: GameSession
   view: ViewState
+  level: LevelDetection
   revealCode: string
   hashes: { game: string; archives: FileHash[] }
 }
@@ -48,7 +54,7 @@ export async function runGameCapture<T>(
     // The original game occasionally crashes under Wine while loading a map; retry once.
     for (let attempt = 1; ; attempt++) {
       try {
-        return await captureAttempt(cfg, ctx, start, kind, timeoutMs, grab)
+        return await captureAttempt(cfg, ctx, start, kind, timeoutMs, grab, flag(args, 'debug-steps'))
       } catch (err) {
         if (attempt >= 2 || !(err instanceof RefError) || err.code !== ERROR_CODES.GAME_CRASHED) throw err
         log.warn(`game crashed (${err.message}); retrying the capture once`)
@@ -66,22 +72,22 @@ async function captureAttempt<T>(
   kind: Kind,
   timeoutMs: number,
   grab: (state: CaptureState) => Promise<T>,
+  debugSteps: boolean,
 ): Promise<T> {
   let session: GameSession | undefined
   try {
     const work = (async () => {
       const hashes = await stagedHashes(cfg)
       const cal = requireCalibration(cfg.stateDir, hashes.game)
-      const opened = await openGame(cfg, { mapPath: ctx.mapPath, start, probes: cal.probes, stepTimeoutMs: cfg.timeouts.step })
+      const terrain = await levelTerrains(ctx.mapPath)
+      const opened = await openGame(cfg, { mapPath: ctx.mapPath, start, probes: cal.probes, stepTimeoutMs: cfg.timeouts.step, debugSteps })
       session = opened.session
       const revealed = await revealMap(session)
-      const surfaceProbe = cal.probes[PROBES.levelSurface]
-      if (surfaceProbe === undefined) throw new RefError(ERROR_CODES.CALIBRATION_MISSING, 'calibration lacks the level probe')
-      await showLevel(session, ctx.level, surfaceProbe)
+      const level = await showLevel(session, ctx.level, ctx.map.sizeTiles, terrain)
       const view = await positionView(session, ctx.level, ctx.target, ctx.map.sizeTiles)
-      log.info('view positioned', { origin: view.origin, visible: view.visible })
+      log.info('view positioned', { origin: view.origin, visible: view.visible, level })
       await waitForMessageClear(revealed)
-      return grab({ ctx, session, view, revealCode: revealed.code, hashes })
+      return grab({ ctx, session, view, level, revealCode: revealed.code, hashes })
     })()
     // If the timeout wins, `work` still settles later; swallow that late result (already reported).
     work.catch(() => undefined)
@@ -97,6 +103,28 @@ async function captureAttempt<T>(
   } finally {
     const s = session as GameSession | undefined
     if (s !== undefined) await s.close()
+  }
+}
+
+/**
+ * Verifies a grab against the project's terrain render at the recorded mapping (FR-019). Throws
+ * MAPPING_UNVERIFIED when a one-tile shift explains the pixels clearly better.
+ */
+export async function verifyGrabMapping(s: CaptureState, mapping: TileMapping, screen: { width: number; rgb: Uint8Array }): Promise<NonNullable<CaptureVerification['mapping']>> {
+  const ctx = await buildMapContext(s.ctx.mapPath, resolveGameFile('h3sprite.lod'))
+  const r = verifyMapping(mappingCheckInput(ctx, s.ctx.level, mapping, screen))
+  log.info('mapping verification', { ...r })
+  const result = { method: 'terrain-render' as const, compared: r.comparedRecorded, differingRecorded: r.differingRecorded, bestShift: r.bestShift, bestDiffering: r.bestDiffering }
+  if (!r.ok) {
+    throw new RefError(ERROR_CODES.MAPPING_UNVERIFIED, `the capture matches the terrain better one tile off (${r.bestShift.dx}, ${r.bestShift.dy}) than at the recorded mapping`, { step: 'verify mapping', details: result })
+  }
+  return result
+}
+
+export function verificationBase(s: CaptureState): CaptureVerification {
+  return {
+    minimapRect: { ...s.view.minimapRect, drawnEdges: s.view.drawnEdges },
+    level: { method: 'minimap-terrain', agreement: s.level.agreement, margin: s.level.margin },
   }
 }
 

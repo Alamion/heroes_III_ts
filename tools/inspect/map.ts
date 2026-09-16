@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
 import { readdirSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
-import { className } from '../../src/core/data/object-classes.ts'
+import { className, HIDDEN_CLASSES } from '../../src/core/data/object-classes.ts'
 import { parseH3m } from '../../src/core/formats/h3m/h3m.ts'
 import { readTile } from '../../src/core/formats/h3m/types.ts'
 import type { H3mMap, MapObject } from '../../src/core/formats/h3m/types.ts'
@@ -111,7 +111,31 @@ export async function mapObjects(args: ParsedArgs): Promise<CommandResult> {
   const r = regionOpt(args, map)
   const cls = opt(args, 'class')
   const objects = map.objects.filter((o) => (z === undefined || o.z === z) && inRegion(o.x, o.y, r) && (cls === undefined || o.classId === Number(cls)))
-  return { ok: true, count: objects.length, objects: textOf(objects.map((o) => describeObject(map, o))) }
+  // With --seed: what the renderer draws for each object (spec 003), from the user's archives.
+  let render: Map<number, { def: string; group: number; flat: boolean; visitable: boolean }[]> | undefined
+  if (opt(args, 'seed') !== undefined) {
+    const { buildMapContext, buildObjectContext } = await import('../checks/fidelity/masks.ts')
+    const { resolveGameFile } = await import('../shared/game-files.ts')
+    const ctx = await buildMapContext(resolveGameFile(positional(args, 0, 'MAP')), resolveGameFile(opt(args, 'archive') ?? 'h3sprite.lod'))
+    const oc = await buildObjectContext(ctx, { seed: Number(opt(args, 'seed')) })
+    render = new Map()
+    for (const o of oc.objects) {
+      const list = render.get(o.id) ?? []
+      list.push({ def: o.def, group: o.group, flat: o.flat, visitable: o.visitable })
+      render.set(o.id, list)
+    }
+  }
+  return {
+    ok: true,
+    count: objects.length,
+    objects: textOf(
+      objects.map((o) => ({
+        ...describeObject(map, o),
+        hidden: HIDDEN_CLASSES.has(o.classId),
+        ...(render !== undefined ? { render: render.get(o.index) ?? [] } : {}),
+      })),
+    ),
+  }
 }
 
 export async function mapObject(args: ParsedArgs): Promise<CommandResult> {

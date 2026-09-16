@@ -1,0 +1,454 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "heroes_iii_dynam/checks/report.schema.json",
+  "title": "Check reports",
+  "$defs": {
+    "region": {
+      "type": "object",
+      "required": [
+        "x0",
+        "y0",
+        "x1",
+        "y1"
+      ],
+      "properties": {
+        "x0": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "y0": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "x1": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "y1": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "fidelity": {
+      "type": "object",
+      "required": [
+        "outcome",
+        "map",
+        "level",
+        "region",
+        "thresholds",
+        "createdAt"
+      ],
+      "properties": {
+        "outcome": {
+          "enum": [
+            "pass",
+            "fail",
+            "skip",
+            "not-checkable"
+          ]
+        },
+        "skipReason": {
+          "enum": [
+            "no-game-files",
+            "no-capture",
+            "no-chromium",
+            "capture-misaligned",
+            "map-changed"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "map": {
+          "type": "object",
+          "required": [
+            "name",
+            "sha256"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        },
+        "level": {
+          "enum": [
+            0,
+            1
+          ]
+        },
+        "region": {
+          "$ref": "#/$defs/region"
+        },
+        "capture": {
+          "type": "object",
+          "required": [
+            "id",
+            "kind",
+            "dir"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "still",
+                "clip"
+              ]
+            },
+            "dir": {
+              "type": "string"
+            }
+          }
+        },
+        "paletteStep": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "gpuMatchesReference": {
+          "type": "boolean",
+          "description": "WebGL frame at the chosen step is bit-exact with the reference rasterizer used for the state search"
+        },
+        "paletteStepsBySprite": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "pixels": {
+          "type": "object",
+          "required": [
+            "inMap",
+            "compared",
+            "differing",
+            "excluded"
+          ],
+          "properties": {
+            "inMap": {
+              "type": "integer"
+            },
+            "compared": {
+              "type": "integer"
+            },
+            "comparedAnimated": {
+              "type": "integer",
+              "description": "compared pixels on palette-animated tiles (volatile mask overridden)"
+            },
+            "differing": {
+              "type": "integer"
+            },
+            "excluded": {
+              "type": "object",
+              "required": [
+                "outsideViewport",
+                "volatile",
+                "object",
+                "floating",
+                "border"
+              ],
+              "additionalProperties": {
+                "type": "integer"
+              }
+            },
+            "comparedObject": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Compared pixels covered by drawn (non-random) objects"
+            }
+          }
+        },
+        "tiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "x",
+              "y",
+              "compared",
+              "differing"
+            ],
+            "properties": {
+              "x": {
+                "type": "integer"
+              },
+              "y": {
+                "type": "integer"
+              },
+              "compared": {
+                "type": "integer"
+              },
+              "differing": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "randomCauses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "x",
+              "y",
+              "excludedPixels"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "randomObject",
+                  "generatedHero"
+                ]
+              },
+              "objectIndex": {
+                "type": "integer",
+                "description": "random object, or the town for generatedHero"
+              },
+              "player": {
+                "type": "integer"
+              },
+              "classId": {
+                "type": "integer"
+              },
+              "x": {
+                "type": "integer"
+              },
+              "y": {
+                "type": "integer"
+              },
+              "excludedPixels": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "thresholds": {
+          "type": "object",
+          "required": [
+            "notCheckableComparedShare"
+          ],
+          "properties": {
+            "notCheckableComparedShare": {
+              "type": "number"
+            }
+          }
+        },
+        "clip": {
+          "type": "object",
+          "required": [
+            "steps",
+            "stepMsMeasured",
+            "stepMsExpected",
+            "pass"
+          ],
+          "properties": {
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "frame",
+                  "tStartMs",
+                  "paletteStep",
+                  "differing"
+                ],
+                "properties": {
+                  "frame": {
+                    "type": "integer"
+                  },
+                  "tStartMs": {
+                    "type": "number"
+                  },
+                  "paletteStep": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "differing": {
+                    "type": "integer"
+                  }
+                }
+              }
+            },
+            "stepMsMeasured": {
+              "type": "number"
+            },
+            "stepMsExpected": {
+              "type": "number"
+            },
+            "pass": {
+              "type": "boolean"
+            },
+            "objectSteps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "frame",
+                  "tick",
+                  "differing"
+                ],
+                "properties": {
+                  "frame": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "tick": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "differing": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            },
+            "objectStepMsMeasured": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "objectStepMsExpected": {
+              "type": "number"
+            }
+          }
+        },
+        "diffImage": {
+          "type": "string"
+        },
+        "objectFramesByObject": {
+          "type": "object",
+          "description": "Chosen frame per animated object (def@x,y): stills and the first clip frame. Phases are random per launch in the game (research.md §7).",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "required": [
+        "ok",
+        "budgets",
+        "maps",
+        "throttle",
+        "viewport",
+        "createdAt"
+      ],
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "throttle": {
+          "type": "number"
+        },
+        "viewport": {
+          "type": "object",
+          "required": [
+            "width",
+            "height",
+            "dpr"
+          ],
+          "properties": {
+            "width": {
+              "type": "integer"
+            },
+            "height": {
+              "type": "integer"
+            },
+            "dpr": {
+              "type": "number"
+            }
+          }
+        },
+        "maps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "size",
+              "levels",
+              "synthetic"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "size": {
+                "type": "integer"
+              },
+              "levels": {
+                "type": "integer"
+              },
+              "synthetic": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "budgets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "status"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "map": {
+                "type": "string"
+              },
+              "measured": {
+                "type": "number"
+              },
+              "limit": {
+                "type": "number"
+              },
+              "unit": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "pass",
+                  "fail",
+                  "skip"
+                ]
+              },
+              "note": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/fidelity"
+    },
+    {
+      "$ref": "#/$defs/budget"
+    }
+  ],
+  "description": "Spec 003: adds object comparison fields and skipReason map-changed (additive to spec 002)."
+}

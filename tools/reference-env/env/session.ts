@@ -1,7 +1,9 @@
 // One running instance of the original game on its own virtual display, driven to a map view.
 import { mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { drawnEdges, findViewRect, rectToViewOrigin, shroudFraction } from '../analysis/minimap.ts'
+import { detectLevel } from '../analysis/level-detect.ts'
+import type { LevelDetection } from '../analysis/level-detect.ts'
+import { drawnEdges, findViewRect, rectToViewOrigin, shroudFraction, viewRectProblem } from '../analysis/minimap.ts'
 import { tileToMinimapPoint, viewMapping } from '../analysis/geometry.ts'
 import { assertNoForbiddenDlls, parseLoadedDlls } from '../analysis/loaddll.ts'
 import { regionHash, waitUntilStable } from '../analysis/stability.ts'
@@ -41,6 +43,7 @@ export interface ViewState {
   visible: VisibleRange
   mapping: TileMapping
   minimapRect: Rect
+  drawnEdges: { left: boolean; top: boolean; right: boolean; bottom: boolean }
 }
 
 export interface GameSession {
@@ -49,6 +52,10 @@ export interface GameSession {
   wine: WineContext
   app: LaunchedApp
   startSetup: StartSetup
+  /** Local state dir (failure and debug screenshots). */
+  stateDir: string
+  /** Save a screenshot after every step (`--debug-steps`). */
+  debugSteps: boolean
   grab(rect?: Rect): Promise<RawFrame>
   loadedDlls(): string[]
   close(): Promise<void>
@@ -60,6 +67,7 @@ export interface OpenOptions {
   /** Probe hashes from calibration; when absent (during calibration) they are recorded instead. */
   probes: Record<string, string> | undefined
   stepTimeoutMs: number
+  debugSteps?: boolean
 }
 
 async function stable(session: { grab(rect?: Rect): Promise<RawFrame> }, step: string, timeoutMs: number, rect: Rect = FULL_SCREEN): Promise<RawFrame> {
@@ -83,6 +91,8 @@ export async function openGame(config: ReferenceConfig, opts: OpenOptions): Prom
       return app as LaunchedApp
     },
     startSetup: opts.start === 'fixed' ? { mode: 'fixed', choices: { ...FIXED_START.description } } : { mode: 'random' },
+    stateDir: config.stateDir,
+    debugSteps: opts.debugSteps === true,
     grab: (rect = FULL_SCREEN) => grabRaw(display.display, rect),
     loadedDlls: () => (app === undefined ? [] : parseLoadedDlls(readFileSync(app.logPath, 'utf8'))),
     close: async () => {
@@ -114,8 +124,10 @@ export async function openGame(config: ReferenceConfig, opts: OpenOptions): Prom
     // Adventure map animates; wait for the static right-hand panel instead of the whole screen.
     await sleep(1500)
     await stable(session, 'scenario: begin', opts.stepTimeoutMs, RIGHT_PANEL)
+    await debugShot(session, 'scenario-begun')
     await dismissIntroMessage(session, opts, recordedProbes)
     await input.move(GAME_LAYOUT.cursorPark)
+    await debugShot(session, 'intro-dismissed')
     return { session, recordedProbes }
   } catch (err) {
     await saveFailureShot(config.stateDir, session, err)
@@ -324,6 +336,7 @@ export async function revealMap(session: GameSession): Promise<Revealed> {
     await sleep(1500)
     const after = shroudFraction(await session.grab(), mm, GAME_LAYOUT.shroudColor)
     log.debug('reveal attempt', { code, before, after })
+    await debugShot(session, `reveal-${code}`)
     if (after < 0.02 || after < before * 0.25) {
       await session.input.move(GAME_LAYOUT.cursorPark)
       log.info('map revealed', { code })
@@ -335,19 +348,34 @@ export async function revealMap(session: GameSession): Promise<Revealed> {
   })
 }
 
-export async function currentLevel(session: GameSession, surfaceProbe: string): Promise<Level> {
+/**
+ * Which level the game shows, from the minimap compared with each level's terrain
+ * (`terrain[z][y * size + x]`). Independent of the interface colour (spec 003 research §11).
+ */
+export async function currentLevel(session: GameSession, size: number, terrain: readonly Uint8Array[]): Promise<LevelDetection> {
   const f = await session.grab()
-  return regionHash(f.rgb, f.width, GAME_VIEW.levelToggleProbe) === surfaceProbe ? 0 : 1
+  return detectLevel(f, GAME_LAYOUT.minimap, size, terrain, [GAME_LAYOUT.viewRectColor])
 }
 
-export async function showLevel(session: GameSession, level: Level, surfaceProbe: string): Promise<void> {
-  if ((await currentLevel(session, surfaceProbe)) === level) return
-  await session.input.click(GAME_VIEW.levelToggle)
-  await session.input.move(GAME_LAYOUT.cursorPark)
-  await sleep(1000)
-  if ((await currentLevel(session, surfaceProbe)) !== level) {
-    throw new RefError(ERROR_CODES.POSITION_MISMATCH, `could not switch to level ${level}`, { step: 'level' })
+/** Switches to `level` and verifies it on the minimap; returns the final detection. */
+export async function showLevel(session: GameSession, level: Level, size: number, terrain: readonly Uint8Array[]): Promise<LevelDetection> {
+  let detected = await currentLevel(session, size, terrain)
+  log.debug('level detection', { ...detected })
+  for (let attempt = 0; detected.level !== level && attempt < 2; attempt++) {
+    if (detected.level === null) {
+      throw new RefError(ERROR_CODES.LEVEL_UNKNOWN, 'the minimap matches no level clearly', { step: 'level', details: { ...detected } })
+    }
+    await session.input.click(GAME_VIEW.levelToggle)
+    await session.input.move(GAME_LAYOUT.cursorPark)
+    await sleep(1000)
+    detected = await currentLevel(session, size, terrain)
+    log.debug('level detection after toggle', { ...detected })
   }
+  await debugShot(session, `level-${level}`)
+  if (detected.level !== level) {
+    throw new RefError(ERROR_CODES.LEVEL_MISMATCH, `could not switch to level ${level}`, { step: 'level', details: { ...detected } })
+  }
+  return detected
 }
 
 /** Reads the current view from the minimap rectangle. */
@@ -355,10 +383,15 @@ export async function readView(session: GameSession, level: Level, mapSize: numb
   const f = await session.grab()
   const rect = findViewRect(f, GAME_LAYOUT.minimap, GAME_LAYOUT.viewRectColor)
   if (rect === undefined) throw new RefError(ERROR_CODES.POSITION_MISMATCH, 'view rectangle not found on the minimap')
-  const view = rectToViewOrigin(rect, GAME_LAYOUT.minimap, mapSize, GAME_VIEW.viewTiles, drawnEdges(f, rect, GAME_LAYOUT.viewRectColor))
+  const edges = drawnEdges(f, rect, GAME_LAYOUT.viewRectColor)
+  const problem = viewRectProblem(rect, GAME_LAYOUT.minimap, mapSize, GAME_VIEW.viewTiles, edges)
+  if (problem !== null) {
+    throw new RefError(ERROR_CODES.POSITION_MISMATCH, `implausible view rectangle on the minimap (${problem})`, { details: { rect, edges } })
+  }
+  const view = rectToViewOrigin(rect, GAME_LAYOUT.minimap, mapSize, GAME_VIEW.viewTiles, edges)
   const origin = { x: view.originX, y: view.originY }
   const { visible, mapping } = viewMapping(origin, GAME_VIEW.originTilePixel, GAME_VIEW.viewport, mapSize)
-  return { level, origin, visible, mapping, minimapRect: rect }
+  return { level, origin, visible, mapping, minimapRect: rect, drawnEdges: edges }
 }
 
 /** Centres the view on `target` via minimap clicks, correcting sub-tile rounding on odd map sizes. */
@@ -374,7 +407,10 @@ export async function positionView(session: GameSession, level: Level, target: P
     view = await readView(session, level, mapSize)
     const dx = want.x - view.origin.x
     const dy = want.y - view.origin.y
-    if (dx === 0 && dy === 0) return view
+    if (dx === 0 && dy === 0) {
+      await debugShot(session, 'positioned')
+      return view
+    }
     log.debug('position correction', { attempt, want, got: view.origin })
     // Move the click by the tile difference in minimap pixels (at least one pixel per axis).
     const scale = GAME_LAYOUT.minimap.w / mapSize
@@ -384,6 +420,20 @@ export async function positionView(session: GameSession, level: Level, target: P
   throw new RefError(ERROR_CODES.POSITION_MISMATCH, `view did not centre on tile (${target.x}, ${target.y})`, {
     details: { want, got: view?.origin },
   })
+}
+
+/** With `--debug-steps`: saves the current screen as `<stamp>-step-<name>.png` in the failures folder. */
+export async function debugShot(session: GameSession, step: string): Promise<void> {
+  if (!session.debugSteps) return
+  try {
+    const dir = join(session.stateDir, 'failures')
+    mkdirSync(dir, { recursive: true })
+    const file = join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}-step-${step.replace(/[^a-z0-9-]/gi, '_')}.png`)
+    await writePng(await session.grab(), file)
+    log.info(`debug step screenshot: ${file}`)
+  } catch (err) {
+    log.warn(`could not save debug screenshot: ${(err as Error).message}`)
+  }
 }
 
 /** Saves the current screen after a failure (local diagnostics; derived from game output). */

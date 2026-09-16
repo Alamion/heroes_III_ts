@@ -1,9 +1,11 @@
 import { existsSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { join, relative, resolve } from 'node:path'
 import { cropForRegion, rangeContains } from '../analysis/geometry.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 import { log } from '../log.ts'
 import type { CaptureMatch, CaptureQuery, CaptureRecord, Kind, Source } from '../model/types.ts'
+import { resolveMap } from './capture-store.ts'
 import { validateRecord } from '../model/validate-record.ts'
 
 export interface StoredCapture {
@@ -85,6 +87,26 @@ export function listCaptures(capturesDir: string, f: ListFilters): { id: string;
     )
     .sort(newestFirst)
     .map(({ dir, record }) => ({ id: record.id, dir, createdAt: record.createdAt, sizeBytes: dirSize(dir) }))
+}
+
+/**
+ * Whether a record's map hash equals the current file of that map name (searched in `searchDirs`);
+ * null when the file is not found. Hashes are cached per resolved path.
+ */
+export function mapHashChecker(searchDirs: string[]): (record: CaptureRecord) => boolean | null {
+  const cache = new Map<string, string | null>()
+  return (record) => {
+    let sha = cache.get(record.map.name)
+    if (sha === undefined) {
+      try {
+        sha = createHash('sha256').update(readFileSync(resolveMap(record.map.name, searchDirs))).digest('hex')
+      } catch {
+        sha = null
+      }
+      cache.set(record.map.name, sha)
+    }
+    return sha === null ? null : sha === record.map.sha256
+  }
 }
 
 export function pruneCaptures(capturesDir: string, opts: { ids?: string[]; before?: string; dryRun: boolean }): string[] {

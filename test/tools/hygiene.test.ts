@@ -22,10 +22,17 @@ describe('repository hygiene', () => {
   })
 
   it('has no game archives, sprites, maps or derived images', () => {
-    const game = files.filter((f) => /\.(lod|def|pcx|h3m|h3c|msk|snd|vid)$/i.test(f))
+    const game = files.filter((f) => /\.(lod|def|pcx|h3m|h3c|msk|snd|vid|pal)$/i.test(f))
     expect(game).toEqual([])
     const images = files.filter((f) => /\.png$/i.test(f))
     expect(images).toEqual([])
+  })
+
+  it('stores flag colours as palette entries only (spec 003, constitution I)', () => {
+    const players = readFileSync(resolve(REPO, 'src/core/data/players.ts'), 'utf8')
+    // No RGB triples: colours are read from the user's game.pal at run time.
+    expect(players).not.toMatch(/\[\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\]/)
+    expect(players).toContain("file: 'game.pal'")
   })
 
   it('removed the Windows-only sync script and keeps third-party notices', () => {

@@ -63,17 +63,17 @@ describe('palette animation', () => {
     expect(rotatePalette(pal, [{ start: 10, length: 4 }], -1)[30]).toBe(pal[33])
   })
 
-  it('derives steps from time with 180 ms steps and a joint period of 72', async () => {
+  it('derives steps from time with 180 ms steps and a joint period of 36 (LCM of 12, 9, 6)', async () => {
     expect(animationStep(0)).toBe(0)
     expect(animationStep(179.9)).toBe(0)
     expect(animationStep(180)).toBe(1)
     expect(nextStepTime(200)).toBe(360)
-    expect(allAnimationStates()).toHaveLength(72)
+    expect(allAnimationStates()).toHaveLength(36)
     const atlas = await syntheticAtlas()
     const rows = paletteRowsAt(atlas.layout, atlas.palettes, 3)
     expect(rows.map((r) => r.row).sort()).toEqual(['watrtl.def', 'lavatl.def', 'clrrvr.def', 'mudrvr.def', 'lavrvr.def'].map((n) => atlas.layout.sprites[n]?.row).sort())
-    expect(palettesAt(atlas.layout, atlas.palettes, 72)).toEqual(palettesAt(atlas.layout, atlas.palettes, 0))
-    expect(palettesAt(atlas.layout, atlas.palettes, 24)).not.toEqual(palettesAt(atlas.layout, atlas.palettes, 0))
+    expect(palettesAt(atlas.layout, atlas.palettes, 36)).toEqual(palettesAt(atlas.layout, atlas.palettes, 0))
+    expect(palettesAt(atlas.layout, atlas.palettes, 18)).not.toEqual(palettesAt(atlas.layout, atlas.palettes, 0))
   })
 })
 

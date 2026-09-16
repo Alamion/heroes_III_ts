@@ -35,10 +35,6 @@ export function visibleRange(cam: Camera, margin = 1): TileRange {
   }
 }
 
-export function rangeEquals(a: TileRange | undefined, b: TileRange): boolean {
-  return a !== undefined && a.x0 === b.x0 && a.y0 === b.y0 && a.x1 === b.x1 && a.y1 === b.y1
-}
-
 /** Whether a range lies inside another (the plan can be reused while the camera stays inside). */
 export function rangeContains(outer: TileRange, inner: TileRange): boolean {
   return inner.x0 >= outer.x0 && inner.y0 >= outer.y0 && inner.x1 <= outer.x1 && inner.y1 <= outer.y1

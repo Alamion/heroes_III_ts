@@ -29,6 +29,7 @@ class IdbCache implements DecodedCache {
           for (const name of Array.from(db.objectStoreNames)) db.deleteObjectStore(name)
           db.createObjectStore('atlas')
           db.createObjectStore('world')
+          db.createObjectStore('objects')
         }
         req.onsuccess = () => resolve(req.result)
         req.onerror = () => {
