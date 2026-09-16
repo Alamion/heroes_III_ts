@@ -15,7 +15,7 @@ interface Engine {
   // … unchanged methods
   loadDataArchive(file: File | Blob & { name: string }): Promise<LoadResult>
                                               // h3bitmap.lod: Objects.txt (random outcomes) and
-                                              // PLAYERS.PAL (flag colours); required for objects —
+                                              // game.pal (flag colours); required for objects —
                                               // without it only terrain is drawn and a
                                               // data-archive-missing diagnostic is emitted
   setObjectsVisible(visible: boolean): void   // dev harness key `O`
@@ -64,5 +64,5 @@ type EngineDiagnostic =
 `render.html` `RenderParams` gain `dataArchiveUrl?: string` (h3bitmap.lod; objects are drawn only
 with it), `seed?: number`, `tick?: number` (object tick; default derived
 from `timeMs`, or equal to `step` when `step` is given), `objects?: boolean` (default true),
-`objectFrames?: Record<def, frame>` (fidelity state search override) and `drawList?: boolean`
+`objectFrames?: [renderObjectIndex, frame][]` (fidelity state search override) and `drawList?: boolean`
 (return the draw list with the pixels).

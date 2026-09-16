@@ -1,4 +1,5 @@
-// Entry point: yarn h3 <group> <command> [options]. See specs/002-foundation-rewrite/contracts/inspect-cli.md.
+// Entry point: yarn h3 <group> <command> [options]. See specs/002-foundation-rewrite/contracts/inspect-cli.md
+// and specs/003-map-objects/contracts/inspect-cli.md.
 import { runCli } from '../shared/cli-runner.ts'
 import type { CommandSpec } from '../shared/cli-runner.ts'
 
@@ -15,8 +16,10 @@ export const INSPECT_COMMANDS: Record<string, CommandSpec> = {
   'map tiles': { help: 'tile records [--level] [--region x0,y0,x1,y1]', load: async () => (await import('./map.ts')).mapTiles },
   'map objects': { help: 'objects [--level] [--region] [--class ID]', load: async () => (await import('./map.ts')).mapObjects },
   'map object': { help: 'one object --index N', load: async () => (await import('./map.ts')).mapObject },
+  'map draw-list': { help: 'objects drawn in a region, in draw order: MAP --level Z --region x0,y0,x1,y1 (--time MS | --tick N) [--seed S]', load: async () => (await import('./objects.ts')).mapDrawList },
+  'map random': { help: 'resolved random objects: MAP [--seed S] [--level Z]', load: async () => (await import('./objects.ts')).mapRandom },
   'map floating': { help: 'floating tiles [--level Z] [--region] [--format list|json]', load: async () => (await import('./floating.ts')).mapFloating },
-  render: { help: 'render a map region headlessly: MAP --level Z --region x0,y0,x1,y1 (--time MS | --palette-step N) --out PATH [--archive FILE] [--rebuild]', booleanFlags: ['rebuild'], load: async () => (await import('./render.ts')).renderCommand },
+  render: { help: 'render a map region headlessly: MAP --level Z --region x0,y0,x1,y1 (--time MS | --palette-step N) [--tick N] [--seed S] [--no-objects] [--draw-list] --out PATH [--archive FILE] [--rebuild]', booleanFlags: ['rebuild', 'no-objects', 'draw-list'], load: async () => (await import('./render.ts')).renderCommand },
   'map parse-all': { help: 'parse every map in the install Maps folder [--dir DIR]', load: async () => (await import('./map.ts')).mapParseAll },
 }
 

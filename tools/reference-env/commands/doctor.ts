@@ -15,6 +15,7 @@ import { log } from '../log.ts'
 import type { DoctorCheck, DoctorReport, FileHash, ReferenceConfig } from '../model/types.ts'
 import { resolveMap } from '../store/capture-store.ts'
 import { sha256File } from '../store/identity.ts'
+import { mapHashChecker, scanRecords } from '../store/lookup.ts'
 import { config } from './common.ts'
 import { SETUP_FILE } from './setup-file.ts'
 
@@ -134,6 +135,13 @@ export const CHECKS: Record<string, Check> = {
     return missing.length === 0 ? pass('maps-reachable', 'reference maps found') : warn('maps-reachable', `not found: ${missing.join(', ')}`, 'copy them to public/dev-assets/')
   },
   'captures-gitignored': async (cfg) => gitIgnored(cfg, 'captures-gitignored', 'reference-captures/'),
+  'captures-map-hash': async (cfg) => {
+    const matches = mapHashChecker(cfg.mapSearchDirs)
+    const stale = scanRecords(cfg.capturesDir).filter((c) => matches(c.record) === false)
+    if (stale.length === 0) return pass('captures-map-hash', 'all captures match their current map files')
+    const maps = [...new Set(stale.map((c) => c.record.map.name))]
+    return warn('captures-map-hash', `${stale.length} captures were taken from an older version of ${maps.join(', ')}`, 'yarn ref prune --id … (or re-capture)')
+  },
   'config-gitignored': async (cfg) => gitIgnored(cfg, 'config-gitignored', CONFIG_FILE),
   lock: async (cfg) => {
     const held = readActiveLock(cfg.stateDir)

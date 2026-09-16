@@ -15,19 +15,20 @@ yarn verify fidelity --map MAP --level 0|1 --region x0,y0,x1,y1
   behaviour (objects masked) for diagnosis only.
 - Pixels covered by an animated object sprite ignore the still's volatile mask (like palette-animated
   tiles) and are compared under the best animation state.
-- Still state search: palette step, then per animated DEF a frame (research §8). Report adds
-  `objectFramesByDef`, `tickConsistent`, `pixels.comparedObject`.
+- Still state search: palette step, then a frame per animated object (phases are random per launch
+  in the game, research.md T062). Report adds `objectFramesByObject`, `pixels.comparedObject`.
 - Clip: object frames must advance in order on every change; `clip.objectStepMsMeasured` must be
   within one grab interval of `OBJECT_FRAME_MS`.
 - Capture selection filters by the current map file's sha256; captures of another hash are reported
   once as `skip` / `map-changed`. `capture-misaligned` is attempted only for records without a
   `verification` block.
 - Report: [report.schema.json](report.schema.json) `#/$defs/fidelity`; the fidelity tool validates
-  against this schema from now on.
+  against this schema from now on. Next to `report.json` each capture's folder holds `reference.png`
+  (the game viewport), `rendered.png` (the best-matching render) and `diff.png` (last frame for clips).
 
 ## `yarn verify budget`
 
-- Default maps: `Arrogance.h3m`, `test_map.h3m`, the largest install map, synthetic 36×36 and
+- Default maps: `Arrogance.h3m`, `test_map.h3m`, the largest install map, synthetic 96×96×2 and
   252×252×2 (both with the same synthetic object pattern).
 - New budget ids: `object-atlas-bytes` (≤ 64 MB), `sc007-object-quads` (equal between synthetic map
   sizes at the same view). `sc007-draw-calls` compares terrain + object draw calls.

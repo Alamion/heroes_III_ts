@@ -11,21 +11,31 @@ Read it first. If this file conflicts with it, the constitution wins — fix thi
 
 ## Current State
 
-The foundation ([specs/002-foundation-rewrite/](specs/002-foundation-rewrite/)) is implemented:
-parsers for LOD, DEF, PCX and H3M (RoE/AB/SoD, every object body), a version-independent world
-state, a WebGL 1.0 terrain/river/road/border renderer with palette animation, a browser dev
-harness, inspection CLIs and headless checks (layers, determinism, fidelity against reference
-captures, budgets). Objects, heroes and towns are parsed but not drawn yet (TODO item 3.1).
-Platform adapters (Wallpaper Engine, Lively, KDE) are not built yet (TODO item 3.2); `project.json`
-is kept for them.
+The foundation ([specs/002-foundation-rewrite/](specs/002-foundation-rewrite/)) and map objects
+([specs/003-map-objects/](specs/003-map-objects/)) are implemented: parsers for LOD, DEF, PCX and
+H3M (RoE/AB/SoD), a version-independent world state, a WebGL 1.0 renderer for terrain, rivers,
+roads, objects, heroes and towns (object atlas, per-object animation, flag colours, 16-bit shadows)
+with the map border on top, a browser dev harness (sprite archive, data archive `h3bitmap.lod`,
+map), inspection CLIs and headless checks (layers, determinism, fidelity with objects, budgets). The
+capture tooling verifies level and pixel mapping before storing a capture. Platform adapters
+(Wallpaper Engine, Lively, KDE) are not built yet (TODO item 3.2); `project.json` is kept for them.
 
 Facts measured against the original game that code must respect (details in
-[research.md](specs/002-foundation-rewrite/research.md)):
+[002 research](specs/002-foundation-rewrite/research.md), [003 research](specs/003-map-objects/research.md)):
 - The game shows colours through RGB565 (`toDisplayColor` in the atlas palette).
 - Palette animation: one global step counter, 180 ms per step, the last colour of a range moves to
-  its start; lava rotates nine colours (246–254). Stills may catch sprites one step apart.
-- Map border (`edg.def`) is a deterministic 4×4 pattern; roads are drawn 16 px down.
-- Hero sprites are `ah00_.def`–`ah17_.def`; heroes are not in `Objects.txt`.
+  its start; lava rotates 246–254, mud river 228–239, lava river 240–248. Stills may catch sprites
+  one step apart.
+- Map border (`edg.def`) is a deterministic 4×4 pattern drawn over objects; roads are drawn 16 px down.
+- Objects: bottom-right anchor; order flat → non-visitable → visitable → row → heroes (flag, then body) → map order;
+  flag pixels (index 5) use `game.pal` entries 64–71 (players) and 72 (neutral); shadow index 1
+  keeps `(c>>1)+(c>>2)`, index 4 `c>>1` of each 5/6-bit channel; object frames advance every 180 ms
+  with a random phase per object per launch (seeded here); towns use `AVC?0` without fort, `AVC?x0`
+  with one.
+- Heroes: `ah00_.def`–`ah17_.def` body + `af0?.def` flag (colour baked in); not in `Objects.txt`.
+- Accepted deviations (003 research, owner review 2026-09-17): draw order in dense mountain clusters,
+  reef frames/shadows (the render keeps its reef shadows). Fidelity reports these views as `fail`;
+  do not chase them.
 
 ---
 
@@ -40,10 +50,10 @@ Facts measured against the original game that code must respect (details in
 ```text
 src/core/util      ByteReader, FormatError, logger, clock, seeded RNG, web globals
 src/core/data      typed game tables (terrain, palette rotation, object classes, thresholds)
-src/core/formats   lod/ def/ pcx/ h3m/ text/ (Objects.txt)
-src/core/state     world state, sprite footprints, floating tiles
+src/core/formats   lod/ def/ pcx/ pal/ h3m/ text/ (Objects.txt, artraits.txt)
+src/core/state     world state, sprite footprints, floating tiles, random outcomes, render objects, object index
 src/core/sim       simulation events
-src/core/render    atlas, camera, draw plan, palette, software rasterizer, WebGL renderer
+src/core/render    atlas, object atlas, camera, draw plans, draw order, animation, palette, software rasterizer, WebGL renderer
 src/runtime        engine facade, decode worker, IndexedDB cache, frame scheduler
 src/adapters/dev-harness   index.html (harness), render.html (headless checks)
 tools/inspect      yarn h3        tools/checks   yarn verify
@@ -61,7 +71,7 @@ imports tools or adapters.
 ## Commands
 
 ```bash
-yarn dev            # dev harness (choose h3sprite.lod and a map; arrows/drag scroll, U level)
+yarn dev            # dev harness (h3sprite.lod, h3bitmap.lod, a map; arrows/drag scroll, U level, O objects)
 yarn build          # type-check (tsc -b) + production build into dist/
 yarn preview        # preview production build
 yarn test           # Vitest, run once (real-file and browser suites skip with a reason)
@@ -80,8 +90,13 @@ yarn h3 def dump|png|palette h3sprite.lod:watrtl.def [--frame N --out F.png --fu
 yarn h3 pcx dump|png h3bitmap.lod:ENTRY.pcx [--out F.png]
 yarn h3 map info|tiles|tile|objects|object|parse-all MAP [--level Z --region x0,y0,x1,y1 --x --y --class --index]
 yarn h3 map floating MAP [--level 0] [--region ...] [--format list|json]   # for yarn ref selfcheck --floating-tiles
-yarn h3 render MAP --level Z --region x0,y0,x1,y1 (--palette-step N | --time MS) --out F.png
+yarn h3 map draw-list MAP --level Z --region x0,y0,x1,y1 (--tick N | --time MS) [--seed S]
+yarn h3 map random MAP [--seed S] [--level Z]
+yarn h3 render MAP --level Z --region x0,y0,x1,y1 (--palette-step N | --time MS) [--tick N] [--seed S] [--no-objects] [--draw-list] --out F.png
 ```
+
+Objects need the data archive `h3bitmap.lod` (Objects.txt, artraits.txt, game.pal); tools find it in
+`<bundleDir>/Data`.
 
 Checks (exit 0 pass / not-checkable, 1 fail, 3 prerequisite missing with `--require`, 4 skip;
 reports in git-ignored `check-reports/`):
@@ -89,7 +104,7 @@ reports in git-ignored `check-reports/`):
 ```bash
 yarn verify layers
 yarn verify determinism [--runs 10] [--rebuild]
-yarn verify fidelity --map Arrogance.h3m --all-regions [--kind still|clip] [--capture ID]
+yarn verify fidelity --map test_map.h3m --all-regions [--kind still|clip] [--capture ID] [--exclude-objects] [--seed S]
 yarn verify fidelity --map M --level Z --region x0,y0,x1,y1
 yarn verify budget [--no-build] [--throttle 4] [--viewport 1920x1080]
 yarn verify all
@@ -103,7 +118,7 @@ Reference environment (captures from the original game; see below):
 yarn ref doctor                                   # check prerequisites (exit 3 if any fail)
 yarn ref setup [--force]                          # dedicated Wine prefix + staging root + expected hashes
 yarn ref calibrate                                # record local probes, verify layout (Arrogance.h3m)
-yarn ref still  --map F --level 0|1 --x N --y N [--start fixed|random]
+yarn ref still  --map F --level 0|1 --x N --y N [--start fixed|random] [--debug-steps]
 yarn ref clip   --map F --level 0|1 --x N --y N --duration MS [--start fixed|random]
 yarn ref editor --map F --level 0|1 --x N --y N [--overlay grid] [--launches N]
 yarn ref find   --map F --level 0|1 --region x0,y0,x1,y1 [--source game|editor] [--kind still|clip]
@@ -143,7 +158,11 @@ caches, captures). Tests needing real game files must skip with a clear message 
 ### Dev assets (`public/dev-assets/`)
 
 - `H3sprite.lod` — base game sprite archive (Complete edition)
+- `h3bitmap.lod` — data archive (Objects.txt, artraits.txt, game.pal), needed for objects
+- `test_map.h3m` — primary check map (see below)
 - `Arrogance.h3m` — SoD map, 36×36 with underground
+- `Merchant Princes.h3m` (72×72, SoD, one level), `Shadow Valleys.h3m` (72×72, SoD, two levels) —
+  copies of Complete maps that have captures (the reveal-cheat and level-switch cases)
 - `По праву силы.h3m` — map with non-ASCII file name; HotA format (0x20), rejected by the base-game tooling
 - `[HotA] The Devil Is in the Detail.h3m` — HotA map, 252×252 (HotA support comes later; budget
   checks use a synthetic 252×252 two-level map meanwhile)
@@ -151,7 +170,7 @@ caches, captures). Tests needing real game files must skip with a clear message 
 Checks and tests may use any map and archive from the configured install (`<bundleDir>/Maps`,
 `<bundleDir>/Data`); `dev-assets` are only examples.
 
-**Primary check map: `<bundleDir>/Maps/test_map.h3m`** (local-only, built by the project owner in the
+**Primary check map: `public/dev-assets/test_map.h3m`** (local-only, built by the project owner in the
 original editor; SoD 144×144, two levels). It holds nearly every object class, all terrains, rivers,
 roads and player colors, split into zones (random objects kept apart); zone coordinates are in
 [specs/003-map-objects/spec.md](specs/003-map-objects/spec.md). Use it first for fidelity checks
@@ -211,9 +230,14 @@ Facts agents need when touching the tooling:
   libfaketime does not pin them. Their tiles are "floating": excluded from automated
   reproducibility checks (`--floating-tiles` from `yarn h3 map floating`) and checked visually
   and less often.
-- Known defects: stills of the view clamped at the top map edge (x1–19, y0–16) record the mapping
-  one tile off (`yarn verify fidelity` reports `skip: capture-misaligned`); `still` failed on
-  `Shadow Valleys.h3m` (level switch) and `Merchant Princes.h3m` (reveal cheat).
+- The level is detected from the minimap against each level's terrain (the interface is skinned
+  in the human player's colour, so button hashes do not work); stills and clips are checked against
+  a terrain render at the recorded mapping and one-tile shifts before they are stored
+  (`MAPPING_UNVERIFIED`, `LEVEL_UNKNOWN`, `LEVEL_MISMATCH`). Records carry a `verification` block.
+- Scenario intro messages of other sizes are not recognised by the probe; the reveal code is typed
+  up to three times, the first attempt's Return closes such a message.
+- `--debug-steps` saves a screenshot after every session step to the failures folder.
+- Captures of an edited map file are skipped as `map-changed`; `yarn ref doctor` counts them.
 
 ---
 

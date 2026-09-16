@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { readH3mHeader } from '../analysis/h3m-header.ts'
+import { parseH3mFile } from '../../../src/core/formats/h3m/h3m.ts'
 import type { ParsedArgs } from '../cli.ts'
 import { loadConfig } from '../config.ts'
 import { EDITOR_EXE, GAME_EXE, HASHED_ARCHIVES } from '../data/staging-whitelist.ts'
@@ -63,6 +64,23 @@ export async function targetContext(cfg: ReferenceConfig, args: ParsedArgs): Pro
   }
   const name = basename(mapPath).normalize('NFC')
   return { mapPath, level, target, map: { name, key: mapKey(name, sha), sha256: sha, ...header } }
+}
+
+/** Terrain id per tile for every level of a map (`[z][y * size + x]`), for minimap level detection. */
+export async function levelTerrains(mapPath: string): Promise<Uint8Array[]> {
+  let map
+  try {
+    map = await parseH3mFile(new Uint8Array(readFileSync(mapPath)), basename(mapPath))
+  } catch (err) {
+    throw new RefError(ERROR_CODES.MAP_UNSUPPORTED, `cannot read the tiles of ${basename(mapPath)}: ${(err as Error).message}`, { cause: err })
+  }
+  const size = map.info.size
+  const levels = map.info.hasUnderground ? 2 : 1
+  return Array.from({ length: levels }, (_, z) => {
+    const out = new Uint8Array(size * size)
+    for (let i = 0; i < size * size; i++) out[i] = map.tiles[(z * size * size + i) * 7] as number
+    return out
+  })
 }
 
 export async function stagedHashes(cfg: ReferenceConfig): Promise<{ game: string; editor: string; archives: FileHash[] }> {

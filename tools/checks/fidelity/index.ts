@@ -1,6 +1,7 @@
 // `yarn verify fidelity` (contracts/checks-cli.md, spec US4).
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { join, resolve } from 'node:path'
 import { loadConfig } from '../../reference-env/config.ts'
 import type { CaptureRecord } from '../../reference-env/model/types.ts'
@@ -13,14 +14,14 @@ import { gameDirs, requireGameFile } from '../../shared/game-files.ts'
 import { validateJson } from '../../shared/json-schema.ts'
 import { encodePng } from '../../shared/png.ts'
 import { HeadlessRenderer } from '../../shared/render-page.ts'
-import { allGameCaptures, findFor, loadCapture, uiCornerMask } from './captures.ts'
-import { buildMapContext } from './masks.ts'
-import type { MapContext } from './masks.ts'
+import { allGameCaptures, findFor, loadCapture, mayBeMisaligned, selectCaptures, uiCornerMask } from './captures.ts'
+import { buildMapContext, buildObjectContext } from './masks.ts'
+import type { MapContext, ObjectContext } from './masks.ts'
 import { runFidelity } from './run.ts'
 import type { LoadedCapture, UiMask } from './captures.ts'
 import type { HeadlessRenderer as Renderer } from '../../shared/render-page.ts'
 
-const SCHEMA_PATH = resolve(import.meta.dirname, '../../../specs/002-foundation-rewrite/contracts/report.schema.json')
+const SCHEMA_PATH = resolve(import.meta.dirname, '../../../specs/003-map-objects/contracts/report.schema.json')
 
 function capturesDir(): string {
   try {
@@ -52,7 +53,7 @@ async function findMisregistration(capture: LoadedCapture, ctx: MapContext, rend
     record.mapping.originPixel.x += dx
     record.mapping.originPixel.y += dy
     const shifted = { ...capture, record } as LoadedCapture
-    const r = await runFidelity({ capture: shifted, ctx, renderer, region, ui, verifyGpu: false })
+    const r = await runFidelity({ capture: shifted, ctx, renderer, region, ui, verifyGpu: false, excludeObjects: true })
     if (r.pixels.differing <= 0.01 * compared) return { dx, dy, differing: r.pixels.differing }
   }
   return undefined
@@ -79,20 +80,16 @@ export async function fidelityCommand(args: ParsedArgs): Promise<CommandResult> 
   const captureId = opt(args, 'capture')
   if (captureId !== undefined) targets = allGameCaptures(dir, mapArg).filter((c) => c.record.id === captureId)
   else if (allRegions) targets = allGameCaptures(dir, mapArg).filter((c) => (levelArg === undefined || c.record.level === Number(levelArg)) && (kindArg === undefined || c.record.kind === kindArg))
-  else targets = findFor(dir, mapArg, Number(levelArg) as 0 | 1, region as Region, kindArg as 'still' | 'clip' | undefined).slice(0, 1)
-  if (targets.length === 0) return skip('no-capture', `no game capture of ${mapArg} matches`)
-
-  // One capture per distinct view is enough for --all-regions (newest first).
-  if (allRegions) {
-    const seen = new Set<string>()
-    targets = targets
-      .sort((a, b) => b.record.createdAt.localeCompare(a.record.createdAt))
-      .filter((t) => {
-        const key = `${t.record.kind}:${t.record.level}:${t.record.mapping.originTile.x},${t.record.mapping.originTile.y}`
-        if (seen.has(key)) return false
-        seen.add(key)
-        return true
-      })
+  else targets = findFor(dir, mapArg, Number(levelArg) as 0 | 1, region as Region, kindArg as 'still' | 'clip' | undefined)
+  // Only captures of the current map file count (spec 003 T031); older versions are reported once.
+  const mapSha = createHash('sha256').update(readFileSync(mapPath)).digest('hex')
+  const selected = selectCaptures(targets, mapSha, allRegions)
+  const stale = selected.stale
+  targets = allRegions || captureId !== undefined ? selected.current : selected.current.slice(0, 1)
+  const excludeObjects = flag(args, 'exclude-objects')
+  if (targets.length === 0) {
+    if (stale.length > 0) return skip('map-changed', `${stale.length} captures of ${mapArg} were taken from a different version of the map file`)
+    return skip('no-capture', `no game capture of ${mapArg} matches`)
   }
 
   const schema = JSON.parse(readFileSync(SCHEMA_PATH, 'utf8')) as Record<string, unknown>
@@ -101,18 +98,23 @@ export async function fidelityCommand(args: ParsedArgs): Promise<CommandResult> 
   mkdirSync(outDir, { recursive: true })
   const ui = uiCornerMask(dir)
   let ctx: MapContext | undefined
+  let objects: ObjectContext | undefined
+  const dataArchive = excludeObjects ? null : requireGameFile(opt(args, 'data-archive') ?? 'h3bitmap.lod')
+  const seedArg = opt(args, 'seed')
+  const seed = seedArg === undefined ? undefined : Number(seedArg)
+  if (seed !== undefined && !Number.isInteger(seed)) throw usage('--seed must be an integer')
   const renderer = await HeadlessRenderer.open({ rebuild: flag(args, 'rebuild'), width: 800, height: 600 })
   const results: Record<string, unknown>[] = []
+  if (stale.length > 0) results.push({ outcome: 'skip', skipReason: 'map-changed', captures: stale.map((t) => t.record.id), detail: 'captures taken from a different version of the map file (sha256 differs)' })
   try {
     for (const t of targets) {
       ctx ??= await buildMapContext(mapPath, archivePath)
-      if (t.record.map.sha256 !== ctx.sha256) {
-        results.push({ outcome: 'skip', skipReason: 'no-game-files', capture: t.record.id, detail: 'capture was taken from a different map file (sha256 differs)' })
-        continue
-      }
+      if (dataArchive !== null && objects === undefined) objects = await buildObjectContext(ctx, { dataArchive, ...(seed !== undefined ? { seed } : {}) })
       const capture = loadCapture(t.dir, t.record)
-      const r = await runFidelity({ capture, ctx, renderer, region, ui })
-      if (r.outcome === 'fail' && r.pixels.differing > 0.05 * r.pixels.compared) {
+      // Without the data archive objects cannot be drawn: fall back to excluding them.
+      const r = await runFidelity({ capture, ctx, renderer, region, ui, excludeObjects: excludeObjects || objects === undefined, ...(objects !== undefined ? { objects } : {}) })
+      // Captures verified at record time (spec 003) cannot be misaligned; older ones may be.
+      if (r.outcome === 'fail' && mayBeMisaligned(t.record) && r.pixels.differing > 0.05 * r.pixels.compared) {
         // A large difference may be a capture whose recorded tile mapping is off by a tile (seen on
         // item 1 stills clamped at the top map edge). Try one-tile shifts before reporting a failure.
         const shift = await findMisregistration(capture, ctx, renderer, region, ui, r.pixels.compared)
@@ -124,7 +126,12 @@ export async function fidelityCommand(args: ParsedArgs): Promise<CommandResult> 
       const reportDir = join(outDir, t.record.id)
       mkdirSync(reportDir, { recursive: true })
       const diffPath = join(reportDir, 'diff.png')
-      if (r.diff.width > 0) writeFileSync(diffPath, encodePng({ width: r.diff.width, height: r.diff.height, channels: 4, data: r.diff.rgba }))
+      if (r.diff.width > 0) {
+        const png = (data: Uint8Array): Uint8Array => encodePng({ width: r.diff.width, height: r.diff.height, channels: 4, data })
+        writeFileSync(diffPath, png(r.diff.rgba))
+        writeFileSync(join(reportDir, 'reference.png'), png(r.images.reference))
+        writeFileSync(join(reportDir, 'rendered.png'), png(r.images.rendered))
+      }
       const usedRegion = region ?? { x0: t.record.visible.x0, y0: t.record.visible.y0, x1: t.record.visible.x1, y1: t.record.visible.y1 }
       const report = {
         outcome: r.outcome,
@@ -136,6 +143,7 @@ export async function fidelityCommand(args: ParsedArgs): Promise<CommandResult> 
         gpuMatchesReference: r.gpuMatchesReference,
         paletteStep: r.paletteStep,
         ...(r.paletteStepsBySprite !== undefined ? { paletteStepsBySprite: r.paletteStepsBySprite } : {}),
+        ...(r.objectFramesByObject !== undefined ? { objectFramesByObject: r.objectFramesByObject } : {}),
         pixels: r.pixels,
         tiles: r.tiles.filter((x) => x.differing > 0),
         randomCauses: r.randomCauses,
@@ -149,7 +157,7 @@ export async function fidelityCommand(args: ParsedArgs): Promise<CommandResult> 
       if (r.outcome === 'not-checkable') {
         appendVisualReview(dir, { map: t.record.map.name, level: t.record.level, region: usedRegion, captureId: t.record.id, reason: `compared ${r.pixels.compared} of ${r.pixels.inMap} in-map pixels`, addedAt: report.createdAt })
       }
-      results.push({ capture: t.record.id, kind: t.record.kind, level: t.record.level, outcome: r.outcome, gpuMatchesReference: r.gpuMatchesReference, paletteStep: r.paletteStep, compared: r.pixels.compared, comparedAnimated: r.pixels.comparedAnimated, differing: r.pixels.differing, excluded: r.pixels.excluded, badTiles: r.tiles.filter((x) => x.differing > 0).length, ...(r.clip !== undefined ? { clip: { pass: r.clip.pass, stepMsMeasured: r.clip.stepMsMeasured } } : {}), report: join(reportDir, 'report.json') })
+      results.push({ capture: t.record.id, kind: t.record.kind, level: t.record.level, outcome: r.outcome, gpuMatchesReference: r.gpuMatchesReference, paletteStep: r.paletteStep, compared: r.pixels.compared, comparedAnimated: r.pixels.comparedAnimated, comparedObject: r.pixels.comparedObject, differing: r.pixels.differing, excluded: r.pixels.excluded, badTiles: r.tiles.filter((x) => x.differing > 0).length, ...(r.clip !== undefined ? { clip: { pass: r.clip.pass, stepMsMeasured: r.clip.stepMsMeasured, objectStepMsMeasured: r.clip.objectStepMsMeasured } } : {}), report: join(reportDir, 'report.json') })
     }
   } finally {
     await renderer.close()

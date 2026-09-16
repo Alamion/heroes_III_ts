@@ -50,7 +50,8 @@ describe('frame scheduler', () => {
     const clock = new ManualClock(0)
     const host = new FakeHost(clock)
     const draws: number[] = []
-    const s = new FrameScheduler(host, clock, { draw: (t) => (draws.push(t), animated) })
+    // Animated content changes every 180 ms (palette steps and object ticks share the timer).
+    const s = new FrameScheduler(host, clock, { draw: (t) => (draws.push(t), animated ? (Math.floor(t / 180) + 1) * 180 : null) })
     return { clock, host, draws, s }
   }
 
@@ -97,5 +98,23 @@ describe('frame scheduler', () => {
   it('keys cache entries by kind, schema and identity and tolerates a missing cache', async () => {
     expect(cacheKey('atlas', 'abc')).toBe(`atlas:${CACHE_SCHEMA}:abc`)
     expect(await noCache.get('world', 'x')).toBeUndefined()
+  })
+})
+
+describe('FrameScheduler with irregular change times (spec 003)', () => {
+  it('wakes exactly at the reported next change and stops when nothing animates', () => {
+    const clock = new ManualClock(0)
+    const host = new FakeHost(clock)
+    const changes = [100, 250, null]
+    const draws: number[] = []
+    const s = new FrameScheduler(host, clock, { draw: (t) => (draws.push(t), changes[draws.length - 1] ?? null) })
+    s.invalidate()
+    host.flushFrames()
+    host.runNextTimer()
+    host.flushFrames()
+    host.runNextTimer()
+    host.flushFrames()
+    expect(draws).toEqual([0, 100, 250])
+    expect(s.pending).toBe(0)
   })
 })

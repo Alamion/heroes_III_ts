@@ -81,8 +81,8 @@ y 65–97 and heroes x 55–59, y 63–67):
 - indices 1–4 and 6–7: shadow — the game darkens the pixel below. The exact formula is measured
   from pixel pairs (terrain without shadow vs the same terrain under a shadow) in stills; the
   starting point is spec 002's `OVERLAY_ALPHA` (1–2: 25 %, 3–4: 50 %, 6: 50 %, 7: 25 %);
-- index 5: flag colour — replaced by one colour per owner (8 players + neutral). **No colour values
-  are committed** (Principle I: palettes and anything derived from game files). The typed table
+- index 5: flag colour — replaced by one colour per owner (8 players + neutral); **measured:
+  `game.pal` entries 64–71 and 72** (see Measurements, T045). **No colour values are committed** (Principle I: palettes and anything derived from game files). The typed table
   `PLAYER_FLAG_SHADES` in `src/core/data/players.ts` stores only *where* the colour comes from: a
   shade index inside each player's 32-colour block of the user's `PLAYERS.PAL` (and, for neutral,
   a source file + index found by the spike). The spike measures capture colours at index-5 pixels
@@ -114,7 +114,9 @@ more memory and cache work for no gain over a per-vertex owner.
 
 ## 4. Draw order
 
-**Decision** (hypothesis, SPIKE on dense zones of `test_map.h3m`): one comparator in
+**Measured (T047): flat → non-visitable → visitable → row y → heroes → map order; see Measurements.**
+
+**Original hypothesis** (SPIKE on dense zones of `test_map.h3m`): one comparator in
 `src/core/render/object-order.ts`, keys in order:
 
 1. flat objects first: templates with the `isOverlay` flag (Objects.txt last column) — lakes,
@@ -185,6 +187,8 @@ the wallpaper shows.
 the editor, not the game.
 
 ## 7. Object animation timing
+
+**Superseded in part by Measurements (T062 part 1): phases are per object and random per launch.**
 
 **Decision** (hypothesis, SPIKE with a clip of an animated zone of `test_map.h3m`, both monsters and
 decorations and an owned flag): object frames advance on the **same global adventure-map tick as
@@ -303,5 +307,187 @@ outcomes.
 
 ## Measurements
 
-To be filled by the spikes (§3 shadow and flag colours, §4 order, §5 hero facing and town sprites,
+Filled by the spikes (§3 shadow and flag colours, §4 order, §5 hero facing and town sprites,
 §7 timing, §11 reveal cause), each with date, capture ids and counts.
+
+### Mapping verification on existing captures (T027, T019, 2026-09-16)
+
+`verifyMapping` with terrain-only software renders (non-animated terrain outside object and floating
+footprints) over all Arrogance stills: every correctly recorded view passes with its recorded mapping
+best (0–1 266 differing of 40 000–113 000 compared pixels; the residue is the UI corner ornaments);
+the three stills recorded by commit a869065 fail with best shift (0, −1):
+`2026-09-14T15-24-36-062Z_x1-19_y0-16` (79 681 vs 134 differing), `2026-09-14T15-25-55-503Z_x1-19_y0-16`
+(79 677 vs 134), `2026-09-14T16-48-40-460Z_x1-19_y0-16` (level 1, 1 078 vs 0). The same view taken
+with request y = 8 (`2026-09-14T15-17-44-724Z_x1-19_y0-16`) passes (33 differing). The three were
+pruned. Views with no comparable terrain (e.g. corners of the underground, all rock under objects)
+compare 0 pixels and cannot be verified this way; they pass without evidence. ~0.3 s per still.
+
+### Artifact classes and random dwellings (T009, T012, 2026-09-16)
+
+Artifact classes are read from the user's `artraits.txt` (class column S/T/N/J/R; 144 rows in the
+Complete edition: 7 special, 37 treasure, 21 minor, 39 major, 40 relic) instead of a committed table.
+Random dwellings choose any creature generator template allowed on the terrain (no dwelling → creature
+table in the base game's text files); their tiles are floating. Hero allowed-list bit set = allowed,
+artifact list bit set = disabled (checked on 8 install maps: 127–144 of 160 hero bits set, 14–21
+artifact bits set).
+
+### Level detection and reveal on previously failing maps (T022–T026, T033, 2026-09-16)
+
+- **Level metric.** The first metric (neighbour agreement) separated levels poorly on the real
+  minimap (0.775 vs 0.708 on the Arrogance surface: the game draws each terrain in two shades,
+  passable and blocked, plus object colours). Replaced by purity (tiles of one colour share a
+  terrain) × coverage (a terrain's tiles use at most two main colours): Arrogance surface 0.916 vs
+  0.201, Arrogance underground 0.916 vs 0.256, Shadow Valleys underground (blue interface) 0.987 vs
+  0.297, Shadow Valleys surface 0.931 vs 0.294. Margin threshold 0.1 kept.
+- **Reveal cause** (`--debug-steps` on `Merchant Princes.h3m`): the map shows a scenario intro message
+  whose box is smaller than Arrogance's, so the OK-button probe did not match ("no scenario intro
+  message detected"); the first `nwcwhatisthematrix` attempt went into the open message and its
+  Return closed it; the second code `nwctheone` is not a cheat in this build and was typed into
+  the chat. Fix: type the working code up to three times before other codes. Result: capture
+  succeeds with `nwcwhatisthematrix`.
+- **Live results** (SC-003): `Arrogance.h3m` top edge (request 10,7) → `2026-09-16T20-02-55-786Z_x1-19_y0-15`,
+  origin (1, −1), mapping 134 differing of 75 014; `Shadow Valleys.h3m` level 1 →
+  `2026-09-16T20-04-38-086Z_x11-29_y12-28` (1 599 of 278 485); level 0 →
+  `2026-09-16T20-06-15-259Z_x11-29_y12-28` (723 of 124 998); `Merchant Princes.h3m` →
+  `2026-09-16T20-09-50-536Z_x11-29_y12-28` (0 of 78 037). All mappings best at shift (0, 0).
+
+### Captures of test_map.h3m and terrain confirmation (T034, T035, 2026-09-16)
+
+Captures (all with verified mapping, best shift (0, 0)): towns `2026-09-16T20-20-17-814Z_x11-29_y73-89`,
+heroes `2026-09-16T20-21-37-299Z_x48-66_y57-73`, dense `2026-09-16T20-22-56-244Z_x57-75_y51-67` and
+`2026-09-16T20-24-15-106Z_x76-94_y51-67`, rivers/roads top edge `2026-09-16T20-25-34-179Z_x109-127_y0-13`,
+top-left corner `2026-09-16T20-26-52-867Z_x0-18_y0-16`, bottom-right corner
+`2026-09-16T20-28-11-893Z_x125-143_y127-143`, underground `2026-09-16T20-29-31-280Z_x50-68_y14-30`, random
+zone `2026-09-16T20-30-51-005Z_x19-37_y34-50`, owned objects `2026-09-16T20-35-30-614Z_x29-47_y62-78`; clips
+dense `2026-09-16T20-32-03-439Z_x57-75_y51-67` and heroes `2026-09-16T20-33-27-659Z_x48-66_y57-73` (4 s each).
+
+Terrain-only fidelity (`--exclude-objects`):
+- **Roads confirmed**: all three road types on the surface top edge and underground, and the 28 road
+  tiles of `Merchant Princes.h3m`, match with 0 differing pixels at the +16 px offset (FR-020, SC-004).
+- **Mud and lava river palettes corrected**: both failed (7 270 and 10 954 differing pixels). Colour
+  matching of river pixels against the DEF palette showed mud river rotating the twelve colours
+  228–239 and lava river the nine colours 240–248, with shifts consistent with one global step
+  (mud k ≡ 10 mod 12, lava k ≡ 4 mod 9 in the same stills). The h3lwp ranges (mud 183–188 + 240–245,
+  lava 240–247) were wrong. After the fix both stills pass with 0 differing pixels (35 000 and 67 000
+  compared animated pixels). The joint palette period is now 36 (LCM 12, 9, 6).
+- **Map corners**: the top-left corner view passes with 0 differing pixels (corner frame 16 confirmed).
+  The bottom-right corner view differs on 89 pixels in tiles (142–143, 141–142) — swamp tiles next to
+  the corner, not the border; examined with objects drawn (T055).
+- The town zone differs on 2 589 pixels next to towns (plain dirt, no rivers or roads): town sprites
+  the game draws differ from the template's footprint (see T047), so these are object pixels.
+- `Arrogance.h3m` (32 views), `Shadow Valleys.h3m` (2) and `Merchant Princes.h3m` (1) all pass.
+
+### Flag colours (T045, 2026-09-16)
+
+On `2026-09-16T20-35-30-614Z_x29-47_y62-78` (owned towns, dwellings and mines of players 0, 5, 7) and the
+towns still (neutral towns), every index-5 pixel of each owner has one colour: red (255, 0, 0),
+purple (140, 45, 165), pink (197, 121, 140), neutral (132, 130, 132) — the RGB565 display colours of
+`game.pal` entries 64, 69, 71 and 72. Entries 64–71 of `game.pal` are the eight player colours in H3M
+order (red, blue, tan, green, orange, purple, teal, pink) and 72 the neutral grey, so flags use
+`game.pal` 64 + player and 72 for neutral — not `PLAYERS.PAL`, which is not needed. Players 1–4 and 6
+are not owners of index-5 objects on the test map; their entries follow the same block (not yet
+seen in a capture). Hero flags (`af0?.def`) have no index-5 pixels: their colour is in the sprite.
+Only entry numbers are committed (`PLAYER_FLAG_SHADES`); colours are read from the user's `game.pal`.
+
+### Shadows (T046, 2026-09-16)
+
+Pairs (colour below from the terrain render, captured colour) at object shadow pixels on the owned,
+towns and dense stills, per channel in 16-bit units (5-bit red/blue, 6-bit green): index 4 gives
+`c >> 1` (e.g. red 8→4, 9→4, 10→5; green 18→9), index 1 gives `(c >> 1) + (c >> 2)` (red 8→6, 9→6,
+10→7, 12→9, 16→12, 20→15; green 18→13, 26→19). Indices 2, 3, 6, 7 did not occur. WebGL fixed
+blending cannot reproduce these floors, so the decision is option 2 of §3, refined: body pixels are
+drawn into a colour target while a second target counts dark/light shadow steps since the last body
+pixel (blend ONE, ONE_MINUS_SRC_ALPHA: body resets, shadow adds); a resolve pass applies the steps in
+16-bit colour; the map border is drawn afterwards. The software rasterizer uses the same counting
+model. It differs from the game only where two shadows of different kinds stack on one pixel (applied
+dark-then-light instead of in draw order). After the change, the towns still differs on 33 pixels (a
+chest) and the owned still only on animated dwellings.
+
+### Animation phase (T062 part 1, 2026-09-16)
+
+Rendering the dense view at every tick and choosing, per animated object, the tick whose frame
+matches its pixels best gave different frames for instances of the same DEF (e.g. `avlref20.def`
+reefs at frames 0, 1, 3, 4, 5, 7, 8, 9, 10, 11). A second still of the same view
+(`2026-09-16T20-56-55-986Z_x57-75_y51-67`, another launch) gave per-object frame differences spread over
+all values 0–11 (69 objects), so the game picks each object's animation phase at random per launch.
+Decision: `OBJECT_PHASE_MODEL = 'perObject'`, phase = hash(seed, object id, position); stills search
+the frame of every animated object separately (report field per object, not per DEF); clips check
+that every object advances one frame per tick in lock with the others. Reefs and lava lakes animate by
+frames whose pixels use shifted colour indices, not by palette rotation.
+
+### Draw order, towns and fidelity with objects (T047, T051, T055, T062, 2026-09-17)
+
+- **Town sprites**: the town zone still passes with objects compared (60 526 object pixels, 0
+  differing): village (`…0`) for towns without a fort, `…x0` with one — the hypothesis holds. Capitol
+  sprites were not in a capture.
+- **Draw order**: overlapping pairs decided by exact body colours on six test_map stills: VCMI's key
+  (flat, y, heroes, visitable, x) agrees with 210 of 243 strongly decided pairs, y + map order with
+  215. Side-by-side views of `Arrogance.h3m` showed the decisive rule: **visitable objects are drawn
+  after all non-visitable objects** (a library over the trees in front of it, a windmill over the
+  mountains below it). Adopted order: flat → non-visitable → visitable → row y → heroes → map order.
+  Arrogance differing pixels fell from 543 604 to 422 813 over 32 views. Remaining order differences
+  sit in dense mountain clusters (bottom-right corner of test_map.h3m, 58 163 pixels on static objects)
+  and follow no tested key (x ascending/descending, map order ascending/descending, sprite left edge,
+  width, top edge): accepted by the owner (below).
+- **Hero flags**: 7–14 differing pixels per flag on the owned still after the per-object frame search.
+  Update 2026-09-17: 7 of them per flag were the last flag column, which the game covers with the
+  flagpole of the body — the game draws `af0?.def` before `ah??_.def`. With the flag drawn first the
+  owned still has 1 differing pixel (29 before). Only the idle direction (group 2) was seen; the rule
+  is kept minimal (`KIND_RANK` in `object-order.ts`) and may be revisited for moving heroes.
+- **Reefs** (`avlref*`, 12 frames, overlapping) on the heroes and dense stills: after the grouped
+  per-object frame search all remaining differences (8 549 and 43 255 pixels) are on animated reefs,
+  about half on their shadows over palette-animated water; applying water palette rotation to reef
+  palettes made it worse (8 943 → 9 639). Accepted by the owner (below).
+- **Timing** (T062): both clips measure 183.3 ms per palette step and per object tick at 60 grabs/s
+  (180 ms), all objects advance in lock with the palette: `OBJECT_FRAME_MS = 180` confirmed; phases per
+  object as above.
+- **GPU = reference rasterizer**: bit-equal in every still and clip check with objects, shadow count
+  targets and resolve pass included.
+- **Headless file serving**: `h3bitmap.lod` (100 MB) crashed Chromium when served by Playwright request
+  interception; files are now streamed by a local HTTP server with CORS.
+
+### Accepted deviations (owner review, 2026-09-17)
+
+The project owner compared reference, render and diff images of the failing test_map stills and
+accepted the remaining differences as permissible losses; they are not to be chased further:
+- **Dense mountain clusters** (x125-143, y127-143): some overlapping sprites swap places; the picture
+  reads the same. The black area outside the map edge in the reference is a game rendering artefact,
+  not something to reproduce.
+- **Reefs** (x48-94, y51-73): the game shows no reef shadows over the water while the render does; the
+  render is kept as it is. Overlapping elements swap places as with mountains.
+- **Hero flags**: the flagpole column was fixed (above); the remaining pixel inside the flag cloth is
+  accepted.
+
+Consequence: `yarn verify fidelity` still reports these captures as `fail` (no per-zone thresholds were
+added); treat those outcomes on these views as expected. The same applies to the Arrogance, Shadow
+Valleys and Merchant Princes object differences listed below.
+
+### Budgets, determinism, tests (T068–T074, 2026-09-17)
+
+`yarn verify budget` (1920×1080, DPR 1, 4× CPU throttling, SwiftShader), second consecutive run:
+
+| Budget | Map | Measured | Limit | Status |
+| --- | --- | --- | --- | --- |
+| runtime-js-gzip | — | 46 061 | 102 400 bytes | pass |
+| cold-start | test_map.h3m | 4 628 | 10 000 ms | pass |
+| warm-start | Arrogance / test_map / Pandora's Box / synthetic 252 | 1 768 / 1 281 / 1 625 / 1 593 | 2 000 ms | pass |
+| memory | test_map.h3m | 41 421 208 | 314 572 800 bytes | pass |
+| object-atlas-bytes | test_map.h3m | 16 777 216 (4 pages) | 67 108 864 bytes | pass |
+| idle-cadence | all | 28 | 28 frames | pass |
+| hidden-frames / hidden-timers | all | 0 / 0 | 0 | pass |
+| sc007 draw calls / object quads / vertices | synthetic 96 vs 252 | 3 / 78 / 47 520 each | equal | pass |
+
+Notes: warm start with objects varies between runs (1.1–2.2 s; one run measured 2.18 s on the first
+map of the session): **budget risk** tracked in TODO.md. Transferring the cached object atlas pages
+from the worker without copying cut the test_map warm start from 2.03 s to 1.28 s. The idle-cadence
+limit now uses the real idle window (page clock); the requested 5 s lasted a little longer and
+produced a 29th legitimate frame. The SC-007 small synthetic map is now 96×96×2: at 1920×1080 the view
+(60×34 tiles) did not fit into 36×36, so object counts differed. `yarn verify determinism --runs 10`:
+10 identical images of test_map region 57,51,75,67 with 205 objects. `yarn test`: 33 files, 190 tests
+pass (11 skipped live/optional). `yarn verify layers`: pass.
+
+`yarn verify all` fails on fidelity for the known deviations: test_map.h3m (5 of 10 stills pass;
+clips fail only on the reef views), Arrogance.h3m (32 views, 2 256–14 838 differing pixels per view
+after the order fix; objects are compared on 40 000–150 000 pixels per view), Shadow Valleys.h3m
+(353 and 9 697), Merchant Princes.h3m (14 337). Terrain-only fidelity (`--exclude-objects`) passes on
+every capture of all four maps.

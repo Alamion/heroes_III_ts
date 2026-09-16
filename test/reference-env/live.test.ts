@@ -135,3 +135,21 @@ live('live: selfcheck (SC-002, SC-003)', () => {
     expect(r.json.ok, JSON.stringify(r.json, null, 2).slice(0, 3000)).toBe(true)
   }, 90 * MIN)
 })
+
+live('live: previously failing captures (spec 003 SC-003)', () => {
+  const verified = (c: CaptureMatch) => {
+    expect(c.record.verification?.mapping?.bestShift).toEqual({ dx: 0, dy: 0 })
+    expect(c.record.verification?.level.margin).toBeGreaterThanOrEqual(0.1)
+  }
+  it('captures the Arrogance top edge with a verified mapping', async () => {
+    const c = capture(await ref(['still', '--map', 'Arrogance.h3m', '--level', '0', '--x', '10', '--y', '7']))
+    verified(c)
+    expect(c.record.mapping.originTile).toEqual({ x: 1, y: -1 })
+  }, 5 * MIN)
+  it('captures the underground of Shadow Valleys (blue interface)', async () => {
+    verified(capture(await ref(['still', '--map', 'Shadow Valleys.h3m', '--level', '1', '--x', '20', '--y', '20'])))
+  }, 5 * MIN)
+  it('captures Merchant Princes (unrecognised intro message)', async () => {
+    verified(capture(await ref(['still', '--map', 'Merchant Princes.h3m', '--level', '0', '--x', '20', '--y', '20'])))
+  }, 5 * MIN)
+})

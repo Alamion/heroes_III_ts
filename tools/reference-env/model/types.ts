@@ -101,6 +101,14 @@ export interface ClipInfo {
   resolvesAllSteps: boolean
 }
 
+/** Self-checks of a game capture (spec 003 research §10, §11); absent in records of older tooling. */
+export interface CaptureVerification {
+  minimapRect: Rect & { drawnEdges: { left: boolean; top: boolean; right: boolean; bottom: boolean } }
+  level: { method: 'minimap-terrain'; agreement: number[]; margin: number }
+  /** Stills: first grab; clips: first frame. */
+  mapping?: { method: 'terrain-render'; compared: number; differingRecorded: number; bestShift: { dx: number; dy: number }; bestDiffering: number }
+}
+
 export interface CaptureRecord {
   schemaVersion: 1
   id: string
@@ -123,6 +131,7 @@ export interface CaptureRecord {
   display: { width: number; height: number; depth: number }
   files: { still?: string; volatileMask?: string; frames?: string; timeline?: string }
   clip?: ClipInfo
+  verification?: CaptureVerification
   tooling: { version: string; gitCommit: string; wine: string; ffmpeg: string; xvfb: string; xdotool: string }
 }
 

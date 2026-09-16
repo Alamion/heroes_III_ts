@@ -10,7 +10,7 @@ import { log } from '../log.ts'
 import type { CaptureMatch, CaptureRecord } from '../model/types.ts'
 import { captureDir, captureId, writeCaptureAtomically } from '../store/capture-store.ts'
 import { config, intOpt } from './common.ts'
-import { gameRecordBase, runGameCapture } from './session.ts'
+import { gameRecordBase, runGameCapture, verificationBase, verifyGrabMapping } from './session.ts'
 
 export const CLIP_FPS = 60
 
@@ -42,6 +42,9 @@ export const clipCommand: Command = async (args) => {
     }
     // Clip frames are cropped to the viewport: pixel coordinates are relative to the crop.
     record.mapping = { ...record.mapping, originPixel: { x: record.mapping.originPixel.x - vp.x, y: record.mapping.originPixel.y - vp.y }, viewport: { x: 0, y: 0, w: vp.w, h: vp.h } }
+    const first = result.frames[0]
+    if (first === undefined) throw new RefError(ERROR_CODES.GRAB_FAILED, 'no clip frames grabbed')
+    record.verification = { ...verificationBase(s), mapping: await verifyGrabMapping(s, record.mapping, { width: vp.w, rgb: first.rgb }) }
     const dir = captureDir(cfg.capturesDir, s.ctx.map.key, s.ctx.level, 'game', 'clip', id)
     await writeCaptureAtomically(dir, record, async (tmp) => {
       mkdirSync(join(tmp, 'frames'))

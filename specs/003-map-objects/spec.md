@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-16
 
-**Status**: Draft
+**Status**: Implemented (2026-09-17) with deviations accepted by the owner — see plan.md "Compliance Review" and research.md "Accepted deviations"
 
 **Input**: User description: "TODO пункт 3.1, объекты и анимации. Здесь же пригодится исправить
 инструмент снимков из п.1, чтобы проверить дороги по снимкам игры. (см. результаты последнего
@@ -34,7 +34,8 @@ Spec 002 left these open items:
 ### Primary check map: `test_map.h3m`
 
 The project owner built `test_map.h3m` in the original map editor (SoD, 144×144, two levels,
-local-only in `<bundleDir>/Maps`, never committed; sha256 at creation
+local-only in `public/dev-assets/` (moved there from `<bundleDir>/Maps` on 2026-09-17, where a symlink
+remains for the editor), never committed; sha256 at creation
 `6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c`). It is the **primary map for
 all automated checks** of this feature (objects, animation, player colors, roads, rivers, levels,
 capture tooling). Other maps (`Arrogance.h3m`, `Shadow Valleys.h3m`, `Merchant Princes.h3m`) stay

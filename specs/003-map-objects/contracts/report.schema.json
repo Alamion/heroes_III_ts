@@ -326,17 +326,13 @@
         "diffImage": {
           "type": "string"
         },
-        "objectFramesByDef": {
+        "objectFramesByObject": {
           "type": "object",
-          "description": "Chosen frame per animated DEF in the still's best animation state (spec 003 research §8)",
+          "description": "Chosen frame per animated object (def@x,y): stills and the first clip frame. Phases are random per launch in the game (research.md §7).",
           "additionalProperties": {
             "type": "integer",
             "minimum": 0
           }
-        },
-        "tickConsistent": {
-          "type": "boolean",
-          "description": "All DEF frames and the palette step agree with one global tick, each within ±1 step"
         }
       }
     },

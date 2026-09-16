@@ -1,9 +1,9 @@
 // Cache keys and the no-op cache (DOM-free so they can be unit-tested in Node).
 
 /** Bump when cached payload formats change. */
-export const CACHE_SCHEMA = 3
+export const CACHE_SCHEMA = 5
 
-export type CacheStore = 'atlas' | 'world'
+export type CacheStore = 'atlas' | 'world' | 'objects'
 
 export interface DecodedCache {
   get<T>(store: CacheStore, key: string): Promise<T | undefined>

@@ -1,8 +1,8 @@
 // Headless Chromium for render, fidelity and budget checks (research.md §2): playwright-core
 // drives the system Chromium with SwiftShader WebGL, so output does not depend on the GPU.
 
-import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { createReadStream, existsSync, statSync } from 'node:fs'
+import { createServer } from 'node:http'
 import { basename, resolve } from 'node:path'
 import type { Browser, BrowserContext, Page } from 'playwright-core'
 import { log } from '../../src/core/util/log.ts'
@@ -71,28 +71,57 @@ export async function startServer(mode: 'dev' | 'preview', opts: { rebuild?: boo
 
 let exposeCounter = 0
 
+/** Local HTTP server streaming exposed files (large archives exceed the DevTools message size). */
+let fileServer: Promise<{ origin: string; files: Map<string, string> }> | undefined
+
+function startFileServer(): Promise<{ origin: string; files: Map<string, string> }> {
+  fileServer ??= new Promise((resolveServer, reject) => {
+    const files = new Map<string, string>()
+    const server = createServer((req, res) => {
+      const path = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname)
+      const file = files.get(path)
+      res.setHeader('Access-Control-Allow-Origin', '*')
+      if (file === undefined) {
+        res.statusCode = 404
+        res.end()
+        return
+      }
+      res.setHeader('Content-Type', 'application/octet-stream')
+      res.setHeader('Content-Length', String(statSync(file).size))
+      const stream = createReadStream(file)
+      stream.on('error', (err) => {
+        log.warn(`serving ${file} failed: ${err.message}`)
+        res.destroy(err)
+      })
+      stream.pipe(res)
+    })
+    server.on('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      if (address === null || typeof address === 'string') {
+        reject(new ToolError(TOOL_ERROR_CODES.FAILED, 'file server has no port'))
+        return
+      }
+      // Do not keep the process alive for it.
+      server.unref()
+      resolveServer({ origin: `http://127.0.0.1:${address.port}`, files })
+    })
+  })
+  return fileServer
+}
+
 /**
- * Makes local files available to the page at `<origin>/__files/<n>/<name>` without copying them
- * anywhere (request interception). Returns the URL path per file.
+ * Makes local files available to the page at `http://127.0.0.1:<port>/__files/<n>/<name>` without
+ * copying them anywhere (streamed by a local server with CORS). Returns the URL per file.
  */
-export async function exposeFiles(context: BrowserContext, files: string[]): Promise<Map<string, string>> {
+export async function exposeFiles(_context: BrowserContext, files: string[]): Promise<Map<string, string>> {
+  const server = await startFileServer()
   const map = new Map<string, string>()
-  const byRoute = new Map<string, string>()
-  files.forEach((file) => {
-    const route = `/__files/${exposeCounter++}/${encodeURIComponent(basename(file))}`
-    map.set(file, route)
-    byRoute.set(route, file)
-  })
-  await context.route('**/__files/**', async (route) => {
-    const path = new URL(route.request().url()).pathname
-    const file = byRoute.get(path)
-    if (file === undefined) {
-      // Another exposeFiles call may own this path.
-      await route.fallback()
-      return
-    }
-    await route.fulfill({ status: 200, body: await readFile(file), contentType: 'application/octet-stream' })
-  })
+  for (const file of files) {
+    const path = `/__files/${exposeCounter++}/${basename(file)}`
+    server.files.set(path, file)
+    map.set(file, `${server.origin}${encodeURI(path)}`)
+  }
   return map
 }
 

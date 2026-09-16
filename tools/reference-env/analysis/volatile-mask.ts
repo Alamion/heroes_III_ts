@@ -13,12 +13,6 @@ export function buildVolatileMask(frames: Buffer[], width: number, height: numbe
   return mask
 }
 
-export function maskedCount(mask: Buffer): number {
-  let n = 0
-  for (const v of mask) if (v !== 0) n++
-  return n
-}
-
 export interface MaskedComparison {
   compared: number
   differing: number

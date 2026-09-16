@@ -1,18 +1,21 @@
 // Records local probe hashes (derived from game output, never committed) and verifies the
-// measured layout on Arrogance.h3m: navigation, reveal, level toggle, minimap positioning.
+// measured layout on Arrogance.h3m: navigation, reveal, level toggle, minimap positioning. When
+// test_map.h3m (144×144) is present, also checks minimap reading at scale 1 (spec 003 T029).
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Command } from '../cli.ts'
-import { regionHash } from '../analysis/stability.ts'
-import { GAME_VIEW } from '../data/game-layout.ts'
-import { PROBES, calibrationPath, writeCalibration } from '../env/calibration.ts'
+import type { Command, ParsedArgs } from '../cli.ts'
+import { calibrationPath, readCalibration, writeCalibration } from '../env/calibration.ts'
 import { writePng } from '../env/grab.ts'
 import { acquireLock } from '../env/lock.ts'
-import { openGame, positionView, readView, revealMap, saveFailureShot, waitForMessageClear } from '../env/session.ts'
+import { openGame, positionView, readView, revealMap, saveFailureShot, showLevel, waitForMessageClear } from '../env/session.ts'
+import type { GameSession } from '../env/session.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 import { log } from '../log.ts'
 import type { Calibration } from '../model/types.ts'
-import { config, stagedHashes, targetContext } from './common.ts'
+import { config, levelTerrains, stagedHashes, targetContext } from './common.ts'
+import type { TargetContext } from './common.ts'
+import type { ReferenceConfig } from '../model/types.ts'
+import { requireTestMap } from '../../shared/game-files.ts'
 
 export const calibrateCommand: Command = async (args) => {
   const cfg = config()
@@ -35,10 +38,9 @@ export const calibrateCommand: Command = async (args) => {
       const hashes = await stagedHashes(cfg)
       const revealed = await revealMap(session)
       await waitForMessageClear(revealed)
-
+      const terrain = await levelTerrains(ctx.mapPath)
       // The game starts on the level of the human player's town; Arrogance starts on the surface.
-      const surface = await session.grab()
-      recordedProbes[PROBES.levelSurface] = regionHash(surface.rgb, surface.width, GAME_VIEW.levelToggleProbe)
+      const surfaceLevel = await showLevel(session, 0, ctx.map.sizeTiles, terrain)
 
       const size = ctx.map.sizeTiles
       const checks: { level: 0 | 1; target: { x: number; y: number }; origin: { x: number; y: number } }[] = []
@@ -53,13 +55,8 @@ export const calibrateCommand: Command = async (args) => {
         checks.push({ level: 0, target, origin: view.origin })
         await writePng(await session.grab(), join(spikes, `surface-${target.x}-${target.y}.png`))
       }
-      await session.input.click(GAME_VIEW.levelToggle)
-      await session.input.move({ x: 690, y: 470 })
-      await new Promise((r) => setTimeout(r, 1000))
+      const undergroundLevel = await showLevel(session, 1, size, terrain)
       const under = await session.grab()
-      if (regionHash(under.rgb, under.width, GAME_VIEW.levelToggleProbe) === recordedProbes[PROBES.levelSurface]) {
-        throw new RefError(ERROR_CODES.POSITION_MISMATCH, 'level toggle did not change the toggle button look')
-      }
       const underView = await readView(session, 1, size)
       await writePng(under, join(spikes, 'underground.png'))
 
@@ -82,6 +79,8 @@ export const calibrateCommand: Command = async (args) => {
         revealCode: revealed.code,
         checks,
         undergroundOrigin: underView.origin,
+        levelDetection: { surface: surfaceLevel, underground: undergroundLevel },
+        minimapScale1: await scaleOneCheck(cfg),
       }
     } catch (err) {
       await saveFailureShot(cfg.stateDir, session, err)
@@ -92,4 +91,38 @@ export const calibrateCommand: Command = async (args) => {
   } finally {
     lock.release()
   }
+}
+
+/**
+ * Minimap reading at scale 1 px per tile (144×144 maps): positions a top-edge and a mid-map view on
+ * test_map.h3m and reads the origins back. Skipped when the map is absent.
+ */
+async function scaleOneCheck(cfg: ReferenceConfig): Promise<Record<string, unknown>> {
+  const path = requireTestMap()
+  if (path === null) return { skipped: 'test_map.h3m not found' }
+  const args: ParsedArgs = { command: 'calibrate', flags: new Map([['map', [path]], ['x', ['0']], ['y', ['0']]]) }
+  const ctx: TargetContext = await targetContext(cfg, args)
+  const { session } = await openGame(cfg, { mapPath: ctx.mapPath, start: 'fixed', probes: readCalibrationProbes(cfg), stepTimeoutMs: cfg.timeouts.step })
+  try {
+    const revealed = await revealMap(session)
+    await waitForMessageClear(revealed)
+    const size = ctx.map.sizeTiles
+    const out: { target: { x: number; y: number }; origin: { x: number; y: number } }[] = []
+    for (const target of [{ x: 118, y: 5 }, { x: 72, y: 72 }]) {
+      const view = await positionView(session as GameSession, 0, target, size)
+      out.push({ target, origin: view.origin })
+    }
+    return { ok: true, views: out }
+  } catch (err) {
+    await saveFailureShot(cfg.stateDir, session, err)
+    throw err
+  } finally {
+    await session.close()
+  }
+}
+
+function readCalibrationProbes(cfg: ReferenceConfig): Record<string, string> {
+  const cal = readCalibration(cfg.stateDir)
+  if (cal === undefined) throw new RefError(ERROR_CODES.CALIBRATION_MISSING, 'calibration was not written')
+  return cal.probes
 }

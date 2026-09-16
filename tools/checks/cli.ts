@@ -19,7 +19,7 @@ export const VERIFY_COMMANDS: Record<string, CommandSpec> = {
   },
   fidelity: {
     help: 'compare renders with reference captures: --map M (--level Z --region x0,y0,x1,y1 | --all-regions) [--capture ID] [--kind still|clip] [--require] [--rebuild]',
-    booleanFlags: ['all-regions', 'require', 'rebuild'],
+    booleanFlags: ['all-regions', 'require', 'rebuild', 'exclude-objects'],
     load: async () => (await import('./fidelity/index.ts')).fidelityCommand,
   },
   layers: {

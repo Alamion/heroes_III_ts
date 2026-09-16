@@ -11,7 +11,7 @@ interface H3Page {
       setMapping(level: number, tile: { x: number; y: number }, pixel: { x: number; y: number }): void
       renderNow(anim: { step: number }): boolean
     }
-    stats(): { framesPresented: number; scheduledFrames: number; pendingCallbacks: number; surface: { width: number; height: number }; gpuBytes: number; drawCalls: number; vertices: number; vertexCapacity: number; lastFrameCpuMs: number; animatedRowsInView: number }
+    stats(): { framesPresented: number; scheduledFrames: number; pendingCallbacks: number; surface: { width: number; height: number }; gpuBytes: number; drawCalls: number; vertices: number; vertexCapacity: number; lastFrameCpuMs: number; animatedRowsInView: number; animatedObjectsInView: number; objectQuads: number; objectPages: number }
   }
 }
 
@@ -33,16 +33,19 @@ async function newPage(opts: MetricsOptions, context?: BrowserContext): Promise<
   return { context: ctx, page, cdp }
 }
 
-async function loadFiles(page: Page, archive: string, map: string): Promise<number> {
+async function loadFiles(page: Page, archive: string, map: string, dataArchive?: string): Promise<number> {
   const t0 = await page.evaluate(() => performance.now())
   await page.setInputFiles('#archive', archive)
+  if (dataArchive !== undefined) await page.setInputFiles('#dataarchive', dataArchive)
   await page.setInputFiles('#mapfile', map)
+  // Start-up ends when the first frame is shown; with a data archive, when objects are drawn too.
   await page.waitForFunction(
-    () => {
+    (withObjects) => {
       const h = (globalThis as unknown as H3Page).__h3
-      return h.engine.status().state === 'ready' && h.stats().framesPresented > 0
+      const s = h.stats()
+      return h.engine.status().state === 'ready' && s.framesPresented > 0 && (!withObjects || s.objectPages > 0)
     },
-    null,
+    dataArchive !== undefined,
     { timeout: 120_000, polling: 20 },
   )
   const t1 = await page.evaluate(() => performance.now())
@@ -60,15 +63,15 @@ async function setHidden(page: Page, hidden: boolean): Promise<void> {
   }, hidden)
 }
 
-export async function measureMap(opts: MetricsOptions, name: string, archive: string, map: string, idleWindowMs = 5000): Promise<MapMeasurement> {
+export async function measureMap(opts: MetricsOptions, name: string, archive: string, map: string, idleWindowMs = 5000, dataArchive?: string): Promise<MapMeasurement> {
   // Cold: a fresh context has an empty IndexedDB.
   const cold = await newPage(opts)
   try {
-    const coldStartMs = await loadFiles(cold.page, archive, map)
+    const coldStartMs = await loadFiles(cold.page, archive, map, dataArchive)
     // Warm: reload in the same context; decoded data comes from the cache.
     await cold.page.close()
     const warm = await newPage(opts, cold.context)
-    const warmStartMs = await loadFiles(warm.page, archive, map)
+    const warmStartMs = await loadFiles(warm.page, archive, map, dataArchive)
     await warm.page.waitForTimeout(500)
 
     const s0 = await stats(warm.page)
@@ -76,8 +79,11 @@ export async function measureMap(opts: MetricsOptions, name: string, archive: st
     const heap = metrics.find((m) => m.name === 'JSHeapUsedSize')?.value ?? 0
 
     const idleStart = s0.scheduledFrames
+    // The real window (page clock) is a little longer than requested; the cadence limit uses it.
+    const w0 = await warm.page.evaluate(() => performance.now())
     await warm.page.waitForTimeout(idleWindowMs)
     const s1 = await stats(warm.page)
+    const w1 = await warm.page.evaluate(() => performance.now())
 
     await setHidden(warm.page, true)
     const h0 = await stats(warm.page)
@@ -95,8 +101,9 @@ export async function measureMap(opts: MetricsOptions, name: string, archive: st
       hiddenFrames: h1.scheduledFrames - h0.scheduledFrames,
       hiddenPending: h0.pendingCallbacks,
       idleFrames: s1.scheduledFrames - idleStart,
-      idleWindowMs,
-      animatedInView: s1.animatedRowsInView > 0,
+      idleWindowMs: Math.round(w1 - w0),
+      animatedInView: s1.animatedRowsInView > 0 || s1.animatedObjectsInView > 0,
+      objectAtlasBytes: s1.objectPages * 2048 * 2048,
     }
   } finally {
     await cold.context.close()
@@ -104,10 +111,10 @@ export async function measureMap(opts: MetricsOptions, name: string, archive: st
 }
 
 /** Frame work at a fixed view (tile 10, 10 at the top-left) over `frames` renders with changing steps. */
-export async function measureFrameWork(opts: MetricsOptions, archive: string, map: string, frames = 60): Promise<FrameWork> {
+export async function measureFrameWork(opts: MetricsOptions, archive: string, map: string, frames = 60, dataArchive?: string): Promise<FrameWork> {
   const p = await newPage(opts)
   try {
-    await loadFiles(p.page, archive, map)
+    await loadFiles(p.page, archive, map, dataArchive)
     return await p.page.evaluate((n) => {
       const h = (globalThis as unknown as H3Page).__h3
       h.engine.setMapping(0, { x: 10, y: 10 }, { x: 0, y: 0 })
@@ -118,7 +125,7 @@ export async function measureFrameWork(opts: MetricsOptions, archive: string, ma
       }
       cpu.sort((a, b) => a - b)
       const s = h.stats()
-      return { drawCalls: s.drawCalls, vertices: s.vertexCapacity, gpuBytes: s.gpuBytes, medianFrameCpuMs: cpu[Math.floor(cpu.length / 2)] as number }
+      return { drawCalls: s.drawCalls, vertices: s.vertexCapacity, gpuBytes: s.gpuBytes, objectQuads: s.objectQuads, medianFrameCpuMs: cpu[Math.floor(cpu.length / 2)] as number }
     }, frames)
   } finally {
     await p.context.close()

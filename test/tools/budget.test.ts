@@ -35,13 +35,18 @@ describe('budget evaluation', () => {
     expect(evaluateMap({ ...good, animatedInView: false, idleFrames: 2 }).find((b) => b.id === 'idle-cadence')?.status).toBe('fail')
   })
 
+  it('limits the object atlas and counts object ticks in the idle cadence', () => {
+    expect(evaluateMap({ ...good, objectAtlasBytes: 4 * 2048 * 2048 }).find((b) => b.id === 'object-atlas-bytes')?.status).toBe('pass')
+    expect(evaluateMap({ ...good, objectAtlasBytes: 20 * 2048 * 2048 }).find((b) => b.id === 'object-atlas-bytes')?.status).toBe('fail')
+  })
+
   it('requires equal work across map sizes for SC-007 with the CPU tolerance', () => {
-    const small = { drawCalls: 1, vertices: 47520, gpuBytes: 2_000_000, medianFrameCpuMs: 1 }
+    const small = { drawCalls: 4, vertices: 47520, gpuBytes: 2_000_000, objectQuads: 300, medianFrameCpuMs: 1 }
     expect(evaluateSc007(small, { ...small, medianFrameCpuMs: 1.2 }).every((b) => b.status === 'pass')).toBe(true)
-    const worse = evaluateSc007(small, { drawCalls: 2, vertices: 90000, gpuBytes: 30_000_000, medianFrameCpuMs: 2 })
-    expect(worse.map((b) => b.status)).toEqual(['fail', 'fail', 'fail', 'fail'])
+    const worse = evaluateSc007(small, { drawCalls: 5, vertices: 90000, gpuBytes: 30_000_000, objectQuads: 900, medianFrameCpuMs: 2 })
+    expect(worse.map((b) => b.status)).toEqual(['fail', 'fail', 'fail', 'fail', 'fail'])
     // Tiny frame times use the absolute floor.
-    expect(evaluateSc007({ ...small, medianFrameCpuMs: 0.1 }, { ...small, medianFrameCpuMs: 0.5 })[3]?.status).toBe('pass')
+    expect(evaluateSc007({ ...small, medianFrameCpuMs: 0.1 }, { ...small, medianFrameCpuMs: 0.5 }).find((b) => b.id === 'sc007-frame-cpu')?.status).toBe('pass')
   })
 
   it('counts runtime chunks and excludes harness entries', () => {

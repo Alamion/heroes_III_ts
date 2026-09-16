@@ -28,6 +28,8 @@ export interface ExclusionInput {
   ui: Uint8Array | null
   /** Viewport-sized, 1 = volatile in the capture (stills only). */
   volatile: Uint8Array | null
+  /** Viewport-sized, 1 = covered by an animated object sprite (compared despite the volatile mask). */
+  animatedObjects?: Uint8Array | null
   objects: Footprint
   floating: Footprint
   /** Whether a tile's drawn frames use a rotating palette (overrides the volatile mask). */
@@ -80,7 +82,7 @@ export function classifyPixels(input: ExclusionInput): Exclusions {
         counts.object++
         continue
       }
-      const anim = inMap && input.animatedTile(tx, ty)
+      const anim = (inMap && input.animatedTile(tx, ty)) || input.animatedObjects?.[i] === 1
       if (input.volatile !== null && input.volatile[i] && !anim) {
         cls[i] = PIXEL.volatile
         counts.volatile++
@@ -167,6 +169,22 @@ export function tileStats(ex: Exclusions, cap: CaptureSampler, rendered: Uint8Ar
 }
 
 /** Diff image: red = differing, gray = excluded, dimmed capture = equal, black = outside region. */
+/** The viewport of a capture as RGBA (for side-by-side reports). */
+export function viewportImage(cap: CaptureSampler, width: number, height: number): Uint8Array {
+  const out = new Uint8Array(width * height * 4)
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const s = ((y + cap.y0) * cap.stride + x + cap.x0) * cap.channels
+      const o = (y * width + x) * 4
+      out[o] = cap.data[s] as number
+      out[o + 1] = cap.data[s + 1] as number
+      out[o + 2] = cap.data[s + 2] as number
+      out[o + 3] = 255
+    }
+  }
+  return out
+}
+
 export function diffImage(ex: Exclusions, cap: CaptureSampler, rendered: Uint8Array, width: number): Uint8Array {
   const out = new Uint8Array(ex.cls.length * 4)
   for (let i = 0; i < ex.cls.length; i++) {

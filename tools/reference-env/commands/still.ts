@@ -9,7 +9,7 @@ import { writeCaptureAtomically, captureDir, captureId } from '../store/capture-
 import type { CaptureMatch, CaptureRecord } from '../model/types.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 import { config } from './common.ts'
-import { gameRecordBase, runGameCapture } from './session.ts'
+import { gameRecordBase, runGameCapture, verificationBase, verifyGrabMapping } from './session.ts'
 
 export const stillCommand: Command = async (args) => {
   const cfg = config()
@@ -27,11 +27,13 @@ export const stillCommand: Command = async (args) => {
       GAME_SCREEN.width,
       GAME_SCREEN.height,
     )
+    const mapping = await verifyGrabMapping(s, s.view.mapping, still)
     const createdAt = new Date()
     const id = captureId(createdAt, s.view.visible)
     const record: CaptureRecord = {
       ...(await gameRecordBase(cfg, s, id, createdAt, 'still')),
       files: { still: 'still.png', volatileMask: 'volatile-mask.png' },
+      verification: { ...verificationBase(s), mapping },
     }
     const dir = captureDir(cfg.capturesDir, s.ctx.map.key, s.ctx.level, 'game', 'still', id)
     await writeCaptureAtomically(dir, record, async (tmp) => {

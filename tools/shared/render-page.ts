@@ -5,11 +5,21 @@ import { basename } from 'node:path'
 import { exposeFiles, openSession } from './browser.ts'
 import type { HeadlessSession } from './browser.ts'
 import { TOOL_ERROR_CODES, ToolError } from './errors.ts'
+import { resolveGameFile } from './game-files.ts'
+
+/** A game file path, or null when it is not installed (no skip message). */
+function requireGameFileQuiet(name: string): string | null {
+  try {
+    return resolveGameFile(name)
+  } catch {
+    return null
+  }
+}
 
 /** The render page's global (see src/adapters/dev-harness/render.ts); tools have no DOM types. */
 interface RenderPageGlobal {
   __h3render: {
-    render(p: Record<string, unknown>): Promise<{ ok: boolean; error?: unknown; rgbaBase64?: string; stats?: unknown }>
+    render(p: Record<string, unknown>): Promise<{ ok: boolean; error?: unknown; rgbaBase64?: string; stats?: unknown; drawList?: unknown; diagnostics?: unknown }>
   }
 }
 
@@ -23,6 +33,13 @@ export interface RenderRequest {
   originPixel: { x: number; y: number }
   step?: number
   timeMs?: number
+  /** h3bitmap.lod for objects; default: found in the game install, or none (terrain only). */
+  dataArchive?: string | null
+  seed?: number
+  tick?: number
+  objects?: boolean
+  objectFrames?: [number, number][]
+  drawList?: boolean
 }
 
 export interface RenderedFrame {
@@ -30,6 +47,8 @@ export interface RenderedFrame {
   height: number
   rgba: Uint8Array
   stats: Record<string, unknown>
+  drawList?: Record<string, unknown>[]
+  diagnostics?: Record<string, unknown>[]
 }
 
 export class HeadlessRenderer {
@@ -64,6 +83,8 @@ export class HeadlessRenderer {
     }
     const archiveUrl = await this.route(req.archive)
     const mapUrl = await this.route(req.map)
+    const dataPath = req.dataArchive === undefined ? requireGameFileQuiet('h3bitmap.lod') : req.dataArchive
+    const dataUrl = dataPath === null ? undefined : await this.route(dataPath)
     const result = await page.evaluate(
       (p) => (globalThis as unknown as RenderPageGlobal).__h3render.render(p),
       {
@@ -78,12 +99,25 @@ export class HeadlessRenderer {
         originPixel: req.originPixel,
         ...(req.step !== undefined ? { step: req.step } : {}),
         ...(req.timeMs !== undefined ? { timeMs: req.timeMs } : {}),
+        ...(dataUrl !== undefined && dataPath !== null ? { dataArchiveUrl: dataUrl, dataArchiveName: basename(dataPath) } : {}),
+        ...(req.seed !== undefined ? { seed: req.seed } : {}),
+        ...(req.tick !== undefined ? { tick: req.tick } : {}),
+        ...(req.objects !== undefined ? { objects: req.objects } : {}),
+        ...(req.objectFrames !== undefined ? { objectFrames: req.objectFrames } : {}),
+        ...(req.drawList === true ? { drawList: true } : {}),
       },
     )
     if (!result.ok || result.rgbaBase64 === undefined) {
       throw new ToolError(TOOL_ERROR_CODES.FAILED, `render page failed: ${JSON.stringify(result.error)}`)
     }
-    return { width: req.width, height: req.height, rgba: new Uint8Array(Buffer.from(result.rgbaBase64, 'base64')), stats: (result.stats ?? {}) as Record<string, unknown> }
+    return {
+      width: req.width,
+      height: req.height,
+      rgba: new Uint8Array(Buffer.from(result.rgbaBase64, 'base64')),
+      stats: (result.stats ?? {}) as Record<string, unknown>,
+      ...(Array.isArray(result.drawList) ? { drawList: result.drawList as Record<string, unknown>[] } : {}),
+      ...(Array.isArray(result.diagnostics) ? { diagnostics: result.diagnostics as Record<string, unknown>[] } : {}),
+    }
   }
 
   async close(): Promise<void> {

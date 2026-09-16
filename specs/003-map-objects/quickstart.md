@@ -6,7 +6,7 @@ fields in [data-model.md](data-model.md).
 ## Prerequisites
 
 - Reference environment from item 1 set up (`yarn ref doctor` passes), Chromium available.
-- `<bundleDir>/Maps/test_map.h3m` present with the hash recorded in [spec.md](spec.md) (if it was
+- `public/dev-assets/test_map.h3m` present with the hash recorded in [spec.md](spec.md) (if it was
   edited: update the zones and hash in spec.md, then `yarn ref prune` its old captures).
 - `yarn install`, `yarn build`.
 

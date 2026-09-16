@@ -6,7 +6,7 @@ import { gunzipSync } from 'node:zlib'
 import type { CommandResult, ParsedArgs } from '../../shared/cli-runner.ts'
 import { flag, intOpt, opt } from '../../shared/cli-runner.ts'
 import { hasChromium, launchBrowser, startServer } from '../../shared/browser.ts'
-import { installMaps, requireGameFile } from '../../shared/game-files.ts'
+import { installMaps, requireGameFile, requireTestMap } from '../../shared/game-files.ts'
 import { validateJson } from '../../shared/json-schema.ts'
 import { SMALL_MAP, STRESS_MAP, writeStressFiles } from '../../../test/fixtures/synthetic/stress-map.ts'
 import { entry, evaluateMap, evaluateSc007, LIMITS } from './evaluate.ts'
@@ -14,7 +14,7 @@ import type { BudgetEntry } from './evaluate.ts'
 import { measureFrameWork, measureMap } from './metrics.ts'
 import { measureRuntimeSize } from './size.ts'
 
-const SCHEMA_PATH = resolve(import.meta.dirname, '../../../specs/002-foundation-rewrite/contracts/report.schema.json')
+const SCHEMA_PATH = resolve(import.meta.dirname, '../../../specs/003-map-objects/contracts/report.schema.json')
 
 function mapSize(path: string): { size: number; levels: number } {
   const raw = new Uint8Array(readFileSync(path))
@@ -56,6 +56,7 @@ export async function budgetCommand(args: ParsedArgs): Promise<CommandResult> {
     const opts = { browser, baseUrl: server.url, viewport, throttle }
 
     const archive = requireGameFile('h3sprite.lod')
+    const dataArchive = requireGameFile('h3bitmap.lod') ?? undefined
     const requested = args.flags.get('map')
     const realMaps: string[] = []
     if (archive !== null) {
@@ -64,6 +65,8 @@ export async function budgetCommand(args: ParsedArgs): Promise<CommandResult> {
         const p = requireGameFile(n)
         if (p !== null) realMaps.push(p)
       }
+      const testMap = requested === undefined ? requireTestMap() : null
+      if (testMap !== null) realMaps.push(testMap)
       if (requested === undefined) {
         const largest = largestInstallMap()
         if (largest !== undefined) realMaps.push(largest)
@@ -73,7 +76,7 @@ export async function budgetCommand(args: ParsedArgs): Promise<CommandResult> {
       for (const id of ['cold-start', 'warm-start', 'memory', 'surface', 'hidden-frames', 'hidden-timers', 'idle-cadence']) budgets.push({ id, status: 'skip', note: 'real game files absent; synthetic maps measured below' })
     }
     for (const p of realMaps) {
-      const m = await measureMap(opts, basename(p), archive as string, p, idleMs)
+      const m = await measureMap(opts, basename(p), archive as string, p, idleMs, dataArchive)
       maps.push({ name: basename(p), ...mapSize(p), synthetic: false })
       budgets.push(...evaluateMap(m))
     }
@@ -81,12 +84,12 @@ export async function budgetCommand(args: ParsedArgs): Promise<CommandResult> {
     // The synthetic 252×252×2 map runs within the same budgets (SC-006 for the largest map size).
     const stressPath = synthetic.maps[STRESS_MAP] as string
     const smallPath = synthetic.maps[SMALL_MAP] as string
-    const stress = await measureMap(opts, STRESS_MAP, synthetic.archive, stressPath, idleMs)
-    maps.push({ name: STRESS_MAP, size: 252, levels: 2, synthetic: true }, { name: SMALL_MAP, size: 36, levels: 2, synthetic: true })
+    const stress = await measureMap(opts, STRESS_MAP, synthetic.archive, stressPath, idleMs, synthetic.dataArchive)
+    maps.push({ name: STRESS_MAP, size: 252, levels: 2, synthetic: true }, { name: SMALL_MAP, size: 96, levels: 2, synthetic: true })
     budgets.push(...evaluateMap(stress))
 
-    const small = await measureFrameWork(opts, synthetic.archive, smallPath)
-    const large = await measureFrameWork(opts, synthetic.archive, stressPath)
+    const small = await measureFrameWork(opts, synthetic.archive, smallPath, 60, synthetic.dataArchive)
+    const large = await measureFrameWork(opts, synthetic.archive, stressPath, 60, synthetic.dataArchive)
     budgets.push(...evaluateSc007(small, large))
   } finally {
     await browser.close()

@@ -168,6 +168,29 @@ export function validateRecord(value: unknown): CaptureRecord {
     bool(clip.resolvesAllSteps, '$.clip.resolvesAllSteps')
   }
 
+  if (r.verification !== undefined) {
+    const v = obj(r.verification, '$.verification')
+    const mm = obj(v.minimapRect, '$.verification.minimapRect')
+    rect(mm, '$.verification.minimapRect')
+    const edges = obj(mm.drawnEdges, '$.verification.minimapRect.drawnEdges')
+    for (const e of EDGES) bool(edges[e], `$.verification.minimapRect.drawnEdges.${e}`)
+    const lvl = obj(v.level, '$.verification.level')
+    oneOf(lvl.method, ['minimap-terrain'] as const, '$.verification.level.method')
+    if (!Array.isArray(lvl.agreement)) fail('$.verification.level.agreement', 'expected array')
+    lvl.agreement.forEach((a, i) => num(a, `$.verification.level.agreement[${i}]`))
+    num(lvl.margin, '$.verification.level.margin')
+    if (v.mapping !== undefined) {
+      const m = obj(v.mapping, '$.verification.mapping')
+      oneOf(m.method, ['terrain-render'] as const, '$.verification.mapping.method')
+      int(m.compared, '$.verification.mapping.compared', 0)
+      int(m.differingRecorded, '$.verification.mapping.differingRecorded', 0)
+      int(m.bestDiffering, '$.verification.mapping.bestDiffering', 0)
+      const shift = obj(m.bestShift, '$.verification.mapping.bestShift')
+      if (Math.abs(int(shift.dx, '$.verification.mapping.bestShift.dx', -1)) > 1) fail('$.verification.mapping.bestShift.dx', 'expected -1, 0 or 1')
+      if (Math.abs(int(shift.dy, '$.verification.mapping.bestShift.dy', -1)) > 1) fail('$.verification.mapping.bestShift.dy', 'expected -1, 0 or 1')
+    }
+  }
+
   const tooling = obj(r.tooling, '$.tooling')
   for (const k of ['version', 'gitCommit', 'wine', 'ffmpeg', 'xvfb', 'xdotool']) str(tooling[k], `$.tooling.${k}`)
 
