@@ -151,6 +151,12 @@ caches, captures). Tests needing real game files must skip with a clear message 
 Checks and tests may use any map and archive from the configured install (`<bundleDir>/Maps`,
 `<bundleDir>/Data`); `dev-assets` are only examples.
 
+**Primary check map: `<bundleDir>/Maps/test_map.h3m`** (local-only, built by the project owner in the
+original editor; SoD 144×144, two levels). It holds nearly every object class, all terrains, rivers,
+roads and player colors, split into zones (random objects kept apart); zone coordinates are in
+[specs/003-map-objects/spec.md](specs/003-map-objects/spec.md). Use it first for fidelity checks
+and captures.
+
 ### Reference material (`context/`)
 
 | Folder | What | License → allowed use |
