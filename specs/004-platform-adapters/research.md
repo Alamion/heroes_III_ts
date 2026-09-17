@@ -388,6 +388,22 @@ events plus `document.hidden`. To verify or correct there:
   host invariants pass with it (`yarn verify hosts --files real --map paragon-ultimate-edition.h3m`).
 - **Package sizes after these changes**: web 58 114 B, Wallpaper Engine 56 331 B, Lively 56 179 B, KDE 59 338 B.
 
+### 2026-09-17 — Lines between tiles at fractional display scales
+
+- **Symptom** (owner, large monitor under KDE fractional scaling, device ratio 1.5): thin horizontal and
+  vertical lines between terrain tiles, in the KDE plugin and the browser version.
+- **Cause**: the camera moves in whole world pixels, so at a fractional scale a quad edge often lands on a
+  device pixel centre; with `NEAREST` sampling the interpolated UV then fell just outside the cell and picked
+  the neighbouring atlas cell. Scale 1 never puts an edge on a pixel centre, which is why earlier checks passed.
+- **Fix**: both vertex shaders (`src/core/render/shaders.ts`, terrain and objects) snap positions to whole
+  device pixels. Renders at scale 1 stay byte-identical (checked on `test_map.h3m` with objects).
+- **Check**: `test/browser/fractional-scale.test.ts` renders the synthetic map at 1.5, 1.25 and 1.75 with tile
+  edges on pixel centres and requires every pixel of a terrain-only tile to come from that tile's own cell
+  (1945 foreign pixels at 1.5 before the fix, 0 after). `yarn h3 render --scale F` and the optional `scale` of
+  `engine.setMapping` reproduce such views.
+- Note for manual checks: `yarn preview:web` serves `dist/packages/web`, which `yarn build` does not refresh;
+  run `yarn package --host web` first.
+
 ### Deviations from the plan
 
 - Host builds are produced by `tools/package/build.ts` through the Vite API (IIFE library builds, worker built

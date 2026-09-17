@@ -9,7 +9,7 @@ import { encodePng } from '../shared/png.ts'
 import { HeadlessRenderer } from '../shared/render-page.ts'
 import { usage } from '../shared/errors.ts'
 
-/** `yarn h3 render MAP --level Z --region x0,y0,x1,y1 (--time MS | --palette-step N) --out PATH` */
+/** `yarn h3 render MAP --level Z --region x0,y0,x1,y1 (--time MS | --palette-step N) [--scale F] --out PATH` */
 export async function renderCommand(args: ParsedArgs): Promise<CommandResult> {
   const map = resolveGameFile(positional(args, 0, 'MAP'))
   const archive = resolveGameFile(opt(args, 'archive') ?? 'h3sprite.lod')
@@ -20,8 +20,10 @@ export async function renderCommand(args: ParsedArgs): Promise<CommandResult> {
   const timeArg = opt(args, 'time')
   if (stepArg !== undefined && timeArg !== undefined) throw usage('use either --palette-step or --time')
   const step = stepArg !== undefined ? Number(stepArg) : animationStep(Number(timeArg ?? 0))
-  const width = (region.x1 - region.x0 + 1) * TILE_SIZE
-  const height = (region.y1 - region.y0 + 1) * TILE_SIZE
+  const scale = Number(opt(args, 'scale') ?? 1)
+  if (!Number.isFinite(scale) || scale <= 0) throw usage('--scale must be a positive number')
+  const width = Math.round((region.x1 - region.x0 + 1) * TILE_SIZE * scale)
+  const height = Math.round((region.y1 - region.y0 + 1) * TILE_SIZE * scale)
   const renderer = await HeadlessRenderer.open({ rebuild: flag(args, 'rebuild'), width: Math.max(width, 64), height: Math.max(height, 64) })
   try {
     const tickArg = opt(args, 'tick')
@@ -30,7 +32,7 @@ export async function renderCommand(args: ParsedArgs): Promise<CommandResult> {
     const seed = seedArg === undefined ? 1 : Number(seedArg)
     if (!Number.isInteger(tick) || !Number.isInteger(seed)) throw usage('--tick and --seed must be integers')
     const objects = !flag(args, 'no-objects')
-    const frame = await renderer.render({ archive, map, width, height, level, originTile: { x: region.x0, y: region.y0 }, originPixel: { x: 0, y: 0 }, step, tick, seed, objects, ...(objects ? {} : { dataArchive: null }), drawList: flag(args, 'draw-list') })
+    const frame = await renderer.render({ archive, map, width, height, level, originTile: { x: region.x0, y: region.y0 }, originPixel: { x: 0, y: 0 }, step, tick, seed, objects, ...(objects ? {} : { dataArchive: null }), drawList: flag(args, 'draw-list'), scale })
     await mkdir(dirname(out), { recursive: true })
     await writeFile(out, encodePng({ width, height, channels: 4, data: frame.rgba }))
     return {
@@ -40,6 +42,7 @@ export async function renderCommand(args: ParsedArgs): Promise<CommandResult> {
       height,
       level,
       region,
+      scale,
       paletteStep: step,
       tick,
       seed,

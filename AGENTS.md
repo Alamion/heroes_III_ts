@@ -106,7 +106,7 @@ yarn h3 map info|tiles|tile|objects|object|parse-all MAP [--level Z --region x0,
 yarn h3 map floating MAP [--level 0] [--region ...] [--format list|json]   # for yarn ref selfcheck --floating-tiles
 yarn h3 map draw-list MAP --level Z --region x0,y0,x1,y1 (--tick N | --time MS) [--seed S]
 yarn h3 map random MAP [--seed S] [--level Z]
-yarn h3 render MAP --level Z --region x0,y0,x1,y1 (--palette-step N | --time MS) [--tick N] [--seed S] [--no-objects] [--draw-list] --out F.png
+yarn h3 render MAP --level Z --region x0,y0,x1,y1 (--palette-step N | --time MS) [--tick N] [--seed S] [--no-objects] [--draw-list] [--scale F] --out F.png
 ```
 
 Objects need the data archive `h3bitmap.lod` (Objects.txt, artraits.txt, game.pal); tools find it in

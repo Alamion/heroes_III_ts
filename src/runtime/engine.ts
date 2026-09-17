@@ -89,8 +89,8 @@ export interface Engine {
   toggleLevel(): void
   scrollBy(dxCss: number, dyCss: number): void
   centerOn(tileX: number, tileY: number): void
-  /** Places tile (tx, ty) at device pixel (px, py) — used by checks to match capture mappings. */
-  setMapping(level: number, tile: { x: number; y: number }, pixel: { x: number; y: number }): void
+  /** Places tile (tx, ty) at device pixel (px, py) — used by checks to match capture mappings. `scale` defaults to 1. */
+  setMapping(level: number, tile: { x: number; y: number }, pixel: { x: number; y: number }, scale?: number): void
   resize(cssWidth: number, cssHeight: number, dpr: number): void
   /** Integer presentation scale; camera.scale = dpr × userScale; keeps the view centre. */
   setUserScale(scale: UserScale): void
@@ -359,8 +359,8 @@ export function createEngine(options: EngineOptions): Engine {
       camera = centeredCamera(camera.level, tx * TILE_SIZE + TILE_SIZE / 2, ty * TILE_SIZE + TILE_SIZE / 2, camera.width, camera.height, camera.scale)
       clampAndInvalidate()
     },
-    setMapping(level, tile, pixel) {
-      camera = { ...camera, level, scale: 1, offsetX: tile.x * TILE_SIZE - pixel.x, offsetY: tile.y * TILE_SIZE - pixel.y }
+    setMapping(level, tile, pixel, scale = 1) {
+      camera = { ...camera, level, scale, offsetX: tile.x * TILE_SIZE - pixel.x / scale, offsetY: tile.y * TILE_SIZE - pixel.y / scale }
       scheduler.invalidate()
     },
     resize(cssWidth, cssHeight, deviceRatio) {

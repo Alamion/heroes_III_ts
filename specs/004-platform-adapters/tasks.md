@@ -223,6 +223,7 @@ origin and properties delivered like Lively.
 - [X] T070 [P] Add a "Windows session" handoff section to research.md: package paths, how to enable DevTools in WE and Lively, how to set `window.__h3testHook = true`, the invariants to reproduce, where to record answers
 - [X] T071 Run `yarn build`, `yarn test`, `yarn verify all`; fix regressions; confirm `git status` shows no game files, packages or reports staged
 - [X] T072 Constitution compliance review: add "Compliance Review" table and deviations from this plan to `specs/004-platform-adapters/plan.md`; set spec status
+- [X] T073 Fix lines between tiles at fractional display scales (owner report after KDE acceptance): snap vertices to device pixels in `src/core/render/shaders.ts`, add `test/browser/fractional-scale.test.ts` and `yarn h3 render --scale`; record in research.md "Lines between tiles at fractional display scales"
 
 ---
 

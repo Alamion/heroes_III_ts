@@ -29,6 +29,8 @@ export interface RenderParams {
   /** Frame overrides as [render-object index, frame] pairs (fidelity state search). */
   objectFrames?: [number, number][]
   drawList?: boolean
+  /** Device pixels per world pixel (default 1; fractional values mimic scaled displays). */
+  scale?: number
 }
 
 export interface RenderResult {
@@ -107,7 +109,7 @@ window.__h3render = {
     }
     loaded = { archive: p.archiveUrl, map: p.mapUrl, data: p.dataArchiveUrl }
     e.setObjectsVisible(p.objects !== false)
-    e.setMapping(p.level, p.originTile, p.originPixel)
+    e.setMapping(p.level, p.originTile, p.originPixel, p.scale ?? 1)
     const anim =
       p.step !== undefined
         ? { step: p.step, ...(p.tick !== undefined ? { tick: p.tick } : {}), ...(p.objectFrames !== undefined ? { objectFrames: new Map(p.objectFrames) } : {}) }

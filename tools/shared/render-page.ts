@@ -40,6 +40,8 @@ export interface RenderRequest {
   objects?: boolean
   objectFrames?: [number, number][]
   drawList?: boolean
+  /** Device pixels per world pixel (default 1). */
+  scale?: number
 }
 
 export interface RenderedFrame {
@@ -105,6 +107,7 @@ export class HeadlessRenderer {
         ...(req.objects !== undefined ? { objects: req.objects } : {}),
         ...(req.objectFrames !== undefined ? { objectFrames: req.objectFrames } : {}),
         ...(req.drawList === true ? { drawList: true } : {}),
+        ...(req.scale !== undefined ? { scale: req.scale } : {}),
       },
     )
     if (!result.ok || result.rgbaBase64 === undefined) {
