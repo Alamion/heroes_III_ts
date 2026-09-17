@@ -10,7 +10,8 @@ uniform float u_scale;
 varying vec2 v_uv;
 varying float v_row;
 void main() {
-  vec2 px = (a_position + u_translate) * u_scale;
+  // Snap to device pixels: at fractional scales a quad edge on a pixel centre samples the next atlas cell.
+  vec2 px = floor((a_position + u_translate) * u_scale + 0.5);
   vec2 clip = px / u_viewport * 2.0 - 1.0;
   gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
   v_uv = a_uv;
@@ -52,7 +53,8 @@ varying float v_row;
 varying float v_page;
 varying vec3 v_flag;
 void main() {
-  vec2 px = (a_position + u_translate) * u_scale;
+  // Snap to device pixels: at fractional scales a quad edge on a pixel centre samples the next atlas cell.
+  vec2 px = floor((a_position + u_translate) * u_scale + 0.5);
   vec2 clip = px / u_viewport * 2.0 - 1.0;
   gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
   v_uv = a_uv;

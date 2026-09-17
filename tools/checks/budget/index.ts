@@ -9,10 +9,12 @@ import { hasChromium, launchBrowser, startServer } from '../../shared/browser.ts
 import { installMaps, requireGameFile, requireTestMap } from '../../shared/game-files.ts'
 import { validateJson } from '../../shared/json-schema.ts'
 import { SMALL_MAP, STRESS_MAP, writeStressFiles } from '../../../test/fixtures/synthetic/stress-map.ts'
-import { entry, evaluateMap, evaluateSc007, LIMITS } from './evaluate.ts'
+import { evaluateMap, evaluateSc007 } from './evaluate.ts'
 import type { BudgetEntry } from './evaluate.ts'
 import { measureFrameWork, measureMap } from './metrics.ts'
-import { measureRuntimeSize } from './size.ts'
+import { packageSizeEntries, packageStartEntries } from './packages.ts'
+import { assemble, packageVersion, writePackage } from '../../package/cli.ts'
+import { HOSTS } from '../../package/build.ts'
 
 const SCHEMA_PATH = resolve(import.meta.dirname, '../../../specs/003-map-objects/contracts/report.schema.json')
 
@@ -50,9 +52,21 @@ export async function budgetCommand(args: ParsedArgs): Promise<CommandResult> {
   const server = await startServer('preview', { rebuild: !flag(args, 'no-build') })
   const synthetic = writeStressFiles()
   const browser = await launchBrowser()
+  const fileBrowser = await launchBrowser(['--allow-file-access-from-files'])
   try {
-    const size = measureRuntimeSize(resolve('dist'))
-    budgets.push(entry('runtime-js-gzip', size.runtimeGzipBytes, LIMITS.runtimeJsGzipBytes, 'bytes', undefined, size.files.map((f) => `${f.file}${f.role === 'harness' ? ' (harness, excluded)' : ''}: ${f.gzipBytes}`).join(', ')))
+    // Shipped JS per package (spec 004): what users actually load, the embedded worker included.
+    const packagesDir = resolve('dist/packages')
+    if (!flag(args, 'no-build')) {
+      const version = packageVersion(process.cwd())
+      for (const host of HOSTS) {
+        try {
+          writePackage(packagesDir, host, await assemble(process.cwd(), host), version)
+        } catch (err) {
+          budgets.push({ id: 'runtime-js-gzip', map: `package:${host}`, status: 'skip', note: `package not built: ${err instanceof Error ? err.message : String(err)}` })
+        }
+      }
+    }
+    budgets.push(...packageSizeEntries(packagesDir, HOSTS))
     const opts = { browser, baseUrl: server.url, viewport, throttle }
 
     const archive = requireGameFile('h3sprite.lod')
@@ -80,6 +94,13 @@ export async function budgetCommand(args: ParsedArgs): Promise<CommandResult> {
       maps.push({ name: basename(p), ...mapSize(p), synthetic: false })
       budgets.push(...evaluateMap(m))
     }
+    // Start-up through the packages (user path): the primary check map, or the synthetic stress map.
+    const startMap = realMaps.find((p) => basename(p) === 'test_map.h3m') ?? realMaps[0]
+    const startFiles =
+      startMap !== undefined && archive !== null && dataArchive !== undefined
+        ? { archive, dataArchive, map: startMap }
+        : { archive: synthetic.archive, dataArchive: synthetic.dataArchive, map: synthetic.maps[STRESS_MAP] as string }
+    budgets.push(...(await packageStartEntries(browser, fileBrowser, packagesDir, startFiles, basename(startFiles.map), viewport, throttle)))
 
     // The synthetic 252×252×2 map runs within the same budgets (SC-006 for the largest map size).
     const stressPath = synthetic.maps[STRESS_MAP] as string
@@ -93,6 +114,7 @@ export async function budgetCommand(args: ParsedArgs): Promise<CommandResult> {
     budgets.push(...evaluateSc007(small, large))
   } finally {
     await browser.close()
+    await fileBrowser.close()
     await server.close()
     rmSync(synthetic.dir, { recursive: true, force: true })
   }

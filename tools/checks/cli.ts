@@ -22,6 +22,16 @@ export const VERIFY_COMMANDS: Record<string, CommandSpec> = {
     booleanFlags: ['all-regions', 'require', 'rebuild', 'exclude-objects'],
     load: async () => (await import('./fidelity/index.ts')).fidelityCommand,
   },
+  hosts: {
+    help: 'host simulations of built packages [--host web|wallpaper-engine|lively|kde|all] [--files synthetic|real] [--no-build] [--require]',
+    booleanFlags: ['no-build', 'require'],
+    load: async () => (await import('./hosts/index.ts')).hostsCommand,
+  },
+  packages: {
+    help: 'static checks of built packages [--host web|wallpaper-engine|lively|kde|all] [--no-build] [--reproducible]',
+    booleanFlags: ['no-build', 'reproducible'],
+    load: async () => (await import('./packages/index.ts')).packagesCommand,
+  },
   layers: {
     help: 'layer import order and platform globals',
     load: async () => (await import('./layers.ts')).layersCommand,

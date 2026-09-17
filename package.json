@@ -2,18 +2,28 @@
   "name": "heroes_iii_dynam",
   "private": true,
   "version": "0.0.1",
+  "description": "Animated Heroes of Might and Magic III adventure map as a live wallpaper (browser, Wallpaper Engine, Lively, KDE Plasma), drawn from user-supplied game files",
+  "homepage": "https://alamion.github.io/heroes_III_ts/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Alamion/heroes_III_ts.git"
+  },
+  "author": "Alamion",
   "type": "module",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "preview:web": "node tools/package/preview-web.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "ref": "node tools/reference-env/cli.ts",
     "h3": "node tools/inspect/cli.ts",
-    "verify": "node tools/checks/cli.ts"
+    "verify": "node tools/checks/cli.ts",
+    "package": "node tools/package/cli.ts",
+    "accept": "node tools/accept/cli.ts"
   },
   "dependencies": {},
   "devDependencies": {

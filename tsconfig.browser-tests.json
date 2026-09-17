@@ -5,6 +5,6 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.browser-tests.tsbuildinfo",
     "lib": ["ES2023", "DOM", "DOM.Iterable"]
   },
-  "include": ["test/browser/**/*.ts"],
+  "include": ["test/browser/**/*.ts", "test/adapters/**/*.ts"],
   "exclude": []
 }

@@ -13,7 +13,7 @@ import { readTimedEvent } from './objects/town.ts'
 import { H3M_VERSION_CODES } from './types.ts'
 import type { H3mMap, H3mVersion, TimedEvent } from './types.ts'
 
-const KNOWN_OTHER_VERSIONS: Record<number, string> = {
+export const KNOWN_OTHER_VERSIONS: Record<number, string> = {
   0x1d: 'Chronicles',
   0x20: 'HotA',
   0x33: 'WoG',

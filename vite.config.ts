@@ -1,4 +1,5 @@
 /// <reference types="vitest/config" />
+import { rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 
@@ -13,9 +14,19 @@ export default defineConfig(({ command }) => ({
   // public/ holds git-ignored game files for development; never copy it into build output
   // (constitution Principle I).
   publicDir: command === 'serve' ? resolve(repoRoot, 'public') : false,
+  plugins: [
+    {
+      // dist/packages holds `yarn package` output: clean only the harness outputs.
+      name: 'h3-clean-harness-output',
+      apply: 'build',
+      buildStart() {
+        for (const p of ['assets', 'index.html', 'render.html']) rmSync(resolve(repoRoot, 'dist', p), { recursive: true, force: true })
+      },
+    },
+  ],
   build: {
     outDir: resolve(repoRoot, 'dist'),
-    emptyOutDir: true,
+    emptyOutDir: false,
     target: 'es2022',
     rollupOptions: {
       input: {

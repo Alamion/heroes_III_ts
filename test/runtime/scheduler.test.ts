@@ -118,3 +118,43 @@ describe('FrameScheduler with irregular change times (spec 003)', () => {
     expect(s.pending).toBe(0)
   })
 })
+
+describe('FrameScheduler frame limit (spec 004)', () => {
+  it('keeps frames at least the minimum interval apart with one timer', () => {
+    const clock = new ManualClock(0)
+    const host = new FakeHost(clock)
+    const draws: number[] = []
+    // Content changes every 100 ms, the host allows one frame per second.
+    const s = new FrameScheduler(host, clock, { draw: (t) => (draws.push(t), Math.floor(t / 100) * 100 + 100) })
+    s.setMinFrameInterval(1000)
+    s.invalidate()
+    host.flushFrames()
+    for (let i = 0; i < 6; i++) {
+      expect(s.pending).toBeLessThanOrEqual(2)
+      expect(host.frames.size + host.timers.size).toBeLessThanOrEqual(1)
+      host.runNextTimer()
+      host.flushFrames()
+    }
+    for (let i = 1; i < draws.length; i++) expect((draws[i] as number) - (draws[i - 1] as number)).toBeGreaterThanOrEqual(1000)
+    expect(draws.length).toBeGreaterThanOrEqual(2)
+    s.setPaused(true)
+    expect(s.pending).toBe(0)
+  })
+
+  it('draws one catch-up frame after a clock jump', () => {
+    const clock = new ManualClock(0)
+    const host = new FakeHost(clock)
+    const draws: number[] = []
+    const s = new FrameScheduler(host, clock, { draw: (t) => (draws.push(t), (Math.floor(t / 180) + 1) * 180) })
+    s.invalidate()
+    host.flushFrames()
+    const [[h, timer]] = [...host.timers.entries()] as [number, { cb: () => void; at: number }][]
+    host.timers.delete(h)
+    clock.set(600_000)
+    timer.cb()
+    host.flushFrames()
+    // The timer fired late (sleep): exactly one frame at the new time, then the regular cadence.
+    expect(draws.filter((t) => t >= 600_000).length).toBe(1)
+    expect(host.timers.size).toBe(1)
+  })
+})

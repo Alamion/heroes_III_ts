@@ -67,9 +67,26 @@ One `/speckit-specify` each and roughly in this order:
    animation timings verified against captures. Random-object tiles are floating in automated
    checks and verified less often, visually; if specific random outcomes need verifying, build an
    object atlas (as in the PoC) on a separate git branch and inspect it directly.
-2. **Platform adapters** — plain browser (file picker / drag-and-drop), Wallpaper Engine,
-   Lively Wallpaper, KDE Plasma wallpaper plugin; pause/visibility handling; scale setting
+2. **Platform adapters** — built on Linux in [specs/004-platform-adapters/](specs/004-platform-adapters/):
+   browser version (GitHub Pages), Wallpaper Engine, Lively, KDE Plasma plugin, host simulations and
+   package checks; accepted on the real KDE session. **Open:** verify Wallpaper Engine and Lively on Windows (move the project there; use
+   004 research "Open questions for the Windows session" and "Windows session handoff"). Later: a map
+   folder with a random map per start or timed rotation (settings keys `mapsource`/`mapfolder`/
+   `maprotation` are reserved). Original note: plain browser (file picker / drag-and-drop), Wallpaper
+   Engine, Lively Wallpaper, KDE Plasma wallpaper plugin; pause/visibility handling; scale setting
    (32px default); packaging without any game files.
+2a. **Multi-screen and lock screen** (candidate spec after 3.2; spike first; KDE and Windows) —
+   (a) one map spanning all screens with continuous transitions: every screen places its camera from
+   the union of all screen geometries, one seed per session and a wall-clock animation time so palette
+   and object steps change at the same moment on every screen. KDE: `Qt.application.screens` + a QML
+   singleton for the seed. Wallpaper Engine: one wallpaper can span all monitors ("Span" layout, the page
+   gets the whole desktop rectangle) — check the monitor rectangles it exposes; Lively: its "Span"
+   placement likewise. (b) the map on the lock screen: KDE's greeter (kscreenlocker) loads the
+   wallpaper plugin but sets no shared GL contexts and does not initialise Qt WebEngine, so a
+   WebEngineView there is expected to fail — test first; fallback is a native QML lock-screen view
+   (e.g. frames rendered by the desktop wallpaper into the user cache). Windows: the lock screen accepts
+   only a static image (Wallpaper Engine/Lively cannot animate it) — at most a periodically exported
+   still; confirm in the Windows session.
 3. **Complete edition save files** — research spike first (format is only partly documented);
    load into the existing world-state model.
 4. **Interactive extras** — idle/mouse map scrolling, defeating monsters/heroes, capturing towns
@@ -77,6 +94,38 @@ One `/speckit-specify` each and roughly in this order:
 5. **HotA support** — only after base-game fidelity checks pass: HotA LOD (incl. 1.8+ encrypted
    names), HotA H3M versions, HotA saves. `[HotA] The Devil Is in the Detail.h3m` (252×252) is
    the stress-test map.
+
+## Spin-off: browser extension "battlefield header"
+
+Not a map wallpaper: a separate product (likely its own repository or workspace package) that reuses
+the format parsers (LOD, DEF, PCX, palettes) and the animation knowledge. Start with a research spike,
+then its own `/speckit-specify`.
+
+Idea: an extension for Firefox (Chromium browsers if feasible) that shows a strip of a battlefield
+(ground and some sky) in the browser header. From time to time a creature walks in, stops, idles,
+and sometimes meets another creature: attack, defend, death. It must feel alive and fun but not
+distracting and must not hide much of the page.
+
+Research questions:
+
+- Where it can be drawn at all. Firefox: the `theme` API (`browser.theme.update` with `theme_frame`
+  images) is static per update — check whether frequent updates are viable (CPU, flicker, per-window
+  themes) or whether animation needs another surface (sidebar, new tab page, a page overlay via a
+  content script). Chromium: themes are static packaged images, no runtime theme API — find what is
+  possible there, if anything.
+- User-supplied game files, no game content shipped: can the extension ask for `H3sprite.lod` /
+  `h3bitmap.lod` once (options page file picker) and keep them or the decoded sprites (extension
+  IndexedDB, `unlimitedStorage`), survive browser restarts and updates; what happens on uninstall.
+- Content: which battle backgrounds (`CmBk*.pcx`) and creature battle DEFs (animation groups: move,
+  idle, attack, defend, hit, death) exist; which crop and proportions of ground/sky look good in a
+  header of typical height and width; creature scale in a low header.
+- Behaviour: a small, calm scenario engine (spawn rarely, walk, stop, occasional duel, death and
+  fade), seeded; frame timing close to the game; pause when the window is hidden or on battery if
+  the API allows; a user setting for frequency or "off".
+- Budgets: idle CPU/GPU near zero between events; memory of decoded sprites; store review rules
+  (AMO / Chrome Web Store) for extensions that read user-provided proprietary files.
+- Code sharing: how to reuse `src/core` (formats, palette, DEF decoding) without the map-specific
+  layers — a shared package, a git subtree, or a copy with a sync rule.
 
 ## Housekeeping
 
@@ -87,4 +136,7 @@ One `/speckit-specify` each and roughly in this order:
 - Object draw order in dense obstacle clusters and reef animation differ from the game in a few
   percent of pixels (spec 003 research); investigate if they become visible.
 - Warm start with objects is 1.1–1.8 s under 4× CPU throttling (limit 2 s): profile the data
-  archive identity/cache path before adding more start-up work.
+  archive identity/cache path before adding more start-up work. Update 2026-09-17 (spec 004): the dev
+  harness now measures 1.8–2.7 s on test_map.h3m, Pandora's Box and the synthetic 252×252 map, the same as
+  on `testing` before spec 004 — over the limit on some runs; the packages stay under it (web 0.6–1.1 s,
+  Wallpaper Engine 1.6–1.7 s on test_map.h3m).

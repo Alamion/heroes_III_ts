@@ -1,0 +1,100 @@
+.h3p {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  width: min(92vw, 25em);
+  max-height: calc(100vh - 20px);
+  overflow: auto;
+  box-sizing: border-box;
+  background: rgba(14, 12, 9, 0.86);
+  color: #e8dcc0;
+  font: 13px/1.45 system-ui, sans-serif;
+  border: 1px solid rgba(232, 220, 192, 0.2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  transition: opacity 0.4s;
+  z-index: 2;
+}
+.h3p.h3p-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.h3p h2 {
+  font-size: 15px;
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+.h3p h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+  margin: 10px 0 4px;
+  font-weight: 600;
+}
+.h3p-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 4px 0;
+}
+.h3p-row label {
+  flex: 1;
+}
+.h3p-file {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 2px 0;
+}
+.h3p-file span:last-child {
+  opacity: 0.8;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.h3p-file.h3p-missing span:last-child {
+  opacity: 0.5;
+  font-style: italic;
+}
+.h3p button,
+.h3p select,
+.h3p input[type='number'] {
+  font: inherit;
+  color: inherit;
+  background: rgba(232, 220, 192, 0.08);
+  border: 1px solid rgba(232, 220, 192, 0.3);
+  border-radius: 5px;
+  padding: 3px 8px;
+}
+.h3p select option {
+  background: #1a1612;
+}
+.h3p input[type='number'] {
+  width: 6em;
+}
+.h3p input[type='range'] {
+  width: 55%;
+}
+.h3p-hint,
+.h3p-keys {
+  opacity: 0.65;
+  font-size: 12px;
+}
+.h3p-close {
+  float: right;
+}
+.h3p details {
+  margin-top: 8px;
+}
+.h3p details p {
+  margin: 4px 0;
+}
+.h3-dropping::after {
+  content: '';
+  position: fixed;
+  inset: 8px;
+  border: 3px dashed rgba(232, 220, 192, 0.6);
+  border-radius: 12px;
+  pointer-events: none;
+}

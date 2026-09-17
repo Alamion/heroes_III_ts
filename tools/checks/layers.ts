@@ -11,7 +11,7 @@ export interface LayerViolation {
   line: number
   from: string
   to: string
-  rule: 'layer-order' | 'platform-global' | 'node-import' | 'imports-tools' | 'imports-adapters'
+  rule: 'layer-order' | 'platform-global' | 'node-import' | 'imports-tools' | 'imports-adapters' | 'adapter-isolation'
   detail: string
 }
 
@@ -24,6 +24,19 @@ const LAYER_RANK: Record<string, number> = {
   'core/render': 5,
   runtime: 6,
   adapters: 7,
+}
+
+/**
+ * Adapter files tools may import (spec 004 FR-008): the DOM-free settings definition and string
+ * tables, used to generate host manifests. These files must stay DOM-free and import nothing from
+ * runtime or other adapter files except each other.
+ */
+export const TOOL_IMPORTABLE_ADAPTER_FILES = new Set(['src/adapters/shared/settings.ts', 'src/adapters/shared/strings.ts'])
+
+/** The adapter folder of a path under src/adapters/ (e.g. "shared", "wallpaper-engine"). */
+function adapterFolder(posixPath: string): string | undefined {
+  const m = /^src\/adapters\/([^/]+)\//.exec(posixPath)
+  return m?.[1]
 }
 
 /** Layers that must run in Node and in a worker: no DOM, no Node APIs. */
@@ -151,8 +164,22 @@ export function checkLayers(repoRoot: string): LayerViolation[] {
           continue
         }
         if (toLayer === 'adapters' && fromLayer !== 'adapters') {
+          if (fromLayer === 'tools' && TOOL_IMPORTABLE_ADAPTER_FILES.has(targetPosix)) continue
           violations.push({ file: fileRel, line: lineOf(node), from: fromLayer, to: 'adapters', rule: 'imports-adapters', detail: spec })
           continue
+        }
+        if (fromLayer === 'adapters') {
+          const fromFolder = adapterFolder(fileRel)
+          const toFolder = toLayer === 'adapters' ? adapterFolder(targetPosix) : undefined
+          // Host bridges share only adapters/shared; shared never depends on a host bridge.
+          if (toFolder !== undefined && fromFolder !== undefined && toFolder !== fromFolder && (toFolder !== 'shared' || fromFolder === 'dev-harness')) {
+            violations.push({ file: fileRel, line: lineOf(node), from: `adapters/${fromFolder}`, to: `adapters/${toFolder}`, rule: 'adapter-isolation', detail: spec })
+            continue
+          }
+          if (TOOL_IMPORTABLE_ADAPTER_FILES.has(fileRel) && !TOOL_IMPORTABLE_ADAPTER_FILES.has(targetPosix)) {
+            violations.push({ file: fileRel, line: lineOf(node), from: fileRel, to: targetPosix, rule: 'adapter-isolation', detail: `${spec} (tool-importable files import only each other)` })
+            continue
+          }
         }
         if (fromLayer !== 'tools' && toLayer !== undefined && toLayer !== 'tools') {
           if ((LAYER_RANK[toLayer] as number) > (LAYER_RANK[fromLayer] as number)) {
@@ -165,7 +192,8 @@ export function checkLayers(repoRoot: string): LayerViolation[] {
       }
     }
 
-    const forbidden = PURE_LAYERS.has(fromLayer) ? DOM_GLOBALS : fromLayer === 'core/render' ? RENDER_FORBIDDEN : undefined
+    const toolImportable = TOOL_IMPORTABLE_ADAPTER_FILES.has(rel.split(sep).join('/'))
+    const forbidden = PURE_LAYERS.has(fromLayer) || toolImportable ? DOM_GLOBALS : fromLayer === 'core/render' ? RENDER_FORBIDDEN : undefined
     if (forbidden !== undefined) {
       const declared = declaredNames(sf)
       const visit = (n: ts.Node): void => {
