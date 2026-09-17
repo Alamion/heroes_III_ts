@@ -18,7 +18,7 @@ export const RUNTIME_LIMIT_GZIP_BYTES = 102_400
 export const MAX_FILE_BYTES = 2 * 1024 * 1024
 
 export const REQUIRED_FILES: Record<HostId, readonly string[]> = {
-  web: ['index.html'],
+  web: ['index.html', 'favicon.svg'],
   'wallpaper-engine': ['index.html', 'listener.js', 'main.js', 'page.css', 'project.json', 'preview.png', 'README.txt'],
   lively: ['index.html', 'listener.js', 'main.js', 'page.css', 'LivelyInfo.json', 'LivelyInfo.loc.json', 'LivelyProperties.json', 'LivelyProperties.loc.json', 'userfiles/.keep', 'preview.png', 'thumbnail.png', 'README.txt'],
   kde: ['metadata.json', 'contents/ui/main.qml', 'contents/ui/config.qml', 'contents/ui/strings.js', 'contents/config/main.xml', 'contents/web/index.html', 'contents/web/main.js', 'contents/web/page.css', 'README.md'],

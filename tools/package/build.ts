@@ -127,7 +127,9 @@ export async function buildWeb(repoRoot: string): Promise<PackageFiles> {
         rollupOptions: { input: { index: resolve(root, 'index.html') } },
       },
     })
-    return readTree(out)
+    const files = readTree(out)
+    files.set('favicon.svg', new Uint8Array(readFileSync(resolve(repoRoot, 'public/favicon.svg'))))
+    return files
   } finally {
     rmSync(out, { recursive: true, force: true })
   }

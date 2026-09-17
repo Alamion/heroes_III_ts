@@ -1,8 +1,9 @@
-// Package preview images (spec 004 FR-020, constitution I): original procedural art — a stylised
-// tile map in earthy colours with a winding river — generated deterministically. No game imagery,
-// logos or captures.
+// Package preview images (spec 004 FR-020, constitution I): original procedural art — the project
+// icon over a dimmed, stylised tile map in earthy colours — generated deterministically. No game
+// imagery, logos or captures.
 
 import { createRng } from '../../src/core/util/rng.ts'
+import { ICON_SIZE, iconPixels } from './icon.ts'
 import { encodePng } from '../shared/png.ts'
 
 const PALETTE: readonly [number, number, number][] = [
@@ -41,11 +42,21 @@ export function previewPng(size: number): Uint8Array {
       }
       const cx = x / size - 0.5
       const cy = y / size - 0.5
-      const v = 1 - 0.7 * (cx * cx + cy * cy)
+      const v = 0.55 * (1 - 0.7 * (cx * cx + cy * cy))
       const i = (y * size + x) * 3
       data[i] = Math.max(0, Math.min(255, Math.round(r * v)))
       data[i + 1] = Math.max(0, Math.min(255, Math.round(g * v)))
       data[i + 2] = Math.max(0, Math.min(255, Math.round(b * v)))
+    }
+  }
+  // The icon, centred at an integer scale.
+  const icon = iconPixels()
+  const scale = Math.max(1, Math.floor((size * 0.8) / ICON_SIZE))
+  const offset = Math.floor((size - scale * ICON_SIZE) / 2)
+  for (let y = 0; y < scale * ICON_SIZE; y++) {
+    for (let x = 0; x < scale * ICON_SIZE; x++) {
+      const c = icon[Math.floor(y / scale) * ICON_SIZE + Math.floor(x / scale)]
+      if (c) data.set(c, ((offset + y) * size + offset + x) * 3)
     }
   }
   return encodePng({ width: size, height: size, channels: 3, data })
