@@ -95,6 +95,38 @@ One `/speckit-specify` each and roughly in this order:
    names), HotA H3M versions, HotA saves. `[HotA] The Devil Is in the Detail.h3m` (252×252) is
    the stress-test map.
 
+## Spin-off: browser extension "battlefield header"
+
+Not a map wallpaper: a separate product (likely its own repository or workspace package) that reuses
+the format parsers (LOD, DEF, PCX, palettes) and the animation knowledge. Start with a research spike,
+then its own `/speckit-specify`.
+
+Idea: an extension for Firefox (Chromium browsers if feasible) that shows a strip of a battlefield
+(ground and some sky) in the browser header. From time to time a creature walks in, stops, idles,
+and sometimes meets another creature: attack, defend, death. It must feel alive and fun but not
+distracting and must not hide much of the page.
+
+Research questions:
+
+- Where it can be drawn at all. Firefox: the `theme` API (`browser.theme.update` with `theme_frame`
+  images) is static per update — check whether frequent updates are viable (CPU, flicker, per-window
+  themes) or whether animation needs another surface (sidebar, new tab page, a page overlay via a
+  content script). Chromium: themes are static packaged images, no runtime theme API — find what is
+  possible there, if anything.
+- User-supplied game files, no game content shipped: can the extension ask for `H3sprite.lod` /
+  `h3bitmap.lod` once (options page file picker) and keep them or the decoded sprites (extension
+  IndexedDB, `unlimitedStorage`), survive browser restarts and updates; what happens on uninstall.
+- Content: which battle backgrounds (`CmBk*.pcx`) and creature battle DEFs (animation groups: move,
+  idle, attack, defend, hit, death) exist; which crop and proportions of ground/sky look good in a
+  header of typical height and width; creature scale in a low header.
+- Behaviour: a small, calm scenario engine (spawn rarely, walk, stop, occasional duel, death and
+  fade), seeded; frame timing close to the game; pause when the window is hidden or on battery if
+  the API allows; a user setting for frequency or "off".
+- Budgets: idle CPU/GPU near zero between events; memory of decoded sprites; store review rules
+  (AMO / Chrome Web Store) for extensions that read user-provided proprietary files.
+- Code sharing: how to reuse `src/core` (formats, palette, DEF decoding) without the map-specific
+  layers — a shared package, a git subtree, or a copy with a sync rule.
+
 ## Housekeeping
 
 - ~~Refresh or drop `.opencode/skills/developing-preact`~~ — dropped with Preact (item 2).
