@@ -69,6 +69,7 @@ tools/inspect      yarn h3        tools/checks   yarn verify
 tools/shared       PNG codec, headless Chromium, game file lookup, CLI runner
 tools/reference-env yarn ref (item 1)
 test/fixtures/synthetic   generators for LOD/DEF/PCX/H3M (no game content)
+docs               architecture.md (developer deep dive), img/ (documentation screenshots)
 ```
 
 Layers only import downwards (`core/util` → `data` → `formats` → `state` → `sim` → `render` →
