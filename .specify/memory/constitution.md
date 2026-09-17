@@ -1,29 +1,24 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.0.0 → 1.1.0
-Bump rationale: MINOR — Principles II and V materially changed guidance on how the baseline is
-obtained and run (plain Wine from a local install instead of GOG + Heroic/Proton) and added a
-narrow, placement-only allowance for the HotA map editor. Intent (unmodified Complete-edition
-game as the fidelity baseline) is unchanged.
+Version change: 1.1.0 → 1.2.0
+Bump rationale: MINOR — Principle I gains a narrow, bounded exception: a few screenshots rendered
+by this project MAY be committed under docs/img/ to illustrate the documentation. The ban on game
+content in packages, build output and CI artifacts is unchanged.
 
 Modified principles:
-  II. Fidelity to the Complete Edition — baseline defined by the original SoD/Complete
-      executable + Complete data files from a local install, not by the GOG release; HotA map
-      editor allowed for placement-only reference captures, labeled as such.
-  V.  Platform-Agnostic Core, Linux-First Development — baseline runs under Wine on a virtual
-      display, driven by scripts; Heroic/Proton no longer mandated.
-
-Modified sections:
-  - Development Workflow & Quality Gates → "Reference capture" bullet.
+  I. User-Supplied Assets Only — documentation screenshots exception (docs/img/, size limits,
+     never raw extracted sprites/atlases/palettes or captures of the original game, never shipped).
 
 Added/removed sections: none
 
 Templates / dependent files:
   ✅ .specify/templates/*.md — no constitution-specific slots; no edit needed
-  ✅ AGENTS.md — "Baseline Game" section updated in the same change
-  ✅ specs/001-reference-environment/ — spec and plan already assume the amended wording
-  ⚠ TODO.md item 1 — still mentions Heroic/Proton/GOG; historical task note, superseded by spec 001
+  ✅ AGENTS.md — "Local-Only Folders" rule updated in the same change
+  ✅ test/tools/hygiene.test.ts — allows images only under docs/img/, within the limits
+
+Previous amendment (1.0.0 → 1.1.0, 2026-09-13): baseline run under plain Wine from a local install
+instead of GOG + Heroic/Proton; HotA map editor allowed for placement-only captures.
 
 Deferred TODOs:
   - Budget numbers in "Technical Constraints & Budgets" remain initial targets (unchanged).
@@ -39,6 +34,12 @@ Deferred TODOs:
   sprites, maps, saves, or anything derived from them (extracted frames, atlases, palettes,
   caches, reference screenshots). This applies to the git repository, build output, CI
   artifacts, and any published package (Workshop, KDE Store, etc.).
+- Exception, documentation only: a small number of screenshots of this project's own output
+  (renders of a map region or of the running wallpaper, made from the owner's files) MAY be
+  committed under `docs/img/` to illustrate the README and developer docs. Each file MUST be at
+  most 2 MB and the folder at most 10 MB in total. Raw extracted sprites, atlases, palettes and
+  captures of the original game MUST NOT be committed, and `docs/img/` MUST NOT be copied into
+  build output or packages.
 - At runtime the user MUST be the one who provides game files (file pickers, platform
   properties, drag-and-drop). Derived caches MAY exist only on the user's own machine.
 - Development assets live in `public/dev-assets/`; reference material lives in `context/`;
@@ -226,4 +227,4 @@ make saves, HotA, and interactivity additive instead of rewrites.
 - **Compliance review:** at the end of each feature (before merge), re-check the Constitution
   Check in its plan against the actual implementation; record any accepted deviations there.
 
-**Version**: 1.1.0 | **Ratified**: 2026-09-13 | **Last Amended**: 2026-09-13
+**Version**: 1.2.0 | **Ratified**: 2026-09-13 | **Last Amended**: 2026-09-17

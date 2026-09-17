@@ -1,7 +1,7 @@
 // Repository hygiene (constitution I, spec FR-027/FR-028): no game files or derived data tracked,
 // the Windows-only sync script gone, attribution present.
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -24,8 +24,16 @@ describe('repository hygiene', () => {
   it('has no game archives, sprites, maps or derived images', () => {
     const game = files.filter((f) => /\.(lod|def|pcx|h3m|h3c|msk|snd|vid|pal)$/i.test(f))
     expect(game).toEqual([])
-    const images = files.filter((f) => /\.png$/i.test(f))
-    expect(images).toEqual([])
+    // Documentation screenshots of the project's own output are the only images (constitution I).
+    const images = files.filter((f) => /\.(png|jpe?g|gif|webp|bmp)$/i.test(f))
+    expect(images.filter((f) => !f.startsWith('docs/img/'))).toEqual([])
+  })
+
+  it('keeps documentation screenshots small (constitution I)', () => {
+    const images = files.filter((f) => f.startsWith('docs/img/') && existsSync(resolve(REPO, f)))
+    const sizes = images.map((f) => ({ f, bytes: statSync(resolve(REPO, f)).size }))
+    expect(sizes.filter((s) => s.bytes > 2 * 1024 * 1024)).toEqual([])
+    expect(sizes.reduce((sum, s) => sum + s.bytes, 0)).toBeLessThanOrEqual(10 * 1024 * 1024)
   })
 
   it('stores flag colours as palette entries only (spec 003, constitution I)', () => {

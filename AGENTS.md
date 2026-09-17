@@ -169,7 +169,9 @@ Every `yarn ref` command prints one JSON document on stdout; logs go to stderr.
 | `dist/` | Build output (never contains `public/dev-assets/`) |
 
 Never commit game files or anything derived from them (extracted frames, atlases, palettes,
-caches, captures). Tests needing real game files must skip with a clear message when absent.
+caches, captures). The one exception is a few documentation screenshots of this project's own
+output in `docs/img/` (≤ 2 MB each, ≤ 10 MB total, never shipped; constitution I). Tests needing
+real game files must skip with a clear message when absent.
 
 ### Dev assets (`public/dev-assets/`)
 
