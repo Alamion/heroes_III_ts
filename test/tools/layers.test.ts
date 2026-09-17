@@ -48,3 +48,30 @@ describe('verify layers', () => {
     expect(rules.some((r) => r.startsWith('src/core/state/local.ts'))).toBe(false)
   })
 })
+
+describe('verify layers: adapters (spec 004)', () => {
+  it('isolates host adapters and limits what tools import from adapters', () => {
+    const root = tree({
+      'src/adapters/shared/settings.ts': "import { en } from './strings.ts'\nexport const s = en\n",
+      'src/adapters/shared/strings.ts': 'export const en = 1\n',
+      'src/adapters/shared/controller.ts': "import { s } from './settings.ts'\nexport const c = () => document.title + s\n",
+      'src/adapters/shared/bad.ts': "import { w } from '../wallpaper-engine/main.ts'\nexport const b = w\n",
+      'src/adapters/wallpaper-engine/main.ts': "import { c } from '../shared/controller.ts'\nimport { k } from '../kde/main.ts'\nexport const w = [c, k]\n",
+      'src/adapters/kde/main.ts': "import { c } from '../shared/controller.ts'\nexport const k = c\n",
+      'tools/gen.ts': "import { s } from '../src/adapters/shared/settings.ts'\nimport { en } from '../src/adapters/shared/strings.ts'\nexport const g = [s, en]\n",
+      'tools/bad.ts': "import { c } from '../src/adapters/shared/controller.ts'\nexport const t = c\n",
+    })
+    const rules = checkLayers(root).map((v) => `${v.file}:${v.rule}`)
+    expect(rules.sort()).toEqual(['src/adapters/shared/bad.ts:adapter-isolation', 'src/adapters/wallpaper-engine/main.ts:adapter-isolation', 'tools/bad.ts:imports-adapters'])
+  })
+
+  it('keeps the tool-importable adapter files DOM-free', () => {
+    const root = tree({
+      'src/adapters/shared/settings.ts': "import { x } from './controller.ts'\nexport const s = () => navigator.language + x\n",
+      'src/adapters/shared/controller.ts': 'export const x = 1\n',
+    })
+    const rules = checkLayers(root).map((v) => `${v.rule}:${v.to}`)
+    expect(rules).toContain('platform-global:navigator')
+    expect(rules).toContain('adapter-isolation:src/adapters/shared/controller.ts')
+  })
+})

@@ -42,9 +42,10 @@ One definition for all hosts ([contracts/settings.md](contracts/settings.md)).
 | `spritearchive` | file | none | — | reload of that slot only |
 | `dataarchive` | file | none | — | reload of that slot only |
 | `mapfile` | file | none | — | map reload; archives kept |
-| `level` | enum | `surface` | `surface`, `underground` | yes |
+| `level` | enum | `random` | `random`, `surface`, `underground` | yes |
 | `viewmode` | enum | `random` | `random`, `centre`, `coords` | yes |
 | `viewx`, `viewy` | int | 50 | 0–100, step 1; shown only when `viewmode = coords` where the host supports conditions (not Lively) | yes |
+| `viewinterval` | int (number field) | 0 | 0–120 minutes, step 1; 0 = never; typed text validated (bad → 0, clamped, rounded); shown only when `viewmode = random` where the host supports conditions | yes |
 | `scale` | enum | `1` | `1`, `2`, `3` | yes |
 | `objects` | bool | `true` | — | yes |
 | `language` | enum | `auto` | `auto`, `en`, `ru` (browser panel only; hosts use their own) | yes |
@@ -65,12 +66,18 @@ type ViewPlacement =
 ```
 
 `placeView(world, level, placement, viewSizeWorldPx, borderTiles) → { level, offsetX, offsetY }`:
-effective level = requested level if the map has it, else 0; `coords` maps `fx, fy` linearly between the
+effective level = requested level if the map has it, else 0; a random level choice `{ random: seed }`
+draws 0 or 1 on two-level maps; `coords` (and a drawn `random`) maps `fx, fy` linearly from 8 tiles (the camera's border band) before one map
+edge to 8 tiles past the other, i.e. between the
 minimum and maximum clamped offsets; `random` draws `fx, fy` from `mulberry32(seed)`; a view larger than
 the map is centred. Pure, in `src/core/render/view-placement.ts`.
 
-Random re-roll happens only on controller start and map change, not on slider, scale or level changes
-(level change keeps the fractions).
+Random re-roll happens on controller start, map change, switching to random mode and every `viewinterval`
+minutes while active (counted from the last draw, so time spent paused counts; an overdue place changes on
+resume); never on slider or scale changes. Scale and viewport changes place the kept fractions again for the
+new view size. With `level = random` the level is drawn at start, on map change,
+with every random place and when `random` is selected; other changes keep it. `surface`/`underground`
+apply that level and keep the fractions.
 
 ## HostSignals
 

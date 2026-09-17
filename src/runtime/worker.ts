@@ -21,6 +21,21 @@ function cacheFor(enabled: boolean) {
   return c
 }
 
+interface LockManagerLike {
+  request<T>(name: string, callback: () => Promise<T>): Promise<T>
+}
+
+/**
+ * Runs a decode under a Web Lock shared by every page of this origin (spec 004 research R13): two
+ * wallpaper views (screens, tabs) that start together decode once; the second finds the result in
+ * the cache, which each decode step checks first. Without Web Locks the decode runs unlocked.
+ */
+function withDecodeLock<T>(key: string, work: () => Promise<T>): Promise<T> {
+  const locks = (scope.navigator as { locks?: LockManagerLike } | undefined)?.locks
+  if (locks === undefined) return work()
+  return locks.request(`h3dynam:decode:${key}`, work)
+}
+
 function post(msg: WorkerResponse, transfer: Transferable[] = []): void {
   scope.postMessage(msg, transfer)
 }
@@ -29,13 +44,13 @@ scope.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const req = event.data
   try {
     if (req.kind === 'openArchive') {
-      const r = await decodeArchive(req.file, req.name, cacheFor(req.useCache))
+      const r = await withDecodeLock(`archive:${req.file.size}:${req.name}`, () => decodeArchive(req.file, req.name, cacheFor(req.useCache)))
       // Copies are transferred; the cache keeps its own structured clone.
       const indices = r.atlas.indices.slice()
       const palettes = r.atlas.palettes.slice()
       post({ id: req.id, kind: 'archiveReady', identity: r.identity, atlas: { layout: r.atlas.layout, indices, palettes }, fromCache: r.fromCache, warnings: r.warnings }, [indices.buffer, palettes.buffer])
     } else if (req.kind === 'openMap') {
-      const r = await decodeMap(req.file, req.name, cacheFor(req.useCache))
+      const r = await withDecodeLock(`map:${req.file.size}:${req.name}`, () => decodeMap(req.file, req.name, cacheFor(req.useCache)))
       worlds.clear()
       worlds.set(r.identity, r.world)
       post({ id: req.id, kind: 'mapReady', identity: r.identity, world: r.world, fromCache: r.fromCache, warnings: r.warnings })
@@ -45,7 +60,9 @@ scope.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     } else {
       const world = worlds.get(req.mapIdentity)
       if (world === undefined) throw new Error(`map ${req.mapIdentity} is not loaded in the worker`)
-      const r = await decodeObjects(req.sprites, req.data, { world, identity: req.mapIdentity }, req.seed, cacheFor(req.useCache))
+      const r = await withDecodeLock(`objects:${req.sprites.identity}:${req.data.identity}:${req.mapIdentity}:${req.seed}`, () =>
+        decodeObjects(req.sprites, req.data, { world, identity: req.mapIdentity }, req.seed, cacheFor(req.useCache)),
+      )
       // The cache stored its own structured clone (or this is a fresh clone read from it), so the
       // buffers can be transferred without copying 16 MB of pages.
       const pages = r.atlas.pages

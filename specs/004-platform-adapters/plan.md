@@ -174,6 +174,19 @@ fidelity checks; the budget check moves to packages.
 10. **Polish**: AGENTS.md (state, layout, commands, host facts), TODO.md, user docs per host (FR-023, en/ru),
     compliance review.
 
+## Compliance Review (after the Linux implementation, 2026-09-17)
+
+| Principle | Implementation | Status |
+| --- | --- | --- |
+| I | Packages are built from repository sources only; `verify packages` rejects game extensions, LOD/gzip signatures, files > 2 MB, external URLs and affiliation wording; previews are procedural; the hygiene test covers `packaging/`, `tools/package`, `src/adapters`; the root proof-of-concept `project.json` is gone. Browser copies of user files stay in the user's IndexedDB and can be forgotten. | Pass |
+| II | Adapters never draw: host simulations compare the ×1 frame of every package with the engine render page pixel by pixel; ×2/×3 are whole-pixel enlargements (browser test), ×1 is the default. | Pass |
+| III | `yarn verify packages` and `yarn verify hosts` run headless on Linux (synthetic and real files); the controller is unit-tested with a fake engine; `yarn accept kde` scripts the Plasma steps. KDE accepted on the real session; real Wallpaper Engine and Lively acceptance is pending the Windows session. | Pass (Windows acceptance pending) |
+| IV | Paused, hidden and covered states reach zero pending callbacks in every host simulation; WE frame limit in the scheduler; surface ≤ viewport × DPR at any scale; decoding stays in a worker (Blob worker in classic builds); Web Locks share one decode between pages; budgets measure package sizes and package start-up. | Pass |
+| V | Host APIs only in `src/adapters/<host>` and `packaging/kde`; engine additions are host-neutral; all tooling runs on Linux; no Windows-side scripts. | Pass |
+| VI | View placement is pure in `core/render`; file-kind in `runtime`; `yarn verify layers` enforces host isolation and the DOM-free settings/strings used by tools. | Pass |
+| VII | Wrong-kind, unsupported, truncated, unreadable and missing files become localized messages and log entries in every host simulation; the page stays responsive. | Pass |
+| VIII | No runtime dependency; packages ship 56–60 KB gzip of JS each (worker included). | Pass |
+
 ## Complexity Tracking
 
 None.

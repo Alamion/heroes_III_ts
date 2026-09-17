@@ -23,5 +23,5 @@
     "noUncheckedSideEffectImports": true
   },
   "include": ["vite.config.ts", "tools/**/*.ts", "test/**/*.ts"],
-  "exclude": ["test/browser/**"]
+  "exclude": ["test/browser/**", "test/adapters/**"]
 }

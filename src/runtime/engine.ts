@@ -9,6 +9,8 @@ import type { Camera } from '../core/render/camera.ts'
 import { TerrainRenderer } from '../core/render/webgl-renderer.ts'
 import type { FrameAnimation, RendererStats } from '../core/render/webgl-renderer.ts'
 import type { DrawListEntry } from '../core/render/object-plan.ts'
+import { placeView } from '../core/render/view-placement.ts'
+import type { LevelChoice, ViewPlacement } from '../core/render/view-placement.ts'
 import { ObjectIndex } from '../core/state/object-index.ts'
 import { applyEvent } from '../core/sim/events.ts'
 import type { WorldState } from '../core/state/world.ts'
@@ -40,13 +42,21 @@ export interface EngineOptions {
   seed?: number
   /** false: draw terrain only. */
   objects?: boolean
+  /** Creates the decode worker. Default: module worker via import.meta.url (ESM builds only). */
+  workerFactory?: () => Worker
 }
+
+/** Presentation scale: integer multiples of native 32 px tiles (spec 004 FR-010). */
+export type UserScale = 1 | 2 | 3
 
 export type Diagnostic = WorkerDiagnostic
 
 export type LoadResult =
   | { ok: true; identity: string; fromCache: boolean; warnings: Diagnostic[] }
   | { ok: false; error: SerializedFormatError | Diagnostic }
+
+/** Error code of a load whose result was dropped because a newer load of the same slot started. */
+export const SUPERSEDED = 'SUPERSEDED'
 
 export interface EngineStatus {
   state: 'idle' | 'loading' | 'ready' | 'error'
@@ -82,6 +92,14 @@ export interface Engine {
   /** Places tile (tx, ty) at device pixel (px, py) — used by checks to match capture mappings. */
   setMapping(level: number, tile: { x: number; y: number }, pixel: { x: number; y: number }): void
   resize(cssWidth: number, cssHeight: number, dpr: number): void
+  /** Integer presentation scale; camera.scale = dpr × userScale; keeps the view centre. */
+  setUserScale(scale: UserScale): void
+  /** Positions the camera on the current map; returns the level and fractions used. */
+  placeView(level: LevelChoice, placement: ViewPlacement): { level: number; fx: number; fy: number } | undefined
+  /** Host frame limit in frames per second; 0 = no limit. */
+  setFrameLimit(fps: number): void
+  /** Deletes all decoded cache entries. */
+  forgetCache(): Promise<void>
   setVisible(visible: boolean): void
   setPaused(paused: boolean): void
   /** Draws one frame now at a given palette step (checks); returns false if not ready. */
@@ -140,6 +158,9 @@ export function createEngine(options: EngineOptions): Engine {
   let dataMissingReported = false
   let camera: Camera = { level: 0, offsetX: 0, offsetY: 0, width: canvas.width, height: canvas.height, scale: 1 }
   let dpr = 1
+  let userScale: UserScale = 1
+  /** Load generation per slot: a result is applied only if no newer load of that slot started. */
+  const generations = { archive: 0, data: 0, map: 0 }
   let visible = true
   let paused = false
   let contextLost = false
@@ -148,7 +169,7 @@ export function createEngine(options: EngineOptions): Engine {
 
   let worker: Worker | undefined
   if (options.useWorker !== false) {
-    worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
+    worker = options.workerFactory !== undefined ? options.workerFactory() : new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
     worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
       const resolve = pending.get(e.data.id)
       pending.delete(e.data.id)
@@ -229,6 +250,7 @@ export function createEngine(options: EngineOptions): Engine {
   }
 
   const fileName = (file: Blob, name: string | undefined): string => name ?? (file instanceof File ? file.name : 'unnamed')
+  const superseded = (n: string): LoadResult => ({ ok: false, error: { level: 'warn', code: SUPERSEDED, message: `a newer file replaced ${n} while it was loading`, file: n } })
 
   /** Builds the object layer once sprite archive, data archive and map are loaded. */
   const refreshObjects = async (): Promise<void> => {
@@ -265,9 +287,11 @@ export function createEngine(options: EngineOptions): Engine {
   const engine: Engine = {
     async loadArchive(file, name) {
       const n = fileName(file, name)
+      const gen = ++generations.archive
       status.state = 'loading'
       emit()
       const r = await run({ kind: 'openArchive', file, name: n, useCache: options.cache !== false })
+      if (gen !== generations.archive) return superseded(n)
       if (r.kind === 'failed') return failure(r.error, n)
       if (r.kind !== 'archiveReady') return failure({ level: 'error', code: 'PROTOCOL', message: 'unexpected worker reply' }, n)
       atlas = r.atlas
@@ -281,15 +305,17 @@ export function createEngine(options: EngineOptions): Engine {
     },
     async loadMap(file, name) {
       const n = fileName(file, name)
+      const gen = ++generations.map
       status.state = 'loading'
       emit()
       const r = await run({ kind: 'openMap', file, name: n, useCache: options.cache !== false })
+      if (gen !== generations.map) return superseded(n)
       if (r.kind === 'failed') return failure(r.error, n)
       if (r.kind !== 'mapReady') return failure({ level: 'error', code: 'PROTOCOL', message: 'unexpected worker reply' }, n)
       world = r.world
       renderer.setTerrain(r.world)
       status.map = n
-      camera = centeredCamera(0, (world.size * TILE_SIZE) / 2, (world.size * TILE_SIZE) / 2, camera.width, camera.height, dpr)
+      camera = centeredCamera(0, (world.size * TILE_SIZE) / 2, (world.size * TILE_SIZE) / 2, camera.width, camera.height, dpr * userScale)
       mapIdentity = r.identity
       renderer.setObjects(undefined)
       objectsKey = undefined
@@ -301,7 +327,9 @@ export function createEngine(options: EngineOptions): Engine {
     },
     async loadDataArchive(file, name) {
       const n = fileName(file, name)
+      const gen = ++generations.data
       const r = await run({ kind: 'openDataArchive', file, name: n, useCache: options.cache !== false })
+      if (gen !== generations.data) return superseded(n)
       if (r.kind === 'failed') return failure(r.error, n)
       if (r.kind !== 'dataArchiveReady') return failure({ level: 'error', code: 'PROTOCOL', message: 'unexpected worker reply' }, n)
       dataFile = { file, name: n, identity: r.identity }
@@ -344,9 +372,31 @@ export function createEngine(options: EngineOptions): Engine {
       const height = Math.max(1, Math.min(Math.round(cssHeight * deviceRatio), maxH))
       canvas.width = width
       canvas.height = height
-      camera = { ...camera, width, height, scale: deviceRatio }
+      // Keep the world pixel at the view centre in place across resizes and scale changes.
+      const cx = camera.offsetX + camera.width / camera.scale / 2
+      const cy = camera.offsetY + camera.height / camera.scale / 2
+      camera = centeredCamera(camera.level, cx, cy, width, height, deviceRatio * userScale)
       clampAndInvalidate()
     },
+    setUserScale(scale) {
+      if (scale === userScale) return
+      userScale = scale
+      const cx = camera.offsetX + camera.width / camera.scale / 2
+      const cy = camera.offsetY + camera.height / camera.scale / 2
+      camera = centeredCamera(camera.level, cx, cy, camera.width, camera.height, dpr * userScale)
+      clampAndInvalidate()
+    },
+    placeView(level, placement) {
+      if (world === undefined) return undefined
+      const r = placeView({ mapSize: world.size, levels: world.levels, level, placement, overscan: borderTiles * TILE_SIZE, width: camera.width, height: camera.height, scale: dpr * userScale })
+      camera = r.camera
+      clampAndInvalidate()
+      return { level: camera.level, fx: r.fx, fy: r.fy }
+    },
+    setFrameLimit(fps) {
+      scheduler.setMinFrameInterval(Number.isFinite(fps) && fps > 0 ? 1000 / fps : 0)
+    },
+    forgetCache: () => cache.clear(),
     setVisible(v) {
       visible = v
       scheduler.setVisible(v)

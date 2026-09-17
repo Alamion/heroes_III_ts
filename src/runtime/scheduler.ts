@@ -26,6 +26,9 @@ export class FrameScheduler {
   private paused = false
   private dirty = true
   private nextChange: number | null = null
+  /** Minimum ms between drawn frames (host frame limit); 0 = none. */
+  private minInterval = 0
+  private lastFrameAt: number | null = null
   /** Frames drawn (for tests and budget checks). */
   frames = 0
 
@@ -57,6 +60,12 @@ export class FrameScheduler {
   setPaused(paused: boolean): void {
     this.paused = paused
     this.update()
+  }
+
+  /** Host frame limit (e.g. Wallpaper Engine fps): frames are at least `ms` apart; 0 = no limit. */
+  setMinFrameInterval(ms: number): void {
+    this.minInterval = Number.isFinite(ms) && ms > 0 ? ms : 0
+    this.schedule()
   }
 
   dispose(): void {
@@ -93,7 +102,17 @@ export class FrameScheduler {
     this.frameHandle = undefined
     if (!this.active) return
     const now = this.clock.now()
-    if (this.dirty || (this.nextChange !== null && now >= this.nextChange)) {
+    const due = this.dirty || (this.nextChange !== null && now >= this.nextChange)
+    if (due && this.lastFrameAt !== null && this.minInterval > 0 && now - this.lastFrameAt < this.minInterval) {
+      // Too early for the frame limit: one timer until the limit allows the next frame.
+      this.timerHandle = this.host.setTimer(() => {
+        this.timerHandle = undefined
+        this.schedule()
+      }, Math.max(1, this.minInterval - (now - this.lastFrameAt)))
+      return
+    }
+    if (due) {
+      this.lastFrameAt = now
       this.nextChange = this.callbacks.draw(now)
       this.frames++
       this.dirty = false

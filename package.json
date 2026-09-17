@@ -8,12 +8,15 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "preview:web": "node tools/package/preview-web.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "ref": "node tools/reference-env/cli.ts",
     "h3": "node tools/inspect/cli.ts",
-    "verify": "node tools/checks/cli.ts"
+    "verify": "node tools/checks/cli.ts",
+    "package": "node tools/package/cli.ts",
+    "accept": "node tools/accept/cli.ts"
   },
   "dependencies": {},
   "devDependencies": {

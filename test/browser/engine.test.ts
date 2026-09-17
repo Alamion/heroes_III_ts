@@ -18,6 +18,7 @@ interface H3Global {
       scrollBy(x: number, y: number): void
       toggleLevel(): void
       setVisible(v: boolean): void
+      setPaused(p: boolean): void
       renderNow(anim: { step: number }): boolean
       status(): { state: string; map: string | null; diagnostics: { code: string; message: string }[] }
     }
@@ -119,6 +120,8 @@ describe.skipIf(!chromium)('engine in the browser', () => {
   it('recovers from a lost WebGL context with an identical frame', async () => {
     // Draw at a fixed animation step so time passing between frames cannot change the image.
     const drawAtStep = () => session.page.evaluate(() => (globalThis as unknown as H3Global).__h3.engine.renderNow({ step: 3 }))
+    // Paused: the scheduler must not draw another step between the draw and the readback.
+    await session.page.evaluate(() => (globalThis as unknown as H3Global).__h3.engine.setPaused(true))
     expect(await drawAtStep()).toBe(true)
     const before = await pixels()
     await session.page.evaluate(() => {
@@ -133,6 +136,7 @@ describe.skipIf(!chromium)('engine in the browser', () => {
     await session.page.waitForFunction(() => (globalThis as unknown as H3Global).__h3.engine.status().state === 'ready')
     expect(await drawAtStep()).toBe(true)
     expect(await pixels()).toBe(before)
+    await session.page.evaluate(() => (globalThis as unknown as H3Global).__h3.engine.setPaused(false))
   }, 30_000)
 
   it('reuses decoded data from the local cache on reload', async () => {

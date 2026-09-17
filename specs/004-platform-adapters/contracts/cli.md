@@ -46,12 +46,12 @@ Report: `check-reports/packages/<ts>/report.json`:
 ## `yarn verify hosts`
 
 ```bash
-yarn verify hosts [--host …] [--files synthetic|real] [--no-build]
+yarn verify hosts [--host …] [--files synthetic|real] [--map NAME] [--no-build]
 ```
 
 Runs the host simulations of [host-bridge.md](host-bridge.md) "Invariants" against built packages in
-headless Chromium. `--files real` uses `H3sprite.lod`, `h3bitmap.lod`, `test_map.h3m` from the configured
-game folders (exit 3 with `--require` when absent; default `synthetic`). Report
+headless Chromium. `--files real` uses `H3sprite.lod`, `h3bitmap.lod`, `test_map.h3m` (or the map named by `--map`) from
+the configured game folders (exit 3 with `--require` when absent; default `synthetic`). Report
 `check-reports/hosts/<ts>/report.json` with one entry per host × invariant, and a PNG pair plus diff for
 any frame mismatch.
 

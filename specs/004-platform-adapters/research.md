@@ -122,7 +122,8 @@ Lively facts marked "Windows question" are verified in the follow-up Windows ses
 
 ### R4. Reading user files
 
-- **Decision**: `readUserFile(url)` uses `XMLHttpRequest` with `responseType = 'arraybuffer'` for
+- **Decision**: `readUserFile(url)` uses `XMLHttpRequest` with `responseType = 'blob'` (measured faster than
+  `arraybuffer`, see Measurements) for
   `file:` URLs and `fetch` otherwise; the result becomes a `Blob` given to the engine. Host paths are
   normalised: backslashes → `/`, each segment `encodeURIComponent`-encoded, drive letter kept
   (`file:///C:/…`), Lively values made relative to the page. Missing file (status 0 with empty body,
@@ -174,8 +175,11 @@ Lively facts marked "Windows question" are verified in the follow-up Windows ses
 ### R8. View placement
 
 - **Decision**: modes `random` (default), `centre`, `coords`. `coords` maps slider fractions 0–100 to the
-  camera centre between the clamped extremes (0 = leftmost/topmost reachable view). `random` draws both
-  fractions from the seeded RNG at start and on map change; seed from `crypto.getRandomValues` unless a
+  camera between the extremes, which reach 8 tiles (the camera's border band) past each map edge. `random`
+  draws both fractions from the seeded RNG at start, on map change, when switching to random, on the
+  "new random place now" control and every `viewinterval` minutes (counted from the last draw); scale and
+  viewport changes place the kept fractions again. Level setting `random` (default) draws the level with
+  every random place; seed from `crypto.getRandomValues` unless a
   check fixes it. Level `underground` on a one-level map → surface. A map smaller than the view is
   centred by existing clamping.
 - **Rationale**: FR-003a; same slider range on every map size.
@@ -294,7 +298,7 @@ paths; Lively: relative URLs into `userfiles/`), IndexedDB decode cache as best 
 events plus `document.hidden`. To verify or correct there:
 
 **Wallpaper Engine **
-1. **WE-1** Does `XMLHttpRequest` with `responseType = 'arraybuffer'` read a ~50 MB `file:///` file? Time for
+1. **WE-1** Does `XMLHttpRequest` with `responseType = 'blob'` read a ~50 MB `file:///` file? Time for
    `H3sprite.lod` (warm-start budget 2 s includes it).
 2. **WE-2** Paths with spaces, Cyrillic, `#`, `%`: is the value a raw backslash path, and does the R4 encoding load it?
 3. **WE-3** Classic script + Blob worker start? (Module script and URL worker expected blocked — confirm, to justify R3.)
@@ -329,4 +333,96 @@ events plus `document.hidden`. To verify or correct there:
 
 ## Measurements
 
-(filled during implementation)
+### 2026-09-17 — Linux implementation
+
+- **Engine changes keep renders identical** (T013): `yarn verify determinism --runs 3 --rebuild` pass
+  (3 identical hashes, test_map 57,51–75,67, 205 object quads); `yarn verify fidelity --map test_map.h3m
+  --all-regions` gives exactly the per-view differing pixel counts of the last spec 003 run (5 pass, 7 fail
+  on the accepted deviations).
+- **Package sizes** (shipped JS, gzip level 9, embedded worker included): web 57 422 B, Wallpaper Engine
+  55 728 B, Lively 55 597 B, KDE 58 583 B — all within 102 400 B.
+- **Classic build works from `file://`** in headless Chromium with `--allow-file-access-from-files` (stand-in
+  for WE/QtWebEngine permissions): Blob worker starts, XHR reads the archives, no module scripts.
+- **Host simulations, synthetic files**: all ten invariants pass for web (plus the remembered-files check),
+  Wallpaper Engine, Lively and KDE (`yarn verify hosts`), including pixel equality of the ×1 frame with the
+  engine render page.
+- **Scale ×2 equals ×1 enlarged** by whole pixels (browser test, 0 mismatches on sampled pixels).
+- **Web drop of real archives**: sending a 50 MB file through a DevTools message crashes the headless browser;
+  the simulation now hands files to the page through a test-only file input (a check tooling detail, not a
+  product issue).
+- **KDE package validity**: `kpackagetool6 -t Plasma/Wallpaper -i` into a temporary root passes (Plasma 6.7.5,
+  kf6-kpackage 6.30).
+
+- **Host simulations, real files** (`H3sprite.lod`, `h3bitmap.lod`, `test_map.h3m`): all invariants pass on all
+  four hosts after two fixes found by them — the host briefly showed "objects are hidden" while the data archive
+  was still loading (now only when no data archive is on its way), and invariant 9 allows the slow-start
+  explanation when a cacheless start really exceeds 2 s.
+- **Budgets** (`yarn verify budget`, 1920×1080, 4× CPU throttling): package JS 55.6–58.6 KB gzip; package
+  start-up with test_map.h3m — web cold 5.8–6.2 s / warm 0.6–1.1 s (files remembered as IndexedDB blobs),
+  Wallpaper Engine cold 5.0–5.5 s / warm 5.0 s with `XMLHttpRequest` `arraybuffer` responses, **1.6–1.7 s with
+  `blob` responses** (Chromium keeps the file data out of the JS heap; adopted). Memory 31–41 MB, surface =
+  display, 0 hidden frames/timers, idle cadence within limits.
+- **Warm start of the dev harness on large maps** measures 1.8–2.7 s (test_map.h3m, Pandora's Box,
+  synthetic 252×252). The same measurement on the `testing` branch before this feature gives 1.9–2.8 s, and
+  disabling the Web Locks gives 2.4–3.0 s: not a regression of this feature but the known risk in TODO.md
+  Housekeeping ("warm start with objects … limit 2 s"), now over the limit on some runs. Left for a dedicated
+  item (profile the object cache path); the user-facing packages stay under 2 s warm on test_map.h3m.
+
+### 2026-09-17 — KDE real session and owner review
+
+- **KDE Plasma 6.7 (Fedora 43), three screens with fractional scaling**: the owner set the plugin through
+  "Configure Desktop and Wallpaper"; it shows the animated map with objects. Checked from inside the live page
+  (plasmashell started with `QTWEBENGINE_REMOTE_DEBUGGING`, DevTools protocol, test hook): `file://` user files
+  read by XHR, Blob worker, WebGL, `runJavaScript` bridge, pause while a maximised window covers the screen,
+  settings applied live, the "new random place now" button and counter, the interval timer catching up after a
+  covered period, and a desktop screenshot matching the camera (covers spike S2 except the lock screen, which
+  shows a plain background by design; see TODO 2a). The persistent profile served every plasmashell restart;
+  sharing one profile between two screens with the plugin was not exercised (only one screen used it) — moves
+  to the multi-screen item (TODO 2a) together with spike S3's two-screen part.
+- **Owner requests implemented in this spec**: level setting with `random` (default); interval as a number
+  field with validation; "new random place now" on every host (invariant 4.1); random places and coordinate
+  sliders reach 8 tiles past the map edge; scale and viewport changes re-place the view; ×2 labelled "as in the
+  original game" (×1 stays the default).
+- **Additional real map**: `paragon-ultimate-edition.h3m` (SoD 144×144, two levels, 29 643 objects; made for HD
+  Mod + SoD_SP, so plugin objects show as missing sprites): parses without warnings, renders both levels, all
+  host invariants pass with it (`yarn verify hosts --files real --map paragon-ultimate-edition.h3m`).
+- **Package sizes after these changes**: web 58 114 B, Wallpaper Engine 56 331 B, Lively 56 179 B, KDE 59 338 B.
+
+### Deviations from the plan
+
+- Host builds are produced by `tools/package/build.ts` through the Vite API (IIFE library builds, worker built
+  first and injected with `define`) instead of extra modes in `vite.config.ts`; `vite.config.ts` only stopped
+  wiping `dist/packages` on harness builds.
+- Overlay styles use a constructed stylesheet (`adoptedStyleSheets`) instead of `overlay.css`, so no inline
+  `<style>` is needed under the CSP; page styles are `page.css` (hosts) and Vite-bundled CSS (web).
+- Preview images are procedural PNGs written by `tools/package/previews.ts` (deterministic, no browser) instead
+  of an SVG rasterized in Chromium. Wallpaper Engine's `preview` points at `preview.png` (WE-11 below).
+- Browser help text lives in the panel (`<details>`) instead of a separate `help.ts`.
+- The remembered-files test runs as host-simulation invariant 11 (real IndexedDB, reload, forget) instead of a
+  separate browser unit test.
+- Web Locks key decodes by kind + file size + name (identity is computed inside the decode step); the cache
+  re-check inside the lock gives the same one-decode behaviour (browser test: two pages, one decode).
+- KDE lock detection polls `org.freedesktop.ScreenSaver.GetActive` every 2 s from a `Loader`-isolated QML file,
+  and window coverage uses `TasksModel` in another isolated file, so a missing QML module disables only that
+  detection.
+
+## Windows session handoff
+
+Packages: `yarn package --host wallpaper-engine,lively` → `dist/packages/wallpaper-engine/` (copy the folder
+into Wallpaper Engine's `projects/myprojects/`, or open `project.json` from the WE editor) and
+`dist/packages/h3dynam-lively-<version>.zip` (drag into Lively).
+
+Debugging:
+- Wallpaper Engine: Settings → General → "CEF devtools port" (e.g. 8080), open `http://localhost:8080` in a
+  Chromium browser, pick the wallpaper page.
+- Lively: Settings → Wallpaper → debug / "Open DevTools" for web wallpapers (or set the user environment variable
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` and restart Lively).
+- In the DevTools console run `localStorage.setItem('h3dynam:test', '1')` and reload the wallpaper (host
+  reload action); then `__h3wallpaper.controller.state()` shows phase, slots, messages, language and engine
+  stats (`pendingCallbacks`, `scheduledFrames`, `surface`, `camera`). Remove the key afterwards.
+
+Reproduce on the real host: the invariants of contracts/host-bridge.md (placeholder, load, pause → 0 pending
+callbacks, settings live, Russian labels, bad files, surface, no CSP violations in the console) and quickstart §5.
+Record answers to WE-1…WE-10, LV-1…LV-7 below and fix findings in shared code or the host bridge; re-run
+`yarn verify hosts` on Linux afterwards. Extra question found while implementing:
+- **WE-11** Does Wallpaper Engine accept `preview.png` (not `.jpg`/`.gif`) for the wallpaper preview?

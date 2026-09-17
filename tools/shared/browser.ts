@@ -30,13 +30,13 @@ export const SWIFTSHADER_ARGS = [
   '--disable-backgrounding-occluded-windows',
 ]
 
-export async function launchBrowser(): Promise<Browser> {
+export async function launchBrowser(extraArgs: readonly string[] = []): Promise<Browser> {
   const path = chromiumPath()
   if (!existsSync(path)) {
     throw new ToolError(TOOL_ERROR_CODES.PREREQ_MISSING, `Chromium not found at ${path} (set H3_CHROMIUM)`)
   }
   const { chromium } = await import('playwright-core')
-  return chromium.launch({ executablePath: path, headless: true, args: SWIFTSHADER_ARGS })
+  return chromium.launch({ executablePath: path, headless: true, args: [...SWIFTSHADER_ARGS, ...extraArgs] })
 }
 
 export interface PageServer {

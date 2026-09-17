@@ -2,10 +2,10 @@
 // failure (private mode, quota, blocked) degrades to a cache miss with a warning.
 
 import { log } from '../core/util/log.ts'
-import { CACHE_SCHEMA, noCache } from './cache-key.ts'
+import { CACHE_SCHEMA, CACHE_STORES, noCache } from './cache-key.ts'
 import type { CacheStore, DecodedCache } from './cache-key.ts'
 
-export { cacheKey, CACHE_SCHEMA, noCache } from './cache-key.ts'
+export { cacheKey, CACHE_SCHEMA, CACHE_STORES, noCache } from './cache-key.ts'
 export type { CacheStore, DecodedCache } from './cache-key.ts'
 
 export const CACHE_DB = 'h3dynam'
@@ -27,9 +27,7 @@ class IdbCache implements DecodedCache {
         req.onupgradeneeded = () => {
           const db = req.result
           for (const name of Array.from(db.objectStoreNames)) db.deleteObjectStore(name)
-          db.createObjectStore('atlas')
-          db.createObjectStore('world')
-          db.createObjectStore('objects')
+          for (const store of CACHE_STORES) db.createObjectStore(store)
         }
         req.onsuccess = () => resolve(req.result)
         req.onerror = () => {
@@ -67,6 +65,17 @@ class IdbCache implements DecodedCache {
       await request(db.transaction(store, 'readwrite').objectStore(store).put(value, key))
     } catch (err) {
       log.warn(`cache write failed for ${key}`, String(err))
+    }
+  }
+
+  async clear(): Promise<void> {
+    try {
+      const db = await this.open()
+      if (db === undefined) return
+      const tx = db.transaction([...CACHE_STORES], 'readwrite')
+      await Promise.all(CACHE_STORES.map((store) => request(tx.objectStore(store).clear())))
+    } catch (err) {
+      log.warn('cache clear failed', String(err))
     }
   }
 }

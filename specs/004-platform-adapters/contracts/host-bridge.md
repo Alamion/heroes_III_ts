@@ -29,7 +29,8 @@ interface ControllerSnapshot {
 
 ## Test hook
 
-When the page URL has `?h3test=1` (or `window.__h3testHook = true` is set before the bundle runs),
+When the page URL has `?h3test=1`, `window.__h3testHook = true` is set before the bundle runs, or
+`localStorage['h3dynam:test'] === '1'` (real hosts, set from DevTools),
 `window.__h3wallpaper = { controller, engine }` is exposed and the engine uses `preserveDrawingBuffer`.
 Checks set `seed` and a manual clock through `window.__h3testOptions = { seed, clockMs }` before load.
 No hook is exposed otherwise.
@@ -92,6 +93,8 @@ Scrolling is browser-only (wallpaper hosts show a static view).
 3. `setHostPaused(true)` or `document.hidden` → `engine.pendingCallbacks = 0` and no frames for 2 s.
 4. Each setting change is visible in `state()` and the camera/stats within 1 s; archive identities and
    `fromCache` show no re-decode.
+   4.1. The host's "new random place now" control (web panel button, WE checkbox toggle, Lively button, KDE
+   counter) changes `state().view` each time, without reloading any file.
 5. Language `ru-RU` → all visible texts from the `ru` table; `de-DE` → `en`.
 6. Wrong-kind, HotA, truncated and missing files → the matching `UserMessage` code; the page stays responsive.
 7. Drawing surface ≤ viewport × DPR after a resize and at every user scale.

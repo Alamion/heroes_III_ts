@@ -35,6 +35,17 @@ describe('repository hygiene', () => {
     expect(players).toContain("file: 'game.pal'")
   })
 
+  it('keeps packaging sources free of game content and Windows-only scripts (spec 004)', () => {
+    const packaging = files.filter((f) => /^(packaging|tools\/package|tools\/accept|src\/adapters)\//.test(f))
+    expect(packaging.filter((f) => /\.(lod|def|pcx|h3m|png|jpg|gif|bmp|ps1|bat|cmd|exe|dll)$/i.test(f))).toEqual([])
+    for (const f of packaging) {
+      const text = readFileSync(resolve(REPO, f), 'utf8')
+      expect(text, f).not.toMatch(/[A-Z]:\\\\(Program Files|Games|Users)/)
+    }
+    // The proof-of-concept Wallpaper Engine manifest is generated into the package now.
+    expect(existsSync(resolve(REPO, 'project.json'))).toBe(false)
+  })
+
   it('removed the Windows-only sync script and keeps third-party notices', () => {
     expect(existsSync(resolve(REPO, 'scripts/sync.js'))).toBe(false)
     const notices = readFileSync(resolve(REPO, 'THIRD_PARTY_NOTICES.md'), 'utf8')

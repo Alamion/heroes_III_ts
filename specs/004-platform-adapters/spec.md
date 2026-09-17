@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-17
 
-**Status**: Draft
+**Status**: Implemented on Linux and accepted on the real KDE Plasma session (2026-09-17); the Windows session for Wallpaper Engine and Lively is pending — see plan.md "Compliance Review"
 
 **Input**: User description: "Делаем пункт 3.2 плана - адаптеры для Wallpaper Engine, Lively и KDE
 Plasma." — TODO item 3.2: platform adapters for the plain browser (file picker / drag-and-drop),
@@ -45,6 +45,27 @@ the no-HotA scope; it is replaced by this feature.
   given coordinates; coordinates are entered with sliders, not number fields.
 - Q: Which languages do settings labels, placeholder and messages use? → A: English and Russian,
   chosen from the host or system language, English as fallback.
+
+### Session 2026-09-17 (after the Linux implementation, owner requests)
+
+- Q: Should the random starting view also pick the level? → A: Yes: random places choose surface or
+  underground at random on two-level maps.
+- Q: Should the random place change over time? → A: Yes, a setting "new random place every N minutes"
+  (0 = never, the default), part of this feature.
+- Q: Once a level is chosen, how does the user get the random level back? → A: The level setting has a
+  "Random" option (the default) next to surface and underground; a random level is drawn whenever a random
+  place is drawn (and at start, on map change and when "Random" is selected), in every view mode.
+- Q: How is the interval entered? → A: A number field (not a slider) on every host; invalid text falls back to
+  0 (never), out-of-range values are clamped to 0–120 and fractions rounded.
+- Q: Does a scale change keep the random place? → A: It keeps the relative place and re-applies it for the
+  new view size, so small maps viewed at ×2/×3 still get positions across the whole map. ×2 is labelled
+  "as in the original game" (the scale players know); ×1 stays the default.
+- Q: Can a random place show the map edge? → A: Yes: random places and the coordinate sliders reach up to
+  8 tiles past each edge (the band the camera may scroll to), so the map border is visible as in the game.
+- Q: Can the user get a new random place right away? → A: Yes, a "New random place now" control on every
+  host (shown in random mode); it also restarts the interval.
+- Q: Does time spent paused or covered count toward the interval? → A: Yes: the interval counts from the
+  last draw, so a place that became due while the wallpaper was covered changes as soon as it is shown.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -222,8 +243,8 @@ passes, and the size check reports each package's runtime size.
   archive with the data tables, map) so a file given to the wrong setting or dropped without a name
   still works or yields a clear message.
 - **FR-003**: Every adapter MUST expose the same settings with the same meaning and defaults:
-  map level (surface by default), initial view position (see FR-003a), scale (native
-  32 px tiles by default, integer multiples ×2 and ×3 as options), and objects on/off (on by default).
+  map level (random by default, or surface, or underground), initial view position (see FR-003a), scale (×1 pixel for pixel by default, ×2
+  labelled as the original game's look, ×3), and objects on/off (on by default).
   Changing a setting MUST take effect without restarting the host and without decoding files again
   (changing a file setting re-reads only that file; a new map rebuilds only that map's objects). The
   browser additionally offers a language choice; wallpaper hosts take the language from the host
@@ -233,7 +254,15 @@ passes, and the size check reports each package's runtime size.
   change, from a seeded generator whose seed checks can fix. Coordinates are set with two sliders
   (horizontal and vertical) that express the position relative to the map size (0–100 %), so the same
   slider range fits every map size; the result is clamped so the view stays within the map border.
-  Slider changes apply live (FR-003) and do not re-roll a random position.
+  Slider changes apply live (FR-003) and do not re-roll a random position; scale and viewport changes place the
+  same relative position again for the new view size. With the level setting "random", a
+  level is drawn on two-level maps at start, on map change, when a random place is drawn and when "random"
+  is selected; other setting changes keep the drawn level; "surface" or "underground" always applies that
+  level. In random mode an interval setting (a number field, minutes, 0–120, default 0 = never) moves the view to a new
+  random place every N minutes, counted from the last draw; a "new random place now" control draws one
+  immediately; the timer runs only while the wallpaper is
+  shown and not paused or hidden (FR-004), and a place that became due meanwhile changes when it is shown
+  again.
 - **FR-003b**: All user-facing text (setting labels and options, placeholder, load messages, browser
   panel, package descriptions and per-host instructions of FR-023) MUST exist in English and Russian.
   The language MUST follow the host's language where the host provides one, else the system/browser

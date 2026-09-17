@@ -1,4 +1,5 @@
-// `yarn verify all`: layers, determinism, budget, and fidelity for every map with game captures.
+// `yarn verify all`: layers, determinism, packages and host simulations (spec 004), budget, and
+// fidelity for every map with game captures.
 
 import { loadConfig } from '../reference-env/config.ts'
 import { scanRecords } from '../reference-env/store/lookup.ts'
@@ -6,7 +7,9 @@ import type { CommandResult, ParsedArgs } from '../shared/cli-runner.ts'
 import { determinismCommand } from './determinism.ts'
 import { budgetCommand } from './budget/index.ts'
 import { fidelityCommand } from './fidelity/index.ts'
+import { hostsCommand } from './hosts/index.ts'
 import { layersCommand } from './layers.ts'
+import { packagesCommand } from './packages/index.ts'
 
 function capturedMaps(): string[] {
   let dir: string
@@ -30,6 +33,11 @@ export async function allCommand(): Promise<CommandResult> {
   results.layers = outcome(layers)
   const determinism = await determinismCommand(args({ runs: '3' }, ['rebuild']))
   results.determinism = outcome(determinism)
+  // Builds every package once; the checks after it reuse them.
+  const packages = await packagesCommand(args({}))
+  results.packages = outcome(packages)
+  const hosts = await hostsCommand(args({ files: 'synthetic' }, ['no-build']))
+  results.hosts = outcome(hosts)
   const budget = await budgetCommand(args({}, ['no-build']))
   results.budget = outcome(budget)
   for (const map of capturedMaps()) {

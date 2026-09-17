@@ -1,0 +1,50 @@
+# Browser version on GitHub Pages (spec 004 FR-013a): deployed from `testing` only after the
+# type-check, tests and the web package checks pass on the same commit. No game files exist in CI;
+# real-file tests skip.
+name: pages
+
+on:
+  push:
+    branches: [testing]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      H3_CHROMIUM: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - run: yarn build
+      - run: yarn test
+      - run: yarn package --host web
+      - run: yarn verify packages --host web --no-build
+      - run: yarn verify hosts --host web --no-build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/packages/web
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
