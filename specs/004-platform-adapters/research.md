@@ -313,7 +313,6 @@ events plus `document.hidden`. To verify or correct there:
 9. **WE-9** Does `localization` under `general` give Russian property labels with WE set to Russian (`ru-ru` key)?
 10. **WE-10** WebGL 1 context on the WE CEF; `devicePixelRatio` and surface size on scaled (125–150 %) Windows displays
     and multi-monitor setups.
-
 **Lively**
 1. **LV-1** `folderDropdown` Browse copies the three files into `userfiles/`; relative XHR/fetch of 50 MB works over
    the virtual host; time.
@@ -404,6 +403,67 @@ events plus `document.hidden`. To verify or correct there:
 - Note for manual checks: `yarn preview:web` serves `dist/packages/web`, which `yarn build` does not refresh;
   run `yarn package --host web` first.
 
+### 2026-09-19 — Windows session, first results (WSL on Windows 10 IoT LTSC 19044, two 1920×1080 monitors)
+
+- **Wallpaper Engine 2.8.42 — file properties take images and videos only.** The official docs
+  ("User Properties" → File property) define the file type as image (`.jpeg/.jpg/.png/...`) or video
+  (`.webm/.ogg/.ogv`); the owner could not pick `.lod`/`.h3m` in the UI. Answer to the old `fileType`
+  note: not setting it still defaults the dialog to images. Fix shipped in this session: the three file
+  settings are generated as `textinput` (the page normalises the text like any host file value, R4),
+  README texts updated (WE-2 answered for the working layout below).
+- **Wallpaper Engine sandboxes file reads to the wallpaper folder.** Measured with in-page probes
+  (a throwaway `diag.js` in the installed copy): `file:` XHR works for paths resolving inside the
+  wallpaper folder (relative, `../`, absolute `file:///C:/…`); anything resolving outside it — another
+  drive (`D:\…`), `C:\Windows\win.ini`, a junction pointing to `D:\…` — never completes: XHR neither
+  loads nor errors (the page hangs at "loading"), `fetch` rejects at once. The check follows the
+  resolved path, so junctions do not help. Therefore WE settings hold paths relative to the wallpaper
+  folder and the owner copies the archives and map into it (README explains); full paths elsewhere are
+  supported by a **read timeout**: `readUserFile` bounds every read with `READ_TIMEOUT_MS` (30 s) so a
+  host hang degrades to `FILE_UNREADABLE` "reading timed out" instead of an endless loading state.
+  Owner decision: the archive settings default to the README convention (`game/H3sprite.lod`,
+  `game/h3bitmap.lod`) so a standard install needs no typing, the map setting has no default (its name
+  is the owner's), and the README states the copy-it-yourself rule prominently ("without this the
+  wallpaper cannot work"). The same warning is a read-only `paragraph` property at the top of the
+  properties panel (`notice`, excluded from the settings-keys check like Lively's labels): Workshop
+  installs never see the README, and the paragraph type renders as plain text in the panel (probed in
+  the real UI; `label` also renders, `textinput` draws an input box). Owner-requested spacing: two
+  single-space paragraph spacers (`spacer1` after the notice, `spacer2` after the last file setting;
+  probed in the real panel, fractional `order` works) separate the warning and the file fields from
+  the rest of the settings; the strings check allows this one intentionally whitespace-only key.
+- **WE-1 answered for the working layout**: same-folder `file:` XHR with `responseType: 'blob'` read
+  64 MB in 0.12 s and 101 MB in 0.15 s (NVMe) — far inside the 2 s warm-start budget.
+- **WE DevTools**: the settings button opens a built-in inspector that closes when the wallpaper page
+  reloads; no TCP port appears in `netstat` while it is open (WE-12: external CDP attach to WE's
+  wallpaper CEF was not achieved this session; the port config and `general.user.cefcommandline` are
+  not forwarded to the wallpaper CEF either). The in-page probe overlay remains the practical
+  diagnostic for WE.
+- **WE-9 answered**: the panel labels and the notice paragraph come from the `ru-ru` localization table
+  when Wallpaper Engine runs in Russian (owner's install); the `en-us` table serves an English UI.
+- **WE CLI from WSL interop works**: `wallpaper64.exe -control openWallpaper -file <project.json>`,
+  `-control closeWallpaper`, restart via `Stop-Process`/`Start-Process` (wallpaper64 + webwallpaper64).
+  Pre-filled property values inside `project.json` of `myprojects/<name>` are delivered on wallpaper
+  start (that is also where WE itself saves user choices). With the values relative to the wallpaper
+  folder the map renders (Arrogance, owner confirmed).
+- **Lively 2.2.1.0 (WebView2, Edge 153)**: `Lively.exe setwp --file` refuses zip and folder imports
+  ("Unsupported command import file"), but a folder under `%LOCALAPPDATA%\Lively Wallpaper\Library\wallpapers\`
+  (with `LivelyInfo.json`) is picked up by the library scan and `setwp --file <that folder>` applies it.
+  Zip import works through the GUI (drag & drop) — done by the owner (LV-7).
+- **Lively pre-filled `LivelyProperties.json` values** (`userfiles\name`, backslash) are delivered on page
+  load like Browse choices; the owner confirmed the map displays correctly with real files (LV-1 value
+  format, LV-2, LV-3 answered: listener receives all controls on load).
+- **Lively DevTools**: `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` works when
+  present in Lively's process environment (setx User scope needs Lively restarted from a new shell).
+  `/json/list` shows the page target (`https://<hash>.localhost/index.html`, virtual host confirmed) and
+  a worker target — the Blob worker runs on the real host (R3 confirmed).
+- **Lively suspends the WebView2 renderer while the wallpaper is paused**: browser-level CDP
+  (`Target.getTargetInfo`) answers, page-level `Runtime.evaluate` never returns and the renderer burns no
+  CPU; evaluate works right after a navigation and while the wallpaper is visible. Pause rules follow the
+  desktop being covered by windows (LV-4 side note: suspension stops JS entirely, which reaches the same
+  0-pending-callback goal).
+- Verify tooling note: the temporary CDP bridge used from WSL lives in git-ignored
+  `check-reports/windows-session/cdp-eval.mjs` and runs on Windows-side Node (`Runtime.evaluate` over
+  `/devtools/page/<id>`); nothing Windows-only entered shared tooling.
+
 ### Deviations from the plan
 
 - Host builds are produced by `tools/package/build.ts` through the Vite API (IIFE library builds, worker built
@@ -428,11 +488,21 @@ Packages: `yarn package --host wallpaper-engine,lively` → `dist/packages/wallp
 into Wallpaper Engine's `projects/myprojects/`, or open `project.json` from the WE editor) and
 `dist/packages/h3dynam-lively-<version>.zip` (drag into Lively).
 
+Install notes measured in the 2026-09-19 session (see Measurements):
+- WE: WE's CEF reads files only inside the wallpaper folder; the three file settings are text inputs
+  holding paths relative to it (e.g. `game/H3sprite.lod` after copying the archives and map into a
+  `game/` subfolder next to `index.html`). Values may be pre-filled in the installed `project.json`.
+- Lively CLI cannot import: put the package folder into `%LOCALAPPDATA%\Lively Wallpaper\Library\wallpapers\<name>`
+  and run `Lively.exe setwp --file <that folder>`; the GUI drag & drop of the zip works too.
+- Lively DevTools: set `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` in Lively's
+  process environment (e.g. `setx` + restart Lively from a new shell), then use `http://127.0.0.1:9222`.
+
 Debugging:
 - Wallpaper Engine: Settings → General → "CEF devtools port" (e.g. 8080), open `http://localhost:8080` in a
-  Chromium browser, pick the wallpaper page.
-- Lively: Settings → Wallpaper → debug / "Open DevTools" for web wallpapers (or set the user environment variable
-  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` and restart Lively).
+  Chromium browser, pick the wallpaper page. In 2.8.42 the port input is commented out and the setting is
+  not applied to the wallpaper CEF; use the "Open DevTools" button in the settings instead (WE-12).
+- Lively: Settings → Wallpaper → debug / "Open DevTools" for web wallpapers (or the environment variable
+  above — measured working; the renderer only answers while the wallpaper is not suspended by pause).
 - In the DevTools console run `localStorage.setItem('h3dynam:test', '1')` and reload the wallpaper (host
   reload action); then `__h3wallpaper.controller.state()` shows phase, slots, messages, language and engine
   stats (`pendingCallbacks`, `scheduledFrames`, `surface`, `camera`). Remove the key afterwards.
@@ -442,3 +512,8 @@ callbacks, settings live, Russian labels, bad files, surface, no CSP violations 
 Record answers to WE-1…WE-10, LV-1…LV-7 below and fix findings in shared code or the host bridge; re-run
 `yarn verify hosts` on Linux afterwards. Extra question found while implementing:
 - **WE-11** Does Wallpaper Engine accept `preview.png` (not `.jpg`/`.gif`) for the wallpaper preview?
+- **WE-12** Does the settings "Open DevTools" button expose the wallpaper page on a TCP port (for external
+  CDP attach), or only open a built-in inspector? Measured 2026-09-19: the inspector closes when the
+  wallpaper page reloads and no TCP port appears in `netstat`; the port config and
+  `general.user.cefcommandline` are not forwarded to the wallpaper CEF. In-page probes (see Measurements)
+  remain the practical WE diagnostic.

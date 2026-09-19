@@ -64,6 +64,16 @@ export class UserFileError extends Error {
   }
 }
 
+/**
+ * WE's CEF neither completes nor cancels a file: XHR that resolves outside the wallpaper folder
+ * (2026-09-19 Windows session, Measurements): every read gets a timeout, so a host quirk degrades
+ * to an error message instead of an endless "loading". 64 MB measured in 0.12 s locally, so 30 s
+ * leaves headroom for slow disks.
+ */
+export const READ_TIMEOUT_MS = 30_000
+
+const timeoutMessage = `reading timed out after ${Math.round(READ_TIMEOUT_MS / 1000)} s`
+
 /** Minimal XMLHttpRequest surface, so the reader can be tested without a browser. */
 export interface XhrLike {
   open(method: string, url: string): void
@@ -72,6 +82,7 @@ export interface XhrLike {
   response: unknown
   onload: (() => void) | null
   onerror: (() => void) | null
+  abort?(): void
   send(): void
 }
 
@@ -80,26 +91,38 @@ export interface ReadDeps {
   fetch: (url: string) => Promise<{ ok: boolean; status: number; blob(): Promise<Blob> }>
 }
 
-/** Reads a user file into a Blob. `file:` URLs via XHR, everything else via fetch. */
+/** Reads a user file into a Blob. `file:` URLs via XHR, everything else via fetch; both bounded by READ_TIMEOUT_MS. */
 export function readUserFile(url: string, deps: ReadDeps): Promise<Blob> {
   if (!/^file:/i.test(url)) {
-    return deps.fetch(url).then(
-      async (res) => {
-        if (res.status === 404) throw new UserFileError('missing', url, `not found (${res.status})`)
-        if (!res.ok) throw new UserFileError('unreadable', url, `HTTP ${res.status}`)
-        return res.blob()
-      },
-      (err: unknown) => {
-        throw new UserFileError('unreadable', url, err instanceof Error ? err.message : String(err))
-      },
-    )
+    return Promise.race([
+      deps.fetch(url).then(
+        async (res) => {
+          if (res.status === 404) throw new UserFileError('missing', url, `not found (${res.status})`)
+          if (!res.ok) throw new UserFileError('unreadable', url, `HTTP ${res.status}`)
+          return res.blob()
+        },
+        (err: unknown) => {
+          throw new UserFileError('unreadable', url, err instanceof Error ? err.message : String(err))
+        },
+      ),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new UserFileError('unreadable', url, timeoutMessage)), READ_TIMEOUT_MS)),
+    ])
   }
   return new Promise((resolve, reject) => {
     const xhr = deps.createXhr()
+    const timer = setTimeout(() => {
+      try {
+        xhr.abort?.()
+      } catch {
+        // The request is already gone; the rejection below is what matters.
+      }
+      reject(new UserFileError('unreadable', url, timeoutMessage))
+    }, READ_TIMEOUT_MS)
     xhr.open('GET', url)
     // A blob response lets Chromium keep the file data out of the JS heap (no 50 MB ArrayBuffer copy).
     xhr.responseType = 'blob'
     xhr.onload = () => {
+      clearTimeout(timer)
       const body = xhr.response
       const size = body instanceof Blob ? body.size : body instanceof ArrayBuffer ? body.byteLength : 0
       // file: requests report status 0 on success in Chromium; an absent file errors or is empty.
@@ -111,10 +134,14 @@ export function readUserFile(url: string, deps: ReadDeps): Promise<Blob> {
         reject(new UserFileError('unreadable', url, `status ${xhr.status}`))
       }
     }
-    xhr.onerror = () => reject(new UserFileError('missing', url, 'the file cannot be opened'))
+    xhr.onerror = () => {
+      clearTimeout(timer)
+      reject(new UserFileError('missing', url, 'the file cannot be opened'))
+    }
     try {
       xhr.send()
     } catch (err) {
+      clearTimeout(timer)
       reject(new UserFileError('unreadable', url, err instanceof Error ? err.message : String(err)))
     }
   })

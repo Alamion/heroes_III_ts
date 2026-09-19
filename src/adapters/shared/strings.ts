@@ -70,7 +70,9 @@ export const en = {
   help_files: 'Take H3sprite.lod and H3bitmap.lod from the Data folder of your Heroes III Complete installation and any map (.h3m) from its Maps folder. Maps of Restoration of Erathia, Armageddon\'s Blade and Shadow of Death are supported; HotA maps are not yet.',
   help_privacy: 'The files stay on this computer: they are read locally and never uploaded.',
   help_web: 'Choose the files with the button or drop them onto the page. The browser remembers them until you press "Forget files".',
-  help_wallpaper_engine: 'Open the wallpaper properties in Wallpaper Engine and choose the three files in "Sprite archive", "Data archive" and "Map".',
+  help_wallpaper_engine: 'Wallpaper Engine only lets a wallpaper read files inside its own folder, so you must place the files there yourself — without this the wallpaper cannot work. Copy H3sprite.lod and H3bitmap.lod (from the Data folder of your Heroes III Complete installation) and your map (.h3m) into the wallpaper folder, next to index.html; a "game" subfolder is the intended place. The "Sprite archive" and "Data archive" settings default to game\\H3sprite.lod and game\\h3bitmap.lod, so with the standard names only the map needs entering (for example game\\Arrogance.h3m); other names go into the settings the same way.',
+  notice_wallpaper_engine: '<b><i><u>Important:</u></i></b> the wallpaper can only read files inside its own folder, so copy H3sprite.lod, H3bitmap.lod and your map (.h3m) into the wallpaper folder yourself (next to index.html; a "game" subfolder is fine) — otherwise it will not load. The archive settings below already point to game\\H3sprite.lod and game\\h3bitmap.lod; enter your map the same way (game\\YourMap.h3m).<br></br>',
+  spacer_wallpaper_engine: '<br></br>',
   help_lively: 'Open "Customise" for the wallpaper in Lively and use "Browse" in the three file settings; Lively copies the files into the wallpaper folder.',
   help_kde: 'Install the plugin, open "Configure Desktop and Wallpaper", pick "H3 Living Map" and choose the three files.',
 } as const
@@ -142,7 +144,9 @@ export const ru: Record<StringKey, string> = {
   help_files: 'Возьмите H3sprite.lod и H3bitmap.lod из папки Data вашей установки Heroes III Complete и любую карту (.h3m) из папки Maps. Поддерживаются карты Restoration of Erathia, Armageddon\'s Blade и Shadow of Death; карты HotA пока нет.',
   help_privacy: 'Файлы остаются на этом компьютере: они читаются локально и никуда не загружаются.',
   help_web: 'Выберите файлы кнопкой или перетащите их на страницу. Браузер запомнит их, пока вы не нажмёте «Забыть файлы».',
-  help_wallpaper_engine: 'Откройте свойства обоев в Wallpaper Engine и выберите три файла в пунктах «Архив спрайтов», «Архив данных» и «Карта».',
+  help_wallpaper_engine: 'Wallpaper Engine разрешает обоям читать файлы только внутри их собственной папки, поэтому файлы нужно положить туда самостоятельно — без этого обои работать не будут. Скопируйте H3sprite.lod и H3bitmap.lod (из папки Data вашей установки Heroes III Complete) и карту (.h3m) в папку обоев, рядом с index.html; для этого предназначена подпапка «game». Настройки «Архив спрайтов» и «Архив данных» по умолчанию содержат game\\H3sprite.lod и game\\h3bitmap.lod, так что при стандартных именах остаётся вписать только карту (например game\\Arrogance.h3m); другие имена вводятся так же.',
+  notice_wallpaper_engine: '<b><i><u>Важно:</u></i></b> обои могут читать файлы только внутри своей папки, поэтому скопируйте H3sprite.lod, H3bitmap.lod и карту (.h3m) в папку обоев самостоятельно (рядом с index.html; подойдёт подпапка «game») — иначе обои не загрузятся. Настройки архивов ниже уже указывают на game\\H3sprite.lod и game\\h3bitmap.lod; карту впишите так же (game\\ВашаКарта.h3m).<br></br>',
+  spacer_wallpaper_engine: '<br></br>',
   help_lively: 'Откройте «Настроить» для обоев в Lively и нажмите «Обзор» в трёх настройках файлов; Lively скопирует файлы в папку обоев.',
   help_kde: 'Установите плагин, откройте «Настроить рабочий стол и обои», выберите «H3 Living Map» и укажите три файла.',
 }

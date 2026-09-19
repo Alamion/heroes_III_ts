@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { displayName, kdeFileUrl, livelyFileUrl, readUserFile, UserFileError, weFileUrl } from '../../src/adapters/shared/file-url.ts'
+import { describe, expect, it, vi } from 'vitest'
+import { displayName, kdeFileUrl, livelyFileUrl, readUserFile, READ_TIMEOUT_MS, UserFileError, weFileUrl } from '../../src/adapters/shared/file-url.ts'
 import type { ReadDeps, XhrLike } from '../../src/adapters/shared/file-url.ts'
 
 describe('host file values to URLs (spec 004 R4)', () => {
@@ -71,5 +71,23 @@ describe('readUserFile', () => {
     const ok = await readUserFile('userfiles/a.lod', deps(() => {}, async () => ({ ok: true, status: 200, blob: async () => new Blob([new Uint8Array(5)]) })))
     expect(ok.size).toBe(5)
     await expect(readUserFile('userfiles/a.lod', deps(() => {}, async () => ({ ok: false, status: 404, blob: async () => new Blob([]) })))).rejects.toMatchObject({ reason: 'missing' })
+  })
+
+  it('times out an XHR that never settles (WE CEF outside-folder hang)', async () => {
+    vi.useFakeTimers()
+    const pending = readUserFile('file:///C:/a.lod', deps(() => undefined))
+    const rejection = expect(pending).rejects.toMatchObject({ reason: 'unreadable', message: `reading timed out after ${Math.round(READ_TIMEOUT_MS / 1000)} s` })
+    await vi.advanceTimersByTimeAsync(READ_TIMEOUT_MS + 1)
+    await rejection
+    vi.useRealTimers()
+  })
+
+  it('times out a fetch that never settles', async () => {
+    vi.useFakeTimers()
+    const pending = readUserFile('userfiles/a.lod', deps(() => undefined, () => new Promise(() => undefined)))
+    const rejection = expect(pending).rejects.toMatchObject({ reason: 'unreadable', message: `reading timed out after ${Math.round(READ_TIMEOUT_MS / 1000)} s` })
+    await vi.advanceTimersByTimeAsync(READ_TIMEOUT_MS + 1)
+    await rejection
+    vi.useRealTimers()
   })
 })
