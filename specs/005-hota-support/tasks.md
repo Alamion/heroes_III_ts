@@ -79,8 +79,8 @@ complete.
 - [X] T027 Add the sub-version 10 deltas behind their feature flags in `src/core/formats/h3m/objects/`: +4 bytes at the end of a quest record, +4 bytes before a seer hut's reward type, +1 byte after a seer hut object (FR-006) (depends on T026)
 - [X] T028 Read the HotA global and town event changes (occurrence as u16 + 16 zero bytes, `i32 affectedDifficulties`) in `src/core/formats/h3m/h3m.ts` (depends on T021)
 - [X] T029 Enforce the parse invariant in `src/core/formats/h3m/h3m.ts`: the 124 trailing zero bytes followed by exact end of file, raising `TRAILING_DATA` with the offset otherwise (FR-009, FR-010) (depends on T028)
-- [ ] T030 [P] Add a HotA map generator (format `0x20`, sub-versions 9 and 10, both script-flag states, the sub-10 deltas, HotA object subtypes) to `test/fixtures/synthetic/hota-map.ts`
-- [ ] T031 [P] Unit-test the map format on synthetic fixtures in `test/core/formats/h3m-hota.test.ts`: header fields per sub-version, sub-10 deltas, HotA object bodies, unsupported sub-version and unmapped class errors (depends on T030, T027)
+- [X] T030 [P] Add a HotA map generator (format `0x20`, sub-versions 9 and 10, both script-flag states, the sub-10 deltas, HotA object subtypes) to `test/fixtures/synthetic/hota-map.ts`
+- [X] T031 [P] Unit-test the map format on synthetic fixtures in `test/core/formats/h3m-hota.test.ts`: header fields per sub-version, sub-10 deltas, HotA object bodies, unsupported sub-version and unmapped class errors (depends on T030, T027)
 - [X] T032 Add a real-file test in `test/real/hota-maps.test.ts` that parses `test_map_hota.h3m` (sub 10), `[HotA] The Devil Is in the Detail.h3m` (sub 9) and the 252×252 map to exact end of file, skipping with a message when the files are absent (depends on T029)
 
 **Checkpoint**: HotA archives open and HotA maps without an active script block parse to the byte.
@@ -137,13 +137,13 @@ every discoverable map.
 - [X] T051 [US2] Implement the event-system walker (four event lists, id counters, variable table, id→name maps, opcode trees with length-prefixed strings) in new `src/core/formats/h3m/script.ts`, bounds-checked, with a typed error naming section and offset on failure and no length guessing (FR-007, FR-009; depends on T029)
   - **Fallback if the walker does not converge on the four local maps**: US2 ships with a typed "unsupported: map uses the HotA event system" error, the 4 affected maps become a recorded known limitation in [research.md](research.md), and the acceptance scenario naming `По праву силы.h3m` moves to a follow-up item with the owner's agreement. Length searching stays forbidden either way.
 - [X] T052 [US2] Call the walker from the map parser at its measured position — after the map-options block, before the allowed-artifact mask, gated on the sub ≥ 9 flag — in `src/core/formats/h3m/h3m.ts` (depends on T051)
-- [ ] T053 [P] [US2] Extend `test/fixtures/synthetic/hota-map.ts` with an active script block and unit-test the walker (valid block, truncated block, unknown opcode) in `test/core/formats/h3m-script.test.ts` (depends on T052)
+- [X] T053 [P] [US2] Extend `test/fixtures/synthetic/hota-map.ts` with an active script block and unit-test the walker (valid block, truncated block, unknown opcode) in `test/core/formats/h3m-script.test.ts` (depends on T052)
 - [X] T054 [US2] Add a real-file test in `test/real/hota-maps.test.ts` that parses the four local maps with an active script block to exact end of file, asserting the measured body lengths (3574, 10 630, 3371, 4051 bytes) (depends on T052)
-- [ ] T055 [P] [US2] Fill the feature flags for HotA sub-versions 0–8 from the ported sources in `src/core/formats/h3m/features.ts`, marked best-effort, so a mismatch surfaces as a typed error rather than a misread map (FR-006a, FR-010) (depends on T020)
-- [ ] T056 [P] [US2] Confirm the non-ASCII map file name path end to end (CLI by name, file picker, cache identity) and add a case for it to `test/real/hota-maps.test.ts`
+- [X] T055 [P] [US2] Fill the feature flags for HotA sub-versions 0–8 from the ported sources in `src/core/formats/h3m/features.ts`, marked best-effort, so a mismatch surfaces as a typed error rather than a misread map (FR-006a, FR-010) (depends on T020)
+- [X] T056 [P] [US2] Confirm the non-ASCII map file name path end to end (CLI by name, file picker, cache identity) and add a case for it to `test/real/hota-maps.test.ts`
 - [X] T057 [US2] Implement the coverage-class check in new `tools/checks/maps/index.ts`: classification, one map per class plus the named edge cases, `--dir`, `--all`, `--require`, the report shape and the exit codes of [contracts/cli.md](contracts/cli.md) (FR-020, SC-001) (depends on T052)
 - [X] T058 [US2] Register `maps` in `tools/checks/cli.ts` and include it in `yarn verify all` in `tools/checks/all.ts` (depends on T057)
-- [ ] T059 [P] [US2] Unit-test the classification and the pass/fail rules of the coverage check on synthetic maps in `test/tools/maps-check.test.ts` (depends on T057)
+- [X] T059 [P] [US2] Unit-test the classification and the pass/fail rules of the coverage check on synthetic maps in `test/tools/maps-check.test.ts` (depends on T057)
 - [X] T060 [US2] Run `yarn verify maps --all` over `public/dev-assets/` and the configured HotA maps folder, fix what it finds, and record the resulting class table in [research.md](research.md) (SC-001) (depends on T058)
 
 **Checkpoint**: US2 is complete — every map variant the user owns opens, with honest failures for
@@ -193,8 +193,8 @@ thresholds as base-game views, comparing only against HotA captures.
 **Independent Test**: the host simulations run with a HotA archive plus a HotA map per host and the
 settings round-trip; with the setting unset, behaviour is exactly as today.
 
-- [ ] T072 [US5] Add the `hotaarchive` file setting (type `file`, filter `*.lod`, default null) and its en/ru strings to `src/adapters/shared/settings.ts` and `strings.ts`, and pass it through `src/adapters/shared/controller.ts` to the engine (FR-025) (depends on T045)
-- [ ] T073 [US5] Regenerate the host manifests from the single definition (`tools/package/manifests/{wallpaper-engine,lively,kde}.ts`) and surface the setting in the browser panel `src/adapters/web/panel.ts`; update the manifest tests in `test/tools/manifests.test.ts` (FR-025, SC-005) (depends on T072)
+- [X] T072 [US5] Add the `hotaarchive` file setting (type `file`, filter `*.lod`, default null) and its en/ru strings to `src/adapters/shared/settings.ts` and `strings.ts`, and pass it through `src/adapters/shared/controller.ts` to the engine (FR-025) (depends on T045)
+- [X] T073 [US5] Regenerate the host manifests from the single definition (`tools/package/manifests/{wallpaper-engine,lively,kde}.ts`) and surface the setting in the browser panel `src/adapters/web/panel.ts`; update the manifest tests in `test/tools/manifests.test.ts` (FR-025, SC-005) (depends on T072)
 - [ ] T074 [US5] Extend the host simulations in `tools/checks/hosts/` with a HotA archive plus HotA map run per host and an unset-setting run that must match today's behaviour (FR-026, SC-005) (depends on T073)
 - [ ] T075 [US5] Measure the HotA case in `tools/checks/budget/`: cold start with the HotA archive set, decode-cache size, memory and the 252×252 two-level HotA map; write the measured numbers into the constitution amendment of T065 and fail the check when a number is outside its approved budget (FR-027, SC-006) (depends on T065, T045)
 
@@ -204,9 +204,9 @@ settings round-trip; with the setting unset, behaviour is exactly as today.
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T076 [P] Update `AGENTS.md`: current state, the HotA facts worth respecting (archive detection, name hash, terrain tile sets, five town forms, DEF conventions, script block), the base-game-only scope of the two-form town rule, the new dev asset `test_map_hota.h3m`, and the new commands
-- [ ] T077 [P] Update `TODO.md`: mark item 3 done with a pointer to this spec and move anything deferred (D32/P32, `HotA.dat`, `EdObjts.txt`, LZMA, HotA saves, hero gender source) into the later items
-- [ ] T078 [P] Update the user-facing docs per host with the new archive setting and where the HotA archive comes from, in `docs/`
+- [X] T076 [P] Update `AGENTS.md`: current state, the HotA facts worth respecting (archive detection, name hash, terrain tile sets, five town forms, DEF conventions, script block), the base-game-only scope of the two-form town rule, the new dev asset `test_map_hota.h3m`, and the new commands
+- [X] T077 [P] Update `TODO.md`: mark item 3 done with a pointer to this spec and move anything deferred (D32/P32, `HotA.dat`, `EdObjts.txt`, LZMA, HotA saves, hero gender source) into the later items
+- [X] T078 [P] Update the user-facing docs per host with the new archive setting and where the HotA archive comes from, in `docs/`
 - [ ] T078a Extend `test/tools/hygiene.test.ts` so the repository-cleanliness rules cover this feature's new surfaces (FR-028): no committed entry-name dictionary, no extracted tiles, palettes or sprites, no HotA captures, and the new `test/fixtures/synthetic/hota-*.ts` generators produce their data in code
 - [ ] T079 Run [quickstart.md](quickstart.md) end to end and fix anything that does not behave as written
 - [ ] T080 Fill the Compliance Review table in [plan.md](plan.md) against the actual implementation, recording accepted deviations (constitution "Compliance review")

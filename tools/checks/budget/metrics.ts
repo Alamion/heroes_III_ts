@@ -33,8 +33,10 @@ async function newPage(opts: MetricsOptions, context?: BrowserContext): Promise<
   return { context: ctx, page, cdp }
 }
 
-async function loadFiles(page: Page, archive: string, map: string, dataArchive?: string): Promise<number> {
+async function loadFiles(page: Page, archive: string, map: string, dataArchive?: string, hotaArchive?: string): Promise<number> {
   const t0 = await page.evaluate(() => performance.now())
+  // The HotA archive goes first: it is part of the archive set the others are decoded with.
+  if (hotaArchive !== undefined) await page.setInputFiles('#hotaarchive', hotaArchive)
   await page.setInputFiles('#archive', archive)
   if (dataArchive !== undefined) await page.setInputFiles('#dataarchive', dataArchive)
   await page.setInputFiles('#mapfile', map)
@@ -63,15 +65,15 @@ async function setHidden(page: Page, hidden: boolean): Promise<void> {
   }, hidden)
 }
 
-export async function measureMap(opts: MetricsOptions, name: string, archive: string, map: string, idleWindowMs = 5000, dataArchive?: string): Promise<MapMeasurement> {
+export async function measureMap(opts: MetricsOptions, name: string, archive: string, map: string, idleWindowMs = 5000, dataArchive?: string, hotaArchive?: string): Promise<MapMeasurement> {
   // Cold: a fresh context has an empty IndexedDB.
   const cold = await newPage(opts)
   try {
-    const coldStartMs = await loadFiles(cold.page, archive, map, dataArchive)
+    const coldStartMs = await loadFiles(cold.page, archive, map, dataArchive, hotaArchive)
     // Warm: reload in the same context; decoded data comes from the cache.
     await cold.page.close()
     const warm = await newPage(opts, cold.context)
-    const warmStartMs = await loadFiles(warm.page, archive, map, dataArchive)
+    const warmStartMs = await loadFiles(warm.page, archive, map, dataArchive, hotaArchive)
     await warm.page.waitForTimeout(500)
 
     const s0 = await stats(warm.page)

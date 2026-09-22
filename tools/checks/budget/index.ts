@@ -6,10 +6,11 @@ import { gunzipSync } from 'node:zlib'
 import type { CommandResult, ParsedArgs } from '../../shared/cli-runner.ts'
 import { flag, intOpt, opt } from '../../shared/cli-runner.ts'
 import { hasChromium, launchBrowser, startServer } from '../../shared/browser.ts'
-import { installMaps, requireGameFile, requireTestMap } from '../../shared/game-files.ts'
+import { gameDirs, installMaps, requireGameFile, requireTestMap } from '../../shared/game-files.ts'
 import { validateJson } from '../../shared/json-schema.ts'
+import { existsSync } from 'node:fs'
 import { SMALL_MAP, STRESS_MAP, writeStressFiles } from '../../../test/fixtures/synthetic/stress-map.ts'
-import { evaluateMap, evaluateSc007 } from './evaluate.ts'
+import { HOTA_LIMITS, evaluateMap, evaluateSc007 } from './evaluate.ts'
 import type { BudgetEntry } from './evaluate.ts'
 import { measureFrameWork, measureMap } from './metrics.ts'
 import { packageSizeEntries, packageStartEntries } from './packages.ts'
@@ -94,6 +95,19 @@ export async function budgetCommand(args: ParsedArgs): Promise<CommandResult> {
       maps.push({ name: basename(p), ...mapSize(p), synthetic: false })
       budgets.push(...evaluateMap(m))
     }
+    // The HotA case (spec 005 FR-027): a ~111 MB obfuscated archive on top of the base archives.
+    // Measured separately and against its own numbers; the base-game budgets above are unchanged.
+    const hotaDataDir = gameDirs().hotaDataDir
+    const hotaArchive = hotaDataDir === undefined ? undefined : join(hotaDataDir, 'HotA.lod')
+    const hotaMap = requireGameFile('test_map_hota.h3m')
+    if (archive !== null && dataArchive !== undefined && hotaArchive !== undefined && existsSync(hotaArchive) && hotaMap !== null) {
+      const m = await measureMap(opts, basename(hotaMap), archive, hotaMap, idleMs, dataArchive, hotaArchive)
+      maps.push({ name: basename(hotaMap), ...mapSize(hotaMap), synthetic: false })
+      budgets.push(...evaluateMap(m, HOTA_LIMITS).map((e) => ({ ...e, id: `hota-${e.id}` })))
+    } else {
+      for (const id of ['hota-cold-start', 'hota-warm-start', 'hota-memory']) budgets.push({ id, status: 'skip', note: 'HotA install or test_map_hota.h3m absent' })
+    }
+
     // Start-up through the packages (user path): the primary check map, or the synthetic stress map.
     const startMap = realMaps.find((p) => basename(p) === 'test_map.h3m') ?? realMaps[0]
     const startFiles =
