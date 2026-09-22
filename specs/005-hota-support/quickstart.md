@@ -9,8 +9,9 @@ are absent.
 ## 0. Prerequisites
 
 - Base archives and maps in `public/dev-assets/` as today.
-- A HotA 1.8.x install configured (locally: `/home/JRCD/.wine/drive_c/Games/Heroes3_HotA`), which
-  supplies `Data/HotA.lod` and a `Maps` folder of 237 maps across four generations.
+- A HotA 1.8.x install configured (`hotaBundleDir` in `reference-env.config.json` or
+  `H3REF_HOTA_BUNDLE_DIR`), which supplies `Data/HotA.lod` and a `Maps` folder of 228 maps across
+  four generations.
 - `public/dev-assets/test_map_hota.h3m` (format `0x20`, sub-version 10, two levels, HotA novelties
   in the lower-left corner of the underground level).
 
@@ -23,15 +24,20 @@ reason naming the missing file.
 
 ## 1. The archive opens
 
+Both installs may hold a file called `HotA.lod` and only the 1.8 one is obfuscated, so give the
+path (the tools warn when a bare name is ambiguous and say which copy they picked):
+
 ```bash
-yarn h3 lod list HotA.lod | head
-yarn h3 lod extract HotA.lod:Objects.txt --out /tmp/objects.txt
-yarn h3 pcx png HotA.lod:hglnt000.pcx --out /tmp/hglnt000.png
+HOTA=~/.wine/drive_c/Games/Heroes3_HotA/Data/HotA.lod
+yarn h3 lod list "$HOTA" | head
+yarn h3 lod extract "$HOTA:Objects.txt" --out /tmp/objects.txt
+yarn h3 pcx png "$HOTA:hglnt000.pcx" --out /tmp/hglnt000.png
 ```
 
-Expected: 5232 entries listed (names where the local dictionary resolves them, `#<hex>` otherwise);
-`Objects.txt` extracts to 278 015 bytes; the tile renders as a 32×32 image. A wrong XOR key would
-surface as a typed error naming the entry, not as garbage.
+Expected: `"kind": "obfuscated"` with 5232 entries and `namesResolved` equal to that count when the
+local name list is present (`#<hex>` otherwise); `Objects.txt` extracts to 278 015 bytes; the tile
+renders as a 32×32 image. A wrong XOR key would surface as a typed error naming the entry, not as
+garbage.
 
 ## 2. The maps parse
 
@@ -41,16 +47,18 @@ yarn h3 map info "По праву силы.h3m"
 yarn verify maps
 ```
 
-Expected: `test_map_hota.h3m` reports `0x20 sub 10`, two levels, script section inactive;
-`По праву силы.h3m` reports `0x20 sub 9` with the script section **active** and still parses;
-`verify maps` passes with every coverage class represented and zero unresolved object classes.
+Expected: `test_map_hota.h3m` reports `"subVersion": 10`, HotA build 1.8.1, two levels and an
+inactive event system; `По праву силы.h3m` reports sub-version 9, build 1.8.0 and an **active**
+event system of 3574 bytes, and still parses; `verify maps` passes with every coverage class
+represented and zero unresolved object classes.
 
 ```bash
 yarn verify maps --all
 ```
 
-Expected: every discoverable map opens — 72 HotA maps and 165 base-game maps in the install plus
-the dev assets. Any failure names file, offset, version and structure.
+Expected: every discoverable map opens. Measured on 2026-09-23: 453 maps across dev assets and both
+installs — 95 RoE, 109 AB, 119 SoD and 130 HotA of sub-versions 6, 7, 9 and 10. Any failure names
+file, offset, version and structure.
 
 ## 3. Nothing base-game changed
 
@@ -68,8 +76,8 @@ suite.
 ## 4. The map renders
 
 ```bash
-yarn h3 render test_map_hota.h3m --level 1 --region 0,108,36,143 --time 0 --out /tmp/hota-novelty.png
-yarn h3 render test_map_hota.h3m --level 0 --region 0,0,36,36 --time 0 --out /tmp/hota-surface.png
+yarn h3 render test_map_hota.h3m --level 1 --region 0,100,30,130 --time 0 --hota "$HOTA" --out /tmp/hota-novelty.png
+yarn h3 render test_map_hota.h3m --level 0 --region 0,0,20,20 --time 0 --hota "$HOTA" --out /tmp/hota-surface.png
 ```
 
 Expected: the underground novelty zone shows the new terrains, town forms and HotA objects with no
@@ -115,9 +123,10 @@ Engine and Lively are verified in the Windows session, as for spec 004.
 yarn verify budget --throttle 4
 ```
 
-Expected: base-game numbers within their unchanged budgets; the HotA case (111 MB archive,
-252×252 two-level map) measured and within the HotA budget numbers recorded in the constitution
-amendment. A number outside its budget fails the check rather than being noted.
+Expected: the `hota-*` entries measured and within their numbers (cold start ≤ 12 s, warm start
+≤ 3 s, memory ≤ 300 MB, object atlas ≤ 128 MB; measured 6.1 s / 2.0 s / 63 MB / 8.4 MB). The
+base-game warm start sits on its 2 s limit and crosses it on some runs — a marginality that
+predates this feature (see `TODO.md` housekeeping), not something HotA introduced.
 
 ## Acceptance summary
 

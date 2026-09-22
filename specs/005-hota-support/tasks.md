@@ -207,9 +207,9 @@ settings round-trip; with the setting unset, behaviour is exactly as today.
 - [X] T076 [P] Update `AGENTS.md`: current state, the HotA facts worth respecting (archive detection, name hash, terrain tile sets, five town forms, DEF conventions, script block), the base-game-only scope of the two-form town rule, the new dev asset `test_map_hota.h3m`, and the new commands
 - [X] T077 [P] Update `TODO.md`: mark item 3 done with a pointer to this spec and move anything deferred (D32/P32, `HotA.dat`, `EdObjts.txt`, LZMA, HotA saves, hero gender source) into the later items
 - [X] T078 [P] Update the user-facing docs per host with the new archive setting and where the HotA archive comes from, in `docs/`
-- [ ] T078a Extend `test/tools/hygiene.test.ts` so the repository-cleanliness rules cover this feature's new surfaces (FR-028): no committed entry-name dictionary, no extracted tiles, palettes or sprites, no HotA captures, and the new `test/fixtures/synthetic/hota-*.ts` generators produce their data in code
-- [ ] T079 Run [quickstart.md](quickstart.md) end to end and fix anything that does not behave as written
-- [ ] T080 Fill the Compliance Review table in [plan.md](plan.md) against the actual implementation, recording accepted deviations (constitution "Compliance review")
+- [X] T078a Extend `test/tools/hygiene.test.ts` so the repository-cleanliness rules cover this feature's new surfaces (FR-028): no committed entry-name dictionary, no extracted tiles, palettes or sprites, no HotA captures, and the new `test/fixtures/synthetic/hota-*.ts` generators produce their data in code
+- [X] T079 Run [quickstart.md](quickstart.md) end to end and fix anything that does not behave as written
+- [X] T080 Fill the Compliance Review table in [plan.md](plan.md) against the actual implementation, recording accepted deviations (constitution "Compliance review")
 
 ---
 

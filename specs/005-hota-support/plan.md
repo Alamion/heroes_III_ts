@@ -199,7 +199,22 @@ package, no adapter change beyond one setting.
 11. **Polish**: AGENTS.md (state, facts, commands, the base-game-only town rule), TODO.md, docs,
     compliance review against this Constitution Check.
 
+## Compliance Review (2026-09-23, after US1, US2, US3 and US5)
+
+| Principle | Implementation | Status |
+| --- | --- | --- |
+| I. User-Supplied Assets | The HotA archive comes from the user at runtime as one more file setting. Nothing game-derived is committed: no entry-name dictionary (lookups hash the name; the CLI reads the list from the git-ignored `context/` when present), no tiles, palettes or captures. Ported layouts are attributed in THIRD_PARTY_NOTICES (hota-lod-convert, FreeHeroes, MMArchiveCLI, h3m2json, and the VCMI HotA mod's naming data); VCMI, vcmiextract and HotA-editor are recorded as study-only, and the event-system walker was written from an understanding of behaviour, not from code. `yarn verify packages` passes. | Pass |
+| II. Fidelity to Complete | The Complete baseline is untouched and still gates base-game views: fidelity gives the same 7 fail / 5 pass over the same captures as the pre-feature commit. The HotA baseline is legalised by constitution 1.3.0 but **not yet built** — US4 (T066–T071) is outstanding, so HotA visuals are currently verified by data, by the coverage check and by eye. | Partial — US4 open |
+| III. Script-Verifiable | New headless checks: `yarn verify maps` (453 maps, 229 classes, zero unresolved objects) and the HotA budget case. Inspection CLIs work on HotA archives and maps and report the sub-version, build and event-system state. Synthetic fixtures keep the format covered without game files. HotA image-level checks wait on US4. | Partial — US4 open |
+| IV. Screen-Bound Performance | Measured: cold start 6.1 s, warm 2.0 s, memory 63 MB, object atlas 8.4 MB, zero frames and timers while hidden. Archive identity still hashes header + index only. **Known deviation**: object GPU memory still scales with the map; HotA made it visible, and the page size now follows the GPU's limit instead of the guaranteed minimum. A region-scoped atlas is recorded as the proper fix in TODO.md. | Pass, with a recorded deviation |
+| V. Platform-Agnostic, Linux-First | All work is in core/runtime plus one settings entry; every check runs on Linux; no Windows-only tooling added. | Pass |
+| VI. Layered, State-Driven | Archive set in `core/formats/lod`, feature table and script walker in `core/formats/h3m`, terrain sources, town forms, hero classes and sprite conventions in `core/data`; the renderer gained a sprite source kind and a per-tile palette row, not special cases. `yarn verify layers` passes. | Pass |
+| VII. Robust Parsing, Honest Failure | De-XOR asserts catch a wrong key; unsupported compression, unknown sub-version, unknown class/subtype and an unknown event-system opcode all raise typed errors with file, offset, version and structure. No length was guessed: the event-system block is walked, and its correctness is proven by the map ending exactly at its 124-byte trailer on all 453 maps. An unresolved object is counted and named, never silently skipped. | Pass |
+| VIII. Lean Dependencies | No runtime dependency added; packages still build and pass their size check. | Pass |
+
+Outstanding for a follow-up: US4 (T066–T071), the HotA reference baseline and its captures.
+
 ## Complexity Tracking
 
-None. The one deviation requiring approval is the HotA reference baseline, which is handled by a
-constitution amendment inside this feature rather than as an unjustified violation.
+None. The one deviation requiring approval was the HotA reference baseline; the owner approved it
+and it is recorded in constitution 1.3.0 (with the budget numbers in 1.3.1).

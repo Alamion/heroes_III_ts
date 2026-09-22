@@ -57,6 +57,18 @@ export async function mapInfo(args: ParsedArgs): Promise<CommandResult> {
     file: basename(path),
     sha256,
     version: map.version,
+    versionCode: `0x${map.versionCode.toString(16)}`,
+    ...(map.subVersion === null
+      ? {}
+      : {
+          subVersion: map.subVersion,
+          hota: {
+            build: map.hota?.version === null || map.hota?.version === undefined ? null : `${map.hota.version.major}.${map.hota.version.minor}.${map.hota.version.patch}`,
+            eventSystem: (map.hota?.scriptBytes ?? 0) > 0 ? { active: true, bytes: map.hota?.scriptBytes } : { active: false },
+            isMirrorMap: map.hota?.isMirrorMap ?? false,
+            isArenaMap: map.hota?.isArenaMap ?? false,
+          },
+        }),
     size: map.info.size,
     hasUnderground: map.info.hasUnderground,
     info: textOf(map.info),

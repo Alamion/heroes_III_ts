@@ -523,6 +523,11 @@ Evidence that HotA support is additive:
   same seven**, i.e. the accepted deviations of spec 003 (draw order in dense mountain clusters,
   reef frames and shadows) and nothing new.
 - **Determinism and layers**: both pass.
+- **Budgets**: the base-game warm start sits on its 2 s limit and crosses it on some runs — a
+  pre-existing marginality the housekeeping note in `TODO.md` already records. Measured on the same
+  machine: the feature branch had one marginal failure (Arrogance 2093 ms), a worktree of the
+  pre-feature commit had three (test_map cold 18 750 ms, test_map warm 2866 ms, Pandora 2073 ms).
+  The feature is therefore not the cause, and it did not make it worse.
 - **Without game files**: in a worktree with no `public/dev-assets` and no reference-env config the
   suite is 48 files passed, 8 skipped, 290 tests passed, 29 skipped — every real-file suite skips
   with a named reason and nothing fails.
