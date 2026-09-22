@@ -37,6 +37,8 @@ export interface WorkerDiagnostic {
   code: string
   message: string
   file?: string
+  /** Machine-readable payload for checks (spec 005 FR-017: unresolved objects are counted). */
+  details?: Record<string, unknown>
 }
 
 export type WorkerResponse =

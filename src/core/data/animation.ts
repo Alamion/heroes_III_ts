@@ -25,13 +25,18 @@ export type ShadowKind = 'light' | 'dark'
 /**
  * Shadow indices of object sprites and how they darken the pixel below (measured 2026-09-16 on
  * test_map.h3m stills, research.md T046): the game works on the 16-bit colour, per 5/6-bit channel
- * c: light (index 1) → (c >> 1) + (c >> 2), dark (index 4) → c >> 1. Indices 2, 3, 6, 7 did not
- * occur in the captured sprites; 2 and 7 are assumed light, 3 and 6 dark.
+ * c: light (index 1) → (c >> 1) + (c >> 2), dark (index 4) → c >> 1. Indices 6 and 7 did not occur
+ * in the captured base-game sprites; 7 is assumed light, 6 dark.
+ *
+ * Indices 2 and 3 are HotA's shadow slots, where 3 behaves like base index 1 and 2 like base index
+ * 4. This is not a per-file exception: sweeping both archives (spec 005 T041) found them in 699 of
+ * 1072 HotA adventure sprites and in 2 of 1369 base-game ones, where they cover 1 and 25 pixels.
+ * The indices themselves are therefore the signal and no name list is needed.
  */
 export const SHADOW_KINDS: ReadonlyMap<number, ShadowKind> = new Map([
   [1, 'light'],
-  [2, 'light'],
-  [3, 'dark'],
+  [2, 'dark'],
+  [3, 'light'],
   [4, 'dark'],
   [6, 'dark'],
   [7, 'light'],

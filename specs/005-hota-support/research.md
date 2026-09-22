@@ -369,16 +369,37 @@ those whose flag colour sits at index 255, seeded from `mmarchive-cli` (MIT, att
 **Rationale**: measured convention and measured detection method (M7); a heuristic would silently
 mis-shade base-game sprites, which US3 forbids.
 
-**Open point for the sweep**: `defConfig.json` lists several entries as stems (`avgflh`, `avlhpn`, …)
-and it is not established whether numbered members of those families are covered. The sweep decides
-it; whatever it finds becomes the committed table.
+**Sweep result (2026-09-23, T041)** — the survey's framing was wrong, and the measurement replaced
+it:
+
+- **Shadows at 2/3 are not an exception, they are how HotA draws.** Decoding every adventure sprite
+  of both archives found indices 2 or 3 in **699 of 1072** HotA sprites and in **2 of 1369**
+  base-game ones, where they cover 1 and 25 pixels in total. So no name list is needed: the index
+  itself is the signal, and `SHADOW_KINDS` covers every sprite. The mapping was corrected at the
+  same time — index 3 behaves like base index 1 (light) and index 2 like base index 4 (dark), the
+  opposite of what the table assumed before.
+- **The flag colour at index 255 cannot be measured.** Index 255 is an ordinary colour elsewhere
+  (1052 of 1369 base-game adventure sprites use it), and the sprites that follow the rule use index
+  5 as well, so nothing in the pixels separates them. That list stays a short, ported,
+  **unverified** table in `src/core/data/hota-def-conventions.ts`, and its risk is recorded there:
+  a wrong entry would tint a sprite's index-255 pixels with the owner's colour.
 
 ### R11 — Palettes and player colours
 
 **Decision**: nothing special. `game.pal` resolves through the archive set (R3), so the HotA palette
 — including the two changed flag colours at indices 65 and 67 — wins automatically when the HotA
-archive is loaded, and the base palette is used when it is not. The palette rotation ranges are
-re-checked against the HotA palette during implementation.
+archive is loaded, and the base palette is used when it is not.
+
+**Verified (2026-09-23, T037)**: the two palettes differ in exactly those two entries, neither of
+which lies in a rotation range, and the rotating sprites HotA overrides keep their palettes
+byte-for-byte (`watrtl.def` and `clrrvr.def`: no differing entry). The measured rotation ranges
+therefore hold unchanged under HotA.
+
+The same comparison turned up a fact that matters for rendering: HotA's `watrtl.def` has **80
+frames where the base game has 33**, and its `icyrvr.def` is a full repaint (250 palette entries
+differ). Both resolve through the archive set, so a HotA map may legitimately use a water view
+index far above the base game's maximum — which is only available when the HotA archive is
+loaded.
 
 ### R12 — Explicitly out of scope, with evidence
 

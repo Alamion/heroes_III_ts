@@ -108,10 +108,10 @@ the underground novelty zone with `yarn h3 render`; the report shows zero unreso
 - [X] T038 [P] [US1] Replace the town sprite record with the five-form table (village, fort, citadel, castle, capitol) for the nine base factions, Cove, Factory and the random town, with the irregular Fortress and Conflux stems spelled out, in `src/core/data/object-classes.ts` (FR-013)
 - [X] T039 [US1] Select the town form by fortification level in `src/core/state/render-objects.ts`, keeping the measured base-game behaviour when no HotA archive is loaded (FR-013) (depends on T038)
 - [X] T040 [P] [US1] Extend the hero class table to `ah00_…ah23_` with the gendered `b` bodies present but unused (non-suffixed body rendered) in `src/core/data/heroes.ts` (FR-014)
-- [ ] T041 [P] [US1] Sweep the HotA archive for DEF conventions (FR-015): a throwaway script in the scratchpad (not committed — it is a measurement, not a tool) decodes every `av*`/`ah*` DEF and counts pixels at palette indices 2, 3 and 255; record the resulting name lists and the stem-vs-exact-name answer in [research.md](research.md) R10
-- [ ] T042 [US1] Commit the verified name-keyed convention table (shadows at 2/3, flag at 255, keep-selection) in new `src/core/data/hota-def-conventions.ts`, seeded from the MIT source and corrected by the sweep of T041 (FR-015) (depends on T041)
-- [ ] T043 [US1] Apply the convention by DEF name when decoding shadows and the flag slot in `src/core/render/object-atlas.ts` and `src/core/data/animation.ts`, leaving every DEF outside the table on the base-game rules (FR-015) (depends on T042)
-- [ ] T044 [P] [US1] Unit-test convention selection on synthetic DEFs in `test/core/render/hota-def-conventions.test.ts`: a listed name uses indices 2/3 and 255, an unlisted name keeps indices 1/4 and 5 (depends on T043)
+- [X] T041 [P] [US1] Sweep the HotA archive for DEF conventions (FR-015): a throwaway script in the scratchpad (not committed — it is a measurement, not a tool) decodes every `av*`/`ah*` DEF and counts pixels at palette indices 2, 3 and 255; record the resulting name lists and the stem-vs-exact-name answer in [research.md](research.md) R10
+- [X] T042 [US1] Commit the verified name-keyed convention table (shadows at 2/3, flag at 255, keep-selection) in new `src/core/data/hota-def-conventions.ts`, seeded from the MIT source and corrected by the sweep of T041 (FR-015) (depends on T041)
+- [X] T043 [US1] Apply the convention by DEF name when decoding shadows and the flag slot in `src/core/render/object-atlas.ts` and `src/core/data/animation.ts`, leaving every DEF outside the table on the base-game rules (FR-015) (depends on T042)
+- [X] T044 [P] [US1] Unit-test convention selection on synthetic DEFs in `test/core/render/hota-def-conventions.test.ts`: a listed name uses indices 2/3 and 255, an unlisted name keeps indices 1/4 and 5 (depends on T043)
 
 ### Wiring and diagnostics
 
@@ -119,8 +119,8 @@ the underground novelty zone with `yarn h3 render`; the report shows zero unreso
 - [X] T046 [US1] Count and report unresolved object classes (class, subtype, DEF name, map position) instead of drawing them, and mark them visibly in the dev harness only, in `src/core/state/render-objects.ts` and `src/adapters/dev-harness/` (FR-017) (depends on T045)
 - [X] T047 [US1] Report a clear diagnostic naming the missing HotA archive when a HotA map is loaded without one, in `src/adapters/shared/controller.ts` and `src/adapters/shared/strings.ts` (en/ru) (SC-007)
 - [X] T048 [P] [US1] Report format, sub-version, HotA version triple and script-section state in `yarn h3 map info`, and HotA subtypes in `map objects|object|tiles|tile`, in `tools/inspect/` (FR-019)
-- [ ] T049 [US1] Load a HotA archive in the dev harness (`src/adapters/dev-harness/index.html` and its script) so `yarn dev` can open `test_map_hota.h3m` (depends on T045)
-- [ ] T050 [US1] Add a real-file test in `test/real/hota-render.test.ts` that renders the underground novelty zone and a surface region of `test_map_hota.h3m` and asserts zero unresolved objects, skipping when the files are absent (FR-011, FR-012, FR-016, SC-002) (depends on T046, T035, T043)
+- [X] T049 [US1] Load a HotA archive in the dev harness (`src/adapters/dev-harness/index.html` and its script) so `yarn dev` can open `test_map_hota.h3m` (depends on T045)
+- [X] T050 [US1] Add a real-file test in `test/real/hota-render.test.ts` that renders the underground novelty zone and a surface region of `test_map_hota.h3m` and asserts zero unresolved objects, skipping when the files are absent (FR-011, FR-012, FR-016, SC-002) (depends on T046, T035, T043)
 
 **Checkpoint**: US1 is complete — a HotA map renders correctly from the HotA archive.
 
@@ -174,7 +174,7 @@ byte, and every existing check keeps its previous verdict.
 **Independent Test**: `yarn verify fidelity` passes on HotA views of `test_map_hota.h3m` at the same
 thresholds as base-game views, comparing only against HotA captures.
 
-- [ ] T065 [US4] Amend `.specify/memory/constitution.md` (FR-024): add the HotA reference baseline to Principle II (which build, which install, capture labelling, relation to the Complete baseline); **reconcile the scope order** — Principle II currently reads "(1) RoE/AB/SoD maps, (2) Complete save files, (3) HotA" and the "Formats in scope" list says saves come next, while the owner reordered HotA ahead of saves on 2026-09-22, so record that decision in both places; reserve the HotA budget numbers filled by T075; include the Sync Impact Report and bump the version
+- [X] T065 [US4] Amend `.specify/memory/constitution.md` (FR-024): add the HotA reference baseline to Principle II (which build, which install, capture labelling, relation to the Complete baseline); **reconcile the scope order** — Principle II currently reads "(1) RoE/AB/SoD maps, (2) Complete save files, (3) HotA" and the "Formats in scope" list says saves come next, while the owner reordered HotA ahead of saves on 2026-09-22, so record that decision in both places; reserve the HotA budget numbers filled by T075; include the Sync Impact Report and bump the version
 - [ ] T066 [US4] Add the baseline dimension to the reference environment in `tools/reference-env/`: `--baseline complete|hota`, a separate game root built from the HotA install, separate calibration probes, and a capture namespace recorded on every record (FR-021) (depends on T065, T004)
 - [ ] T067 [US4] Refuse the `hota` baseline with a clear message when the constitution amendment is absent, in `tools/reference-env/` (depends on T066)
 - [ ] T068 [US4] Make a fidelity view compare only against captures of its own baseline, erroring on a mismatch, in `tools/checks/fidelity/` (FR-022) (depends on T066)

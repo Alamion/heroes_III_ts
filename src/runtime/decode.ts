@@ -182,7 +182,30 @@ export async function decodeObjects(
     if (spriteLod.has(name)) defs.push(parseDef(await spriteLod.read(name), name))
     else missing.push(name)
   }
-  const warnings: WorkerDiagnostic[] = missing.length === 0 ? [] : [{ level: 'warn', code: 'MISSING_SPRITE', message: `sprites not found in ${spritesName}, objects skipped: ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ', …' : ''}`, file: spritesName }]
+  // An object whose sprite cannot be resolved is not drawn, but it is counted and named with the
+  // objects that wanted it, so a check can fail on it (spec 005 FR-017).
+  const unresolved = missing.map((def) => {
+    const users = objects.filter((o) => o.def === def)
+    const first = users[0]
+    return {
+      def,
+      count: users.length,
+      ...(first === undefined ? {} : { classId: first.classId, at: { x: first.x, y: first.y, z: first.z } }),
+    }
+  })
+  const unresolvedObjects = unresolved.reduce((n, u) => n + u.count, 0)
+  const warnings: WorkerDiagnostic[] =
+    missing.length === 0
+      ? []
+      : [
+          {
+            level: 'warn',
+            code: 'MISSING_SPRITE',
+            message: `${unresolvedObjects} object(s) are not drawn: ${missing.length} sprite(s) not found in ${spritesName} (${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ', …' : ''})`,
+            file: spritesName,
+            details: { unresolvedSprites: missing.length, unresolvedObjects, sprites: unresolved.slice(0, 50) },
+          },
+        ]
   let atlas: ObjectAtlas
   try {
     atlas = buildObjectAtlas(defs, pageSize)
