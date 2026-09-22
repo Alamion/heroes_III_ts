@@ -206,6 +206,19 @@ and captures.
 | `example_wallpaper_engine/` | Someone else's Wallpaper Engine web wallpaper | Study packaging/`project.json` only |
 | `wallpaper_dev_wiki/` | Wallpaper Engine web wallpaper docs (user properties, property listener, FPS limiter, debugging) | Reference |
 
+HotA sources (cloned 2026-09-22 for item 3; details and measurements in the item's spec):
+
+| Folder | What | License → allowed use |
+| --- | --- | --- |
+| `hota-lod-convert/` | Rust tool for the HotA 1.8 LOD (codeberg.org/DarkAtom/hota-lod-convert): XOR-masked index, FNV-1a name hashes, `data/hashes.txt` with 5239 names, zlib/LZMA members | MIT OR Apache-2.0 → portable with attribution |
+| `freeheroes/` | C++ H3M reader/writer (github.com/mapron/FreeHeroes, `src/Core/MapUtil/`): HotA map versions 0x1E–0x20 up to sub-version 5, byte-exact round-trip | MIT → portable with attribution |
+| `h3m2json/` | `h3m-The-Corpus.txt`, a field-by-field .h3m spec with HotA annotations (github.com/HeroWO-js/h3m2json) | Unlicense (public domain) → free use |
+| `mmarchive-cli/` | Python archive tool (github.com/imahero1492/MMArchiveCLI): `objectsByID.json` (DEF name → class/subtype), `defConfig.json` with HotA render quirks (shadow in palette 2/3, flag index 255) | MIT → portable with attribution |
+| `vcmi-hota-mod/` | VCMI's HotA mod, config only (github.com/vcmi-mods/horn-of-the-abyss): terrain properties, 124-tile lists, town and object definitions | CC BY-SA 4.0 → data reused with attribution; keep it out of shipped builds |
+| `vcmi/` | VCMI, sparse: `lib/mapping/` (HotA h3m sub-versions 0–9 incl. the script section), `lib/filesystem/`, `config/terrainViewPatterns.json` (the `hota` terrain index scheme) | GPL → study only, never copy code |
+| `vcmiextract/` | VCMI-derived extractor (github.com/Karyoplasma/vcmiextract): the only complete D32/P32 description | GPL → study only, never copy code |
+| `hota-editor-hdat/` | C# editor (github.com/sake12/HotA-editor), `Hdat.cs` walks the `HDAT` container of `HotA.dat` | No license → study only, never copy code |
+
 Also: VCMI is a good format/behavior reference but is GPL — study only, never copy code.
 Online Wallpaper Engine docs: <https://docs.wallpaperengine.io/>
 
