@@ -403,6 +403,49 @@ events plus `document.hidden`. To verify or correct there:
 - Note for manual checks: `yarn preview:web` serves `dist/packages/web`, which `yarn build` does not refresh;
   run `yarn package --host web` first.
 
+### 2026-09-22 — Pixel mapping at fractional display scales (objects jumping by a device pixel)
+
+- **Symptom** (owner, 3840×2160 monitor at KDE scale 1.5, `test_map.h3m`, fixed view at 100 % / 0 %): some
+  animated objects (taverns, leprechaun, fairy ring, volcano, peasant hut) jump up and down while animating;
+  invisible in stills. Survives view and level changes.
+- **Cause**: the T073 fix. Snapping quad corners to whole device pixels rounds a quad's top and bottom
+  independently, so inside the quad the texel → device-row mapping depends on where the quad starts. Object
+  quads are the cropped frame (`fullTop + cell.y`), and cropped frames of one animation start at different
+  offsets, so from frame to frame the unchanged part of a sprite moved by one device row. A headless render of
+  the owner's view at 1.5 showed 42 blocks where tick t+1 equals tick t shifted by one row.
+- **Fix** (`src/core/render/shaders.ts`): every device pixel shows the world pixel under its centre,
+  `floor((p + 0.5) / scale + offset)`, i.e. the nearest-neighbour upscale of the scale-1 image. Vertices carry
+  the corner, its local coordinate in the cell, the cell's top-left texel and size (negative = mirrored)
+  (`VERTEX_SIZE` 9, `OBJECT_VERTEX_SIZE` 11). The vertex shader widens each quad by half a world pixel so no
+  pixel centre lies on an edge; the fragment shader takes `floor(local + 1/256)` (a centre exactly on a
+  boundary belongs to the next pixel), discards pixels outside the cell and samples that texel. The mapping
+  depends on world positions only: no neighbour-cell lines, no crop-dependent shifts. Fragment shaders use
+  `highp` when available (local coordinates need more than fp16). Renders at scale 1 stay byte-identical
+  (`test_map.h3m`, both levels, with objects); the software rasterizer reads the new layout.
+- **Check**: `test/browser/fractional-scale.test.ts` now requires the render at 1.5 (two shifts), 1.25 and 1.75
+  to equal, pixel for pixel, the nearest-neighbour upscale of the scale-1 render, with objects and shadows, at
+  six animation ticks. Synthetic object frames now vary their crop from frame to frame
+  (`test/fixtures/synthetic/object-defs.ts`). The T073 code fails it (16 862–109 791 wrong pixels per frame);
+  the owner's view of `test_map.h3m` shows 0 jumping blocks instead of 42.
+- **Lines between tiles, re-check on the host**: the owner saw lines again after T073, less often. On the
+  plasmashell page (DevTools over `QTWEBENGINE_REMOTE_DEBUGGING`) the backend is ANGLE on OpenGL ES (Iris Xe),
+  `mediump` is fp32, the canvas is 3840×2160 at device ratio 1.5, and canvas read-backs of 14 views showed no
+  lines. The pixels around the lines in the owner's screenshot are blends of both sides, which a `NEAREST`
+  render cannot produce, so that screenshot was probably taken while the page was not shown 1:1 (other device
+  ratio or canvas size, or an older installed package). Not reproduced since; the new mapping removes the
+  neighbour-cell case for any GPU precision the check covers.
+- **Budget `idle-cadence` (T075, owner decision 2026-09-22: relax the limit, revisit with performance work)**:
+  after T074 the dev harness counted 29 frames on `Arrogance.h3m` in a ~5 s idle window against a limit of
+  28 (`floor(window / 180) + 1`), in 3 of 3 runs (27–28 before). Frame times inside the page are unchanged
+  or lower (`renderNow` + `gl.finish`, 1920×1080: Pandora's Box 3.5 vs 3.7 ms at scale 1), but under the
+  budget's 4× CPU throttling a frame costs 5–9 % more main-thread time (Pandora's Box 15.4–15.6 vs 14.3 ms,
+  Arrogance 6.6–6.8 vs 6.3 ms): object vertices are 11 floats instead of 7 and are uploaded every object
+  tick. Frame timestamps show no extra redraws — every frame belongs to an animation change — but some
+  `requestAnimationFrame` callbacks run late, so a frame due just before the window opens is presented
+  inside it. The limit now allows one such frame (`CHECK_THRESHOLDS.idleCadenceSlackFrames`); a static
+  view still allows exactly one frame. To win the time back later: thinner vertices (per-quad data once
+  per quad via indexed drawing or a separate buffer), or uploading only changed object quads.
+
 ### 2026-09-19 — Windows session, first results (WSL on Windows 10 IoT LTSC 19044, two 1920×1080 monitors)
 
 - **Wallpaper Engine 2.8.42 — file properties take images and videos only.** The official docs

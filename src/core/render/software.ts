@@ -12,6 +12,15 @@ import type { ObjectAtlas } from './object-atlas.ts'
 import { OBJECT_VERTEX_SIZE, OBJECT_VERTICES_PER_QUAD } from './object-plan.ts'
 import type { ObjectPlan } from './object-plan.ts'
 
+/** Texel walk of a quad's cell from its first vertex (layout: draw-plan.ts VERTEX_SIZE); negative sizes mirror. */
+function cellWalk(v: Float32Array, b: number): { startU: number; stepU: number; startV: number; stepV: number } {
+  const cx = v[b + 4] as number
+  const cy = v[b + 5] as number
+  const w = v[b + 6] as number
+  const h = v[b + 7] as number
+  return { startU: w > 0 ? cx : cx - w - 1, stepU: w > 0 ? 1 : -1, startV: h > 0 ? cy : cy - h - 1, stepV: h > 0 ? 1 : -1 }
+}
+
 /** Renders into an RGBA buffer of camera.width × camera.height (scale 1). `palettes` = rotated palette texture data. */
 export function rasterize(plan: DrawPlan, atlas: Atlas, palettes: Uint8Array, cam: Camera, background: [number, number, number] = [0, 0, 0], quads: { from: number; to: number } = { from: 0, to: plan.quadCount }, target?: Uint8Array): Uint8Array {
   if (cam.scale !== 1) throw new RangeError('software rasterizer supports scale 1 only')
@@ -31,18 +40,11 @@ export function rasterize(plan: DrawPlan, atlas: Atlas, palettes: Uint8Array, ca
   const v = plan.vertices
   for (let q = quads.from; q < quads.to; q++) {
     const b = q * VERTICES_PER_QUAD * VERTEX_SIZE
-    // Vertex 0 is the top-left corner, vertex 5 the bottom-right (see writeQuad).
+    // Vertex 0 is the top-left corner (see writeQuad).
     const x0 = (v[b] as number) + originX
     const y0 = (v[b + 1] as number) + originY
-    const u0 = (v[b + 2] as number) * size
-    const v0 = (v[b + 3] as number) * size
-    const u1 = (v[b + 5 * VERTEX_SIZE + 2] as number) * size
-    const v1 = (v[b + 5 * VERTEX_SIZE + 3] as number) * size
-    const row = v[b + 4] as number
-    const stepU = u1 > u0 ? 1 : -1
-    const stepV = v1 > v0 ? 1 : -1
-    const startU = stepU > 0 ? u0 : u0 - 1
-    const startV = stepV > 0 ? v0 : v0 - 1
+    const { startU, stepU, startV, stepV } = cellWalk(v, b)
+    const row = v[b + 8] as number
     for (let dy = 0; dy < TILE_SIZE; dy++) {
       const sy = y0 + dy
       if (sy < 0 || sy >= height) continue
@@ -87,15 +89,8 @@ export function rasterizeRows(plan: DrawPlan, atlas: Atlas, palettes: Uint8Array
     const b = q * VERTICES_PER_QUAD * VERTEX_SIZE
     const x0 = (v[b] as number) + originX
     const y0 = (v[b + 1] as number) + originY
-    const u0 = (v[b + 2] as number) * size
-    const v0 = (v[b + 3] as number) * size
-    const u1 = (v[b + 5 * VERTEX_SIZE + 2] as number) * size
-    const v1 = (v[b + 5 * VERTEX_SIZE + 3] as number) * size
-    const row = v[b + 4] as number
-    const stepU = u1 > u0 ? 1 : -1
-    const stepV = v1 > v0 ? 1 : -1
-    const startU = stepU > 0 ? u0 : u0 - 1
-    const startV = stepV > 0 ? v0 : v0 - 1
+    const { startU, stepU, startV, stepV } = cellWalk(v, b)
+    const row = v[b + 8] as number
     for (let dy = 0; dy < TILE_SIZE; dy++) {
       const sy = y0 + dy
       if (sy < 0 || sy >= height) continue
@@ -176,25 +171,20 @@ export function drawObjects(out: Uint8Array, objects: SceneObjects, cam: Camera,
   const v = plan.vertices
   for (let q = 0; q < plan.quadCount; q++) {
     const b = q * OBJECT_VERTICES_PER_QUAD * OBJECT_VERTEX_SIZE
-    const last = b + 5 * OBJECT_VERTEX_SIZE
     const x0 = (v[b] as number) + originX
     const y0 = (v[b + 1] as number) + originY
-    const x1 = (v[last] as number) + originX
-    const y1 = (v[last + 1] as number) + originY
-    const u0 = Math.round((v[b + 2] as number) * size)
-    const v0 = Math.round((v[b + 3] as number) * size)
-    const u1 = Math.round((v[last + 2] as number) * size)
-    const row = v[b + 4] as number
-    const page = atlas.pages[v[b + 5] as number] as Uint8Array
-    const owner = v[b + 6] as number
+    const w = Math.abs(v[b + 6] as number)
+    const h = Math.abs(v[b + 7] as number)
+    const { startU, stepU, startV, stepV } = cellWalk(v, b)
+    const row = v[b + 8] as number
+    const page = atlas.pages[v[b + 9] as number] as Uint8Array
+    const owner = v[b + 10] as number
     const object = plan.quadObjects[q] as number
-    const stepU = u1 > u0 ? 1 : -1
-    const startU = stepU > 0 ? u0 : u0 - 1
-    for (let dy = 0; dy < y1 - y0; dy++) {
+    for (let dy = 0; dy < h; dy++) {
       const sy = y0 + dy
       if (sy < 0 || sy >= height) continue
-      const ty = v0 + dy
-      for (let dx = 0; dx < x1 - x0; dx++) {
+      const ty = startV + stepV * dy
+      for (let dx = 0; dx < w; dx++) {
         const sx = x0 + dx
         if (sx < 0 || sx >= width) continue
         const idx = page[ty * size + startU + stepU * dx] as number

@@ -224,6 +224,8 @@ origin and properties delivered like Lively.
 - [X] T071 Run `yarn build`, `yarn test`, `yarn verify all`; fix regressions; confirm `git status` shows no game files, packages or reports staged
 - [X] T072 Constitution compliance review: add "Compliance Review" table and deviations from this plan to `specs/004-platform-adapters/plan.md`; set spec status
 - [X] T073 Fix lines between tiles at fractional display scales (owner report after KDE acceptance): snap vertices to device pixels in `src/core/render/shaders.ts`, add `test/browser/fractional-scale.test.ts` and `yarn h3 render --scale`; record in research.md "Lines between tiles at fractional display scales"
+- [X] T074 Fix objects jumping by a device pixel at fractional scales (owner report, regression of T073): map every device pixel to the world pixel under its centre in `src/core/render/shaders.ts` (widened quads, cell-local coordinates, new vertex layout in `draw-plan.ts`/`object-plan.ts`/`software.ts`), vary synthetic frame crops, make `test/browser/fractional-scale.test.ts` compare with the nearest-neighbour upscale of scale 1; record in research.md "Pixel mapping at fractional display scales"
+- [X] T075 Relax the budget idle-cadence limit by one frame with animated content (`idleCadenceSlackFrames` in `src/core/data/thresholds.ts`, used by `tools/checks/budget/evaluate.ts`); record the measurements and the reason in research.md (T074 section)
 
 ---
 

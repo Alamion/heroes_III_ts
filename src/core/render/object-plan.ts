@@ -10,10 +10,11 @@ import type { RenderObject } from '../state/render-objects.ts'
 import { frameOf } from './animation.ts'
 import type { TileRange } from './camera.ts'
 import type { ObjectAtlasLayout } from './object-atlas.ts'
+import { QUAD_CORNERS } from './draw-plan.ts'
 import { compareObjects } from './object-order.ts'
 
-/** Floats per vertex: x, y, u, v, palette row, page, owner slot (0–7, 8 = neutral). */
-export const OBJECT_VERTEX_SIZE = 7
+/** Floats per vertex: the terrain layout (draw-plan.ts VERTEX_SIZE), then page and owner slot (0–7, 8 = neutral). */
+export const OBJECT_VERTEX_SIZE = 11
 export const OBJECT_VERTICES_PER_QUAD = 6
 
 export interface DrawListEntry {
@@ -74,7 +75,6 @@ export function buildObjectPlan(index: ObjectIndex, layout: ObjectAtlasLayout, l
   const missing = new Set<string>()
   const originX = range.x0 * TILE_SIZE
   const originY = range.y0 * TILE_SIZE
-  const size = layout.pageSize
   let q = 0
   let animated = false
   for (const i of ids) {
@@ -96,19 +96,19 @@ export function buildObjectPlan(index: ObjectIndex, layout: ObjectAtlasLayout, l
     const y0 = fullTop + cell.y
     const x1 = x0 + cell.width
     const y1 = y0 + cell.height
-    let u0 = cell.u / size
-    let u1 = (cell.u + cell.width) / size
-    const v0 = cell.v / size
-    const v1 = (cell.v + cell.height) / size
-    if (o.mirror) [u0, u1] = [u1, u0]
     const owner = o.owner ?? NEUTRAL_SLOT
-    const verts = [x0, y0, u0, v0, x1, y0, u1, v0, x0, y1, u0, v1, x0, y1, u0, v1, x1, y0, u1, v0, x1, y1, u1, v1]
     let p = q * OBJECT_VERTICES_PER_QUAD * OBJECT_VERTEX_SIZE
-    for (let k = 0; k < 6; k++) {
-      vertices[p++] = verts[k * 4] as number
-      vertices[p++] = verts[k * 4 + 1] as number
-      vertices[p++] = verts[k * 4 + 2] as number
-      vertices[p++] = verts[k * 4 + 3] as number
+    for (let k = 0; k < 12; k += 2) {
+      const lx = QUAD_CORNERS[k] as number
+      const ly = QUAD_CORNERS[k + 1] as number
+      vertices[p++] = lx === 0 ? x0 : x1
+      vertices[p++] = ly === 0 ? y0 : y1
+      vertices[p++] = lx * cell.width
+      vertices[p++] = ly * cell.height
+      vertices[p++] = cell.u
+      vertices[p++] = cell.v
+      vertices[p++] = o.mirror ? -cell.width : cell.width
+      vertices[p++] = cell.height
       vertices[p++] = sprite.row
       vertices[p++] = cell.page
       vertices[p++] = owner

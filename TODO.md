@@ -140,3 +140,7 @@ Research questions:
   harness now measures 1.8–2.7 s on test_map.h3m, Pandora's Box and the synthetic 252×252 map, the same as
   on `testing` before spec 004 — over the limit on some runs; the packages stay under it (web 0.6–1.1 s,
   Wallpaper Engine 1.6–1.7 s on test_map.h3m).
+- Frame cost after the fractional-scale fix (spec 004 T074/T075): object vertices grew from 7 to 11 floats
+  and are uploaded every object tick, +5–9 % main-thread time per frame under 4× CPU throttling; the
+  budget idle-cadence limit was relaxed by one frame instead. When optimising performance, slim the vertex
+  format (per-quad data once per quad) or upload only changed quads, then consider removing the slack.

@@ -18,10 +18,14 @@ export interface ObjectDefOptions {
   shadow?: boolean
 }
 
-/** One frame: a body inset from the full frame (so frames are stored cropped), animated by `i`. */
+/**
+ * One frame: a body inset from the full frame (so frames are stored cropped), animated by `i`. The
+ * inset changes from frame to frame, as in game sprites, so cropped frames of one animation start at
+ * different offsets (a renderer must not move them relative to each other).
+ */
 function objectFrame(o: ObjectDefOptions, group: number, i: number): SyntheticFrame {
-  const x0 = Math.min(4, Math.floor(o.width / 8))
-  const y0 = Math.min(6, Math.floor(o.height / 8))
+  const x0 = Math.min(4, Math.floor(o.width / 8)) + (i % 2)
+  const y0 = Math.min(6, Math.floor(o.height / 8)) + (i % 3)
   const width = o.width - x0
   const height = o.height - y0
   const px = new Uint8Array(width * height)

@@ -78,8 +78,9 @@ height); page count ≤ `MAX_OBJECT_PAGES` (6, one texture unit each) or `RangeE
 `ObjectPlan` = `{range, level, tick, vertices: Float32Array, pageRuns: {page, first, count}[],
 quadCount, animatedInView: boolean, entries: DrawListEntry[] (only when requested for inspection)}`.
 
-Vertex (7 floats): `x, y` (world px relative to range origin), `u, v`, `paletteRow`, `page`, `owner`
-(0–7, 8 = neutral). Quad of a frame: `left = (x+1)·32 − fullWidth + cell.x`, `top = (y+1)·32 −
+Vertex (11 floats since spec 004 T074, 7 before): `x, y` (world px relative to range origin), local
+`x, y` in the cell, cell top-left texel `u, v`, cell `width, height` (negative = mirrored), `paletteRow`,
+`page`, `owner` (0–7, 8 = neutral). Quad of a frame: `left = (x+1)·32 − fullWidth + cell.x`, `top = (y+1)·32 −
 fullHeight + cell.y`, mirrored horizontally inside the full frame when `mirror`.
 
 **State transitions**: rebuilt when the level changes, the view leaves the plan range, the tick

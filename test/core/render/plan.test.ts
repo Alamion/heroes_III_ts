@@ -107,9 +107,10 @@ describe('draw plan', () => {
     const flipMap = buildMap({ version: 'SoD', size: 4, underground: false, tile: (x) => [2, 1, 0, 0, 0, 0, x === 1 ? 1 : 0] })
     const plan = buildDrawPlan({ size: 4, levels: 1, terrain: flipMap.tiles }, atlas.layout, 0, { x0: 0, y0: 0, x1: 1, y1: 0 }, false)
     const quad = (q: number) => plan.vertices.subarray(q * VERTICES_PER_QUAD * VERTEX_SIZE, (q + 1) * VERTICES_PER_QUAD * VERTEX_SIZE)
-    // Same frame; the second tile is horizontally flipped (u0 > u1).
-    expect(quad(0)[2]).toBeLessThan(quad(0)[7] as number)
-    expect(quad(1)[2]).toBeGreaterThan(quad(1)[7] as number)
+    // Same frame; the second tile is horizontally flipped (negative cell width).
+    expect(quad(0)[6]).toBe(32)
+    expect(quad(1)[6]).toBe(-32)
+    expect([quad(1)[4], quad(1)[5], quad(1)[7]]).toEqual([quad(0)[4], quad(0)[5], quad(0)[7]])
     expect(plan.layerQuads).toEqual({ terrain: 2, river: 0, road: 0, border: 0 })
   })
 

@@ -44,8 +44,9 @@ export function entry(id: string, measured: number, limit: number, unit: string,
 
 export function evaluateMap(m: MapMeasurement): BudgetEntry[] {
   const maxSurface = m.display.width * m.display.dpr * m.display.height * m.display.dpr
-  // Visible changes happen at palette steps and object ticks (research.md §9): one frame per change.
-  const idleLimit = m.animatedInView ? Math.floor(m.idleWindowMs / Math.min(PALETTE_STEP_MS, OBJECT_FRAME_MS)) + 1 : 1
+  // Visible changes happen at palette steps and object ticks (research.md §9): one frame per change,
+  // plus a frame due before the window that a late animation frame presents inside it.
+  const idleLimit = m.animatedInView ? Math.floor(m.idleWindowMs / Math.min(PALETTE_STEP_MS, OBJECT_FRAME_MS)) + 1 + CHECK_THRESHOLDS.idleCadenceSlackFrames : 1
   return [
     entry('cold-start', m.coldStartMs, LIMITS.coldStartMs, 'ms', m.map),
     entry('warm-start', m.warmStartMs, LIMITS.warmStartMs, 'ms', m.map),

@@ -35,6 +35,13 @@ describe('budget evaluation', () => {
     expect(evaluateMap({ ...good, animatedInView: false, idleFrames: 2 }).find((b) => b.id === 'idle-cadence')?.status).toBe('fail')
   })
 
+  it('allows one late frame beyond the animation changes of an idle window', () => {
+    const cadence = (idleFrames: number) => evaluateMap({ ...good, idleWindowMs: 5023, idleFrames }).find((b) => b.id === 'idle-cadence')
+    expect(cadence(29)?.limit).toBe(29)
+    expect(cadence(29)?.status).toBe('pass')
+    expect(cadence(30)?.status).toBe('fail')
+  })
+
   it('limits the object atlas and counts object ticks in the idle cadence', () => {
     expect(evaluateMap({ ...good, objectAtlasBytes: 4 * 2048 * 2048 }).find((b) => b.id === 'object-atlas-bytes')?.status).toBe('pass')
     expect(evaluateMap({ ...good, objectAtlasBytes: 20 * 2048 * 2048 }).find((b) => b.id === 'object-atlas-bytes')?.status).toBe('fail')

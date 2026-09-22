@@ -32,14 +32,15 @@ describe('object plan', async () => {
     expect(a.entries?.[anim]?.frame).toBe((a.entries?.[anim]?.phase as number) % (a.entries?.[anim]?.frameCount as number))
   })
 
-  it('mirrors horizontally by swapping u', () => {
+  it('mirrors horizontally with a negative cell width', () => {
     const idx = small.objects.findIndex((o) => o.def === 'syntree.def')
     const mirrored = small.objects.map((o, i) => (i === idx ? { ...o, mirror: true } : o))
     const index = new ObjectIndex(mirrored, 36, 2)
     const plan = buildObjectPlan(index, small.atlas.layout, 0, range, 0, { drawList: true })
     const q = plan.entries?.findIndex((e) => e.index === idx) as number
     const b = q * 6 * OBJECT_VERTEX_SIZE
-    expect(plan.vertices[b + 2] as number).toBeGreaterThan(plan.vertices[b + OBJECT_VERTEX_SIZE + 2] as number)
+    expect(plan.vertices[b + 6] as number).toBeLessThan(0)
+    expect(plan.vertices[b + 7] as number).toBeGreaterThan(0)
   })
 
   it('includes objects anchored outside the range whose sprites reach into it', () => {

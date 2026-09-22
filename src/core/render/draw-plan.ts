@@ -6,9 +6,16 @@ import { rotationsFor } from '../data/palette-rotation.ts'
 import type { AtlasLayout, AtlasSprite } from './atlas.ts'
 import type { TileRange } from './camera.ts'
 
-/** Floats per vertex: x, y, u, v, palette row. */
-export const VERTEX_SIZE = 5
+/**
+ * Floats per vertex: x, y (corner, world pixels), local x, y (0 or the cell size), cell x, y (top-left
+ * texel in the atlas), cell width, height (negative = mirrored along that axis), palette row. The
+ * shaders map world pixels to texels from these (shaders.ts); the software rasterizer reads the same.
+ */
+export const VERTEX_SIZE = 9
 export const VERTICES_PER_QUAD = 6
+
+/** Corners of the two triangles of a quad as x, y pairs (0 = left/top, 1 = right/bottom); vertex 0 is top-left, 5 bottom-right. */
+export const QUAD_CORNERS: readonly number[] = [0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]
 
 export interface TerrainSource {
   size: number
@@ -62,23 +69,20 @@ export function borderFrame(x: number, y: number, size: number): number {
 function writeQuad(out: Float32Array, q: number, px: number, py: number, cell: number, layout: AtlasLayout, row: number, flipX: boolean, flipY: boolean): void {
   const cellX = (cell % layout.cellsPerRow) * TILE_SIZE
   const cellY = Math.floor(cell / layout.cellsPerRow) * TILE_SIZE
-  let u0 = cellX / layout.size
-  let u1 = (cellX + TILE_SIZE) / layout.size
-  let v0 = cellY / layout.size
-  let v1 = (cellY + TILE_SIZE) / layout.size
-  if (flipX) [u0, u1] = [u1, u0]
-  if (flipY) [v0, v1] = [v1, v0]
-  const x0 = px
-  const y0 = py
-  const x1 = px + TILE_SIZE
-  const y1 = py + TILE_SIZE
-  const verts = [x0, y0, u0, v0, x1, y0, u1, v0, x0, y1, u0, v1, x0, y1, u0, v1, x1, y0, u1, v0, x1, y1, u1, v1]
+  const w = flipX ? -TILE_SIZE : TILE_SIZE
+  const h = flipY ? -TILE_SIZE : TILE_SIZE
   let o = q * VERTICES_PER_QUAD * VERTEX_SIZE
-  for (let i = 0; i < 6; i++) {
-    out[o++] = verts[i * 4] as number
-    out[o++] = verts[i * 4 + 1] as number
-    out[o++] = verts[i * 4 + 2] as number
-    out[o++] = verts[i * 4 + 3] as number
+  for (let k = 0; k < 12; k += 2) {
+    const lx = QUAD_CORNERS[k] as number
+    const ly = QUAD_CORNERS[k + 1] as number
+    out[o++] = px + lx * TILE_SIZE
+    out[o++] = py + ly * TILE_SIZE
+    out[o++] = lx * TILE_SIZE
+    out[o++] = ly * TILE_SIZE
+    out[o++] = cellX
+    out[o++] = cellY
+    out[o++] = w
+    out[o++] = h
     out[o++] = row
   }
 }

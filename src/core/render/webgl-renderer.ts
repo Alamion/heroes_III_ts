@@ -55,7 +55,7 @@ interface ObjectResources {
   vertexBuffer: WebGLBuffer
   bufferQuads: number
   gpuBytes: number
-  attrs: { position: number; uv: number; row: number; page: number; owner: number }
+  attrs: { position: number; local: number; cell: number; row: number; page: number; owner: number }
   loc: { translate: WebGLUniformLocation; viewport: WebGLUniformLocation; scale: WebGLUniformLocation; flags: WebGLUniformLocation; mode: WebGLUniformLocation }
   /** Surface-sized colour and shadow-count targets and the resolve program (research.md T046). */
   targets: { width: number; height: number; color: WebGLTexture; colorFb: WebGLFramebuffer; shadow: WebGLTexture; shadowFb: WebGLFramebuffer } | undefined
@@ -70,7 +70,8 @@ interface GlResources {
   bufferQuads: number
   loc: {
     position: number
-    uv: number
+    local: number
+    cell: number
     row: number
     translate: WebGLUniformLocation
     viewport: WebGLUniformLocation
@@ -295,12 +296,15 @@ export class TerrainRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, res.vertexBuffer)
     this.disableAttributes()
     const stride = VERTEX_SIZE * 4
+    // Layout: draw-plan.ts VERTEX_SIZE.
     gl.enableVertexAttribArray(res.loc.position)
     gl.vertexAttribPointer(res.loc.position, 2, gl.FLOAT, false, stride, 0)
-    gl.enableVertexAttribArray(res.loc.uv)
-    gl.vertexAttribPointer(res.loc.uv, 2, gl.FLOAT, false, stride, 8)
+    gl.enableVertexAttribArray(res.loc.local)
+    gl.vertexAttribPointer(res.loc.local, 2, gl.FLOAT, false, stride, 8)
+    gl.enableVertexAttribArray(res.loc.cell)
+    gl.vertexAttribPointer(res.loc.cell, 4, gl.FLOAT, false, stride, 16)
     gl.enableVertexAttribArray(res.loc.row)
-    gl.vertexAttribPointer(res.loc.row, 1, gl.FLOAT, false, stride, 16)
+    gl.vertexAttribPointer(res.loc.row, 1, gl.FLOAT, false, stride, 32)
     gl.uniform2f(res.loc.translate, translate[0], translate[1])
     gl.uniform2f(res.loc.viewport, cam.width, cam.height)
     gl.uniform1f(res.loc.scale, cam.scale)
@@ -324,11 +328,13 @@ export class TerrainRenderer {
       gl.enableVertexAttribArray(loc)
       gl.vertexAttribPointer(loc, n, gl.FLOAT, false, stride, offset)
     }
+    // Layout: object-plan.ts OBJECT_VERTEX_SIZE.
     attr(a.position, 2, 0)
-    attr(a.uv, 2, 8)
-    attr(a.row, 1, 16)
-    attr(a.page, 1, 20)
-    attr(a.owner, 1, 24)
+    attr(a.local, 2, 8)
+    attr(a.cell, 4, 16)
+    attr(a.row, 1, 32)
+    attr(a.page, 1, 36)
+    attr(a.owner, 1, 40)
     gl.uniform2f(res.loc.translate, translate[0], translate[1])
     gl.uniform2f(res.loc.viewport, cam.width, cam.height)
     gl.uniform1f(res.loc.scale, cam.scale)
@@ -441,6 +447,7 @@ export class TerrainRenderer {
     for (let i = 0; i < MAX_OBJECT_PAGES; i++) gl.uniform1i(uniform(`u_page${i}`), i)
     gl.uniform1i(uniform('u_palette'), MAX_OBJECT_PAGES)
     gl.uniform1f(uniform('u_rows'), Math.max(1, layout.rowCount))
+    gl.uniform1f(uniform('u_pageSize'), layout.pageSize)
     const res: ObjectResources = {
       program,
       pages,
@@ -450,7 +457,8 @@ export class TerrainRenderer {
       gpuBytes: objectAtlasGpuBytes(layout),
       attrs: {
         position: gl.getAttribLocation(program, 'a_position'),
-        uv: gl.getAttribLocation(program, 'a_uv'),
+        local: gl.getAttribLocation(program, 'a_local'),
+        cell: gl.getAttribLocation(program, 'a_cell'),
         row: gl.getAttribLocation(program, 'a_row'),
         page: gl.getAttribLocation(program, 'a_page'),
         owner: gl.getAttribLocation(program, 'a_owner'),
@@ -579,7 +587,8 @@ export class TerrainRenderer {
       bufferQuads: 0,
       loc: {
         position: gl.getAttribLocation(program, 'a_position'),
-        uv: gl.getAttribLocation(program, 'a_uv'),
+        local: gl.getAttribLocation(program, 'a_local'),
+        cell: gl.getAttribLocation(program, 'a_cell'),
         row: gl.getAttribLocation(program, 'a_row'),
         translate: uniform('u_translate'),
         viewport: uniform('u_viewport'),
@@ -593,6 +602,7 @@ export class TerrainRenderer {
     gl.uniform1i(res.loc.atlas, 0)
     gl.uniform1i(res.loc.palette, 1)
     gl.uniform1f(res.loc.rows, atlas.layout.rowCount)
+    gl.uniform1f(uniform('u_atlasSize'), size)
     gl.enable(gl.BLEND)
     gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ZERO, gl.ONE)
     gl.disable(gl.DEPTH_TEST)

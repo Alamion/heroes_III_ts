@@ -303,11 +303,19 @@ After that, terrain matched exactly.
 
 ### Crisp pixels at fractional display scales
 
-On KDE at 150 % scaling, thin lines appeared between tiles. With `NEAREST` sampling, a quad edge
-landing exactly on a device-pixel centre sampled the neighbouring atlas cell. The vertex shader
-([shaders.ts](../src/core/render/shaders.ts)) now snaps positions to whole device pixels. A browser
-test renders at 1.25, 1.5 and 1.75: 1 945 wrong pixels at 1.5 before the fix, 0 after, and scale-1
-renders unchanged.
+On KDE at 150 % scaling, thin lines appeared between tiles: with `NEAREST` sampling, a quad edge
+landing exactly on a device-pixel centre sampled the neighbouring atlas cell. The first fix snapped
+vertices to whole device pixels, which made animated objects jump by a device pixel: a snapped quad
+maps texels to device rows depending on where it starts, and cropped animation frames start at
+different offsets.
+
+The shaders ([shaders.ts](../src/core/render/shaders.ts)) now make every device pixel show the world
+pixel under its centre, `floor((p + 0.5) / scale + offset)`, exactly a nearest-neighbour upscale of the
+scale-1 image. Vertices carry the cell's texel origin and size and a local coordinate; quads are widened
+by half a world pixel, and the fragment shader picks the texel from the local coordinate and discards
+pixels outside the cell. A browser test compares renders at 1.25, 1.5 and 1.75 with the upscaled scale-1
+render over several animation ticks (0 wrong pixels; the snapping version had tens of thousands), and
+scale-1 renders are unchanged.
 
 ---
 
