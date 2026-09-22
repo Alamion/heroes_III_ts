@@ -1,11 +1,14 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.2.0 → 1.3.0
-Bump rationale: MINOR — Principle II gains a second, clearly separated reference baseline for HotA
-content and its scope order is corrected to the owner's decision; "Technical Constraints & Budgets"
-gains the HotA case. The Complete edition remains the only baseline for base-game content, so no
-existing rule is weakened.
+Version change: 1.3.0 → 1.3.1
+Bump rationale (1.3.1, PATCH): the HotA budget numbers reserved by 1.3.0 are filled in from the
+measurement of spec 005 T075. No rule changes.
+
+Bump rationale (1.3.0, MINOR): Principle II gains a second, clearly separated reference baseline for
+HotA content and its scope order is corrected to the owner's decision; "Technical Constraints &
+Budgets" gains the HotA case. The Complete edition remains the only baseline for base-game content,
+so no existing rule is weakened.
 
 Modified principles:
   II. Fidelity to the Complete Edition — HotA content gets its own baseline, captured from the HotA
@@ -21,8 +24,7 @@ Templates / dependent files:
   ✅ .specify/templates/*.md — no constitution-specific slots; no edit needed
   ✅ AGENTS.md — updated with the HotA facts and commands in the same feature
   ✅ specs/005-hota-support/ — plan Constitution Check and research R13/R16 already assume this
-  ⚠ HotA budget numbers are measured by spec 005 task T075 and recorded here by a PATCH amendment
-     when that measurement lands.
+  ✅ HotA budget numbers measured (spec 005 T075) and recorded below.
 
 Previous amendment (1.1.0 → 1.2.0, 2026-09-17): documentation screenshots exception under docs/img/.
 Previous amendment (1.0.0 → 1.1.0, 2026-09-13): baseline run under plain Wine from a local install
@@ -30,7 +32,6 @@ instead of GOG + Heroic/Proton; HotA map editor allowed for placement-only captu
 
 Deferred TODOs:
   - Budget numbers in "Technical Constraints & Budgets" remain initial targets (unchanged).
-  - The HotA case budget numbers are pending the measurement of spec 005 T075.
 -->
 
 # heroes_iii_dynam Constitution
@@ -213,13 +214,18 @@ make saves, HotA, and interactivity additive instead of rewrites.
   - While hidden/paused: 0 rendered frames, no animation timers running.
   - While visible and idle (only ambient animation): frame production limited to the original
     game's animation cadence.
-- **HotA case** (spec 005): the same budgets are measured separately with a HotA archive set (a
-  ~111 MB obfuscated archive on top of the base archives) and a 252×252 two-level HotA map. Its
-  numbers — cold start, decode-cache size and total memory — MUST be measured, recorded here by
-  amendment, and enforced by the budget check. Until they are recorded, a HotA measurement MUST be
-  reported, not silently accepted. The base-game budgets above are unchanged and keep gating the
-  base-game case. Structural rules (GPU surface, zero frames while hidden, idle cadence) apply to
-  both cases unchanged.
+- **HotA case** (spec 005): the same budgets, measured separately with a HotA archive set (a
+  ~111 MB obfuscated archive on top of the base archives) and `test_map_hota.h3m`. Measured on
+  2026-09-23 at 1920×1080, DPR 1, under 4× CPU throttling: cold start 6.1 s, warm start 2.0 s,
+  memory 63 MB, object atlas 8.4 MB. The enforced numbers are therefore:
+  - Cold start ≤ 12 s and warm start ≤ 3 s — headroom over the base budgets, because the archive
+    is about twice the size of the base pair and its index is obfuscated.
+  - Total memory ≤ 300 MB: the base limit, unchanged.
+  - Object atlas ≤ 128 MB: the structural limit of six pages at the largest page size a GPU of the
+    minimum profile allows.
+  The base-game budgets above are unchanged and keep gating the base-game case, and the structural
+  rules (GPU surface, zero frames while hidden, idle cadence) apply to both cases unchanged. A HotA
+  measurement outside these numbers MUST fail the check, not be noted.
 - **Formats in scope now:** LOD (base game and HotA 1.8+, whose index is obfuscated), DEF, PCX,
   H3M RoE/AB/SoD and HotA (`0x20`). **Next:** Complete edition save files. **Later:** HotA saves,
   HotA truecolour sprites (D32/P32, interface art only — not needed for the adventure map).
@@ -254,4 +260,4 @@ make saves, HotA, and interactivity additive instead of rewrites.
 - **Compliance review:** at the end of each feature (before merge), re-check the Constitution
   Check in its plan against the actual implementation; record any accepted deviations there.
 
-**Version**: 1.3.0 | **Ratified**: 2026-09-13 | **Last Amended**: 2026-09-23
+**Version**: 1.3.1 | **Ratified**: 2026-09-13 | **Last Amended**: 2026-09-23

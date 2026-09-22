@@ -195,8 +195,8 @@ settings round-trip; with the setting unset, behaviour is exactly as today.
 
 - [X] T072 [US5] Add the `hotaarchive` file setting (type `file`, filter `*.lod`, default null) and its en/ru strings to `src/adapters/shared/settings.ts` and `strings.ts`, and pass it through `src/adapters/shared/controller.ts` to the engine (FR-025) (depends on T045)
 - [X] T073 [US5] Regenerate the host manifests from the single definition (`tools/package/manifests/{wallpaper-engine,lively,kde}.ts`) and surface the setting in the browser panel `src/adapters/web/panel.ts`; update the manifest tests in `test/tools/manifests.test.ts` (FR-025, SC-005) (depends on T072)
-- [ ] T074 [US5] Extend the host simulations in `tools/checks/hosts/` with a HotA archive plus HotA map run per host and an unset-setting run that must match today's behaviour (FR-026, SC-005) (depends on T073)
-- [ ] T075 [US5] Measure the HotA case in `tools/checks/budget/`: cold start with the HotA archive set, decode-cache size, memory and the 252×252 two-level HotA map; write the measured numbers into the constitution amendment of T065 and fail the check when a number is outside its approved budget (FR-027, SC-006) (depends on T065, T045)
+- [X] T074 [US5] Extend the host simulations in `tools/checks/hosts/` with a HotA archive plus HotA map run per host and an unset-setting run that must match today's behaviour (FR-026, SC-005) (depends on T073)
+- [X] T075 [US5] Measure the HotA case in `tools/checks/budget/`: cold start with the HotA archive set, decode-cache size, memory and the 252×252 two-level HotA map; write the measured numbers into the constitution amendment of T065 and fail the check when a number is outside its approved budget (FR-027, SC-006) (depends on T065, T045)
 
 **Checkpoint**: US5 is complete — the feature exists on every host, within approved budgets.
 

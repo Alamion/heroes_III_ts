@@ -489,6 +489,23 @@ Note for the implementation: `archiveIdentity` already hashes only the header an
 size does not affect identity cost; the decode cache and the 248 new terrain tiles are the parts to
 watch.
 
+**Measured (2026-09-23, T075)** at 1920×1080, DPR 1, under 4× CPU throttling, with the HotA archive
+set and `test_map_hota.h3m`:
+
+| | measured | enforced | base-game budget |
+| --- | --- | --- | --- |
+| cold start | 6.1 s | 12 s | 10 s |
+| warm start | 2.0 s | 3 s | 2 s |
+| memory (JS heap + GPU) | 63 MB | 300 MB | 300 MB |
+| object atlas | 8.4 MB | 128 MB | 64 MB |
+| hidden frames / timers | 0 / 0 | 0 / 0 | same |
+| idle cadence | 28 frames / 5020 ms | 29 | same |
+
+The case turned out far cheaper than feared: only the two start-up numbers need headroom, because the
+archive is about twice the size of the base pair and its index is obfuscated. Memory keeps the base
+limit. The atlas limit is structural — six pages at the largest page size the GPU allows — and the
+8.4 MB measured is with 4096² pages (R12a). Recorded in constitution 1.3.1.
+
 ---
 
 ## US3 verification (2026-09-23, T061–T064)

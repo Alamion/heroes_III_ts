@@ -13,15 +13,19 @@ export const LIMITS = {
 } as const
 
 /**
- * The HotA case (spec 005 FR-027, constitution 1.3.0): the same map budgets measured with a
- * ~111 MB obfuscated archive on top of the base archives. Filled from the first measurement, with
- * headroom, and recorded in the constitution; the base-game numbers above are unchanged.
+ * The HotA case (spec 005 FR-027, constitution 1.3.x): the same map budgets measured with a
+ * ~111 MB obfuscated archive on top of the base archives and `test_map_hota.h3m`.
+ *
+ * Measured on 2026-09-23 under 4x CPU throttling: cold start 6.1 s, warm start 2.0 s, memory
+ * 63 MB, object atlas 8.4 MB. Only the two start-up numbers get headroom over the base budgets,
+ * because the archive is about twice the size of the base pair; memory keeps the base limit, and
+ * the atlas limit is the structural one (six 4096² pages).
  */
 export const HOTA_LIMITS = {
   ...LIMITS,
-  coldStartMs: 20_000,
-  warmStartMs: 4_000,
-  memoryBytes: 450 * 1024 * 1024,
+  coldStartMs: 12_000,
+  warmStartMs: 3_000,
+  memoryBytes: LIMITS.memoryBytes,
   objectAtlasBytes: 128 * 1024 * 1024,
 } as const
 
