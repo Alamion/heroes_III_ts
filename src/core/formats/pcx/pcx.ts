@@ -2,6 +2,7 @@
 // width×height palette indices followed by a 768-byte palette, or width×height×3 BGR bytes.
 
 import { ByteReader } from '../../util/byte-reader.ts'
+import { FORMAT_ERROR_CODES, FormatError } from '../../util/errors.ts'
 
 export interface PcxImage {
   name: string
@@ -13,6 +14,17 @@ export interface PcxImage {
 }
 
 export function parsePcx(bytes: Uint8Array, name: string): PcxImage {
+  // HotA truecolour image (P32F), sometimes stored under a .pcx name; interface art only.
+  if (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x33 && bytes[2] === 0x32 && bytes[3] === 0x46) {
+    throw new FormatError({
+      code: FORMAT_ERROR_CODES.UNSUPPORTED_VERSION,
+      file: name,
+      offset: 0,
+      format: 'pcx',
+      structure: 'header',
+      message: 'this is a HotA truecolour image (P32F), not a PCX; those hold interface art only',
+    })
+  }
   const r = new ByteReader(bytes, { file: name, format: 'pcx' })
   const { size, width, height } = r.scope('header', () => ({ size: r.u32(), width: r.u32(), height: r.u32() }))
   if (width > 8192 || height > 8192) r.invalid(`image size ${width}x${height} too large`, 4)

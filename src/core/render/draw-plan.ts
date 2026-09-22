@@ -1,7 +1,7 @@
 // Draw plan (research.md §6): for a tile range, the quads of the terrain, river, road and border
 // layers. Pure and DOM-free so it is testable in Node; its size depends on the range only.
 
-import { BORDER_DEF, riverDef, roadDef, ROAD_OFFSET_Y, terrainDef, TILE_FLAGS, TILE_SIZE } from '../data/terrain.ts'
+import { BORDER_DEF, riverDef, roadDef, ROAD_OFFSET_Y, terrainSpriteName, TILE_FLAGS, TILE_SIZE } from '../data/terrain.ts'
 import { rotationsFor } from '../data/palette-rotation.ts'
 import type { AtlasLayout, AtlasSprite } from './atlas.ts'
 import type { TileRange } from './camera.ts'
@@ -110,6 +110,8 @@ export function buildDrawPlan(src: TerrainSource, layout: AtlasLayout, level: nu
     if (c === undefined) warnings.push(`${sprite.name}: view index ${view} missing at (${x},${y},${level})`)
     return c
   }
+  /** HotA terrain tiles carry a palette each, so the row depends on the view index. */
+  const rowFor = (sprite: AtlasSprite, view: number): number => sprite.rows?.[view] ?? sprite.row
   const markAnimated = (sprite: AtlasSprite, x: number, y: number) => {
     if (rotationsFor(sprite.name).length === 0) return
     animated.add(sprite.row)
@@ -127,11 +129,12 @@ export function buildDrawPlan(src: TerrainSource, layout: AtlasLayout, level: nu
         const px = (x - range.x0) * TILE_SIZE
         const py = (y - range.y0) * TILE_SIZE
         if (layer === 'terrain') {
-          const sprite = spriteFor(terrainDef(t[o] as number))
+          const sprite = spriteFor(terrainSpriteName(t[o] as number))
           if (sprite === undefined) continue
-          const cell = cellFor(sprite, t[o + 1] as number, x, y)
+          const view = t[o + 1] as number
+          const cell = cellFor(sprite, view, x, y)
           if (cell === undefined) continue
-          writeQuad(vertices, q++, px, py, cell, layout, sprite.row, (flags & TILE_FLAGS.terrainFlipX) !== 0, (flags & TILE_FLAGS.terrainFlipY) !== 0)
+          writeQuad(vertices, q++, px, py, cell, layout, rowFor(sprite, view), (flags & TILE_FLAGS.terrainFlipX) !== 0, (flags & TILE_FLAGS.terrainFlipY) !== 0)
           layers.terrain++
           markAnimated(sprite, x, y)
         } else if (layer === 'river') {

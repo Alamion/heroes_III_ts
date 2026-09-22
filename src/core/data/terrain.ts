@@ -82,6 +82,13 @@ export function terrainDef(id: number): string | undefined {
   return TERRAINS.find((t) => t.id === id)?.defName
 }
 
+/** Atlas sprite name of a terrain: the DEF name, or the tile-set prefix for a HotA terrain. */
+export function terrainSpriteName(id: number): string | undefined {
+  const source = terrainSource(id)
+  if (source === undefined) return undefined
+  return source.kind === 'def' ? source.defName : source.prefix
+}
+
 export function riverDef(id: number): string | undefined {
   return RIVERS.find((t) => t.id === id)?.defName
 }

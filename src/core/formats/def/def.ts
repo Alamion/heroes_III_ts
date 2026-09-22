@@ -54,6 +54,18 @@ const MAX_FRAMES = 65_536
 const MAX_DIM = 4096
 
 export function parseDef(bytes: Uint8Array, name: string): DefSprite {
+  // HotA stores some interface art as truecolour sprites, sometimes under a .def name. They are
+  // not used on the adventure map (spec 005 research M7), so they get a clear error, not a guess.
+  if (bytes.length >= 4 && bytes[0] === 0x44 && bytes[1] === 0x33 && bytes[2] === 0x32 && bytes[3] === 0x46) {
+    throw new FormatError({
+      code: FORMAT_ERROR_CODES.UNSUPPORTED_VERSION,
+      file: name,
+      offset: 0,
+      format: 'def',
+      structure: 'header',
+      message: 'this is a HotA truecolour sprite (D32F), not a palette DEF; those hold interface art only',
+    })
+  }
   const r = new ByteReader(bytes, { file: name, format: 'def' })
   const { type, fullWidth, fullHeight, groupCount } = r.scope('header', () => ({
     type: r.u32(),
@@ -128,10 +140,15 @@ function readFrameHeader(bytes: Uint8Array, file: string, offset: number): DefFr
     if (x < 0 || y < 0 || x + width > fullWidth || y + height > fullHeight) {
       r.invalid(`frame rect ${x},${y} ${width}x${height} outside full size ${fullWidth}x${fullHeight}`, offset + 16)
     }
-    if (dataOffset + size > bytes.length) {
-      r.fail(FORMAT_ERROR_CODES.TRUNCATED, `frame data ${dataOffset}+${size} beyond end (${bytes.length})`, offset)
+    let dataSize = size
+    if (dataOffset + dataSize > bytes.length) {
+      // HotA packer quirk (spec 005): in 30 of the archive's 1838 DEFs the size field counts the
+      // 32-byte frame header, so the last frame appears to overrun the file by exactly 32 bytes.
+      // Only that exact interpretation is accepted; anything else is still a truncated file.
+      if (offset + size === bytes.length) dataSize = size - (dataOffset - offset)
+      else r.fail(FORMAT_ERROR_CODES.TRUNCATED, `frame data ${dataOffset}+${size} beyond end (${bytes.length})`, offset)
     }
-    return { offset, size, compression: compression as 0 | 1 | 2 | 3, fullWidth, fullHeight, width, height, x, y, dataOffset }
+    return { offset, size: dataSize, compression: compression as 0 | 1 | 2 | 3, fullWidth, fullHeight, width, height, x, y, dataOffset }
   })
 }
 

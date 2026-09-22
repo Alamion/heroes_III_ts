@@ -98,10 +98,10 @@ the underground novelty zone with `yarn h3 render`; the report shows zero unreso
 ### Terrain
 
 - [X] T033 [P] [US1] Add the per-terrain sprite source (`def` or `tiles`) and terrain ids 10 Highlands / 11 Wasteland with 124 tiles each to `src/core/data/terrain.ts`, leaving the ten existing terrains on their DEF source (FR-011)
-- [ ] T034 [US1] Accept decoded PCX tiles as atlas inputs beside DEF frames in `src/core/render/atlas.ts`, keeping `toDisplayColor` and the page budget unchanged (FR-011) (depends on T033)
-- [ ] T035 [US1] Load a terrain tile set through the archive set in `src/runtime/decode.ts` (`<prefix>000…123.pcx`) and feed it to the atlas (depends on T034, T014)
-- [ ] T036 [P] [US1] Add a synthetic 124-tile PCX terrain set to `test/fixtures/synthetic/terrain-archive.ts` and unit-test tile selection, mirroring and the out-of-range tile error in `test/core/render/terrain-tiles.test.ts` (depends on T035)
-- [ ] T037 [US1] Verify the palette rotation ranges against HotA's `game.pal` and record the result in `src/core/data/palette-rotation.ts` (a difference becomes a data entry, never a code branch) (FR-014)
+- [X] T034 [US1] Accept decoded PCX tiles as atlas inputs beside DEF frames in `src/core/render/atlas.ts`, keeping `toDisplayColor` and the page budget unchanged (FR-011) (depends on T033)
+- [X] T035 [US1] Load a terrain tile set through the archive set in `src/runtime/decode.ts` (`<prefix>000…123.pcx`) and feed it to the atlas (depends on T034, T014)
+- [X] T036 [P] [US1] Add a synthetic 124-tile PCX terrain set to `test/fixtures/synthetic/terrain-archive.ts` and unit-test tile selection, mirroring and the out-of-range tile error in `test/core/render/terrain-tiles.test.ts` (depends on T035)
+- [X] T037 [US1] Verify the palette rotation ranges against HotA's `game.pal` and record the result in `src/core/data/palette-rotation.ts` (a difference becomes a data entry, never a code branch) (FR-014)
 
 ### Towns, heroes, sprite conventions
 
@@ -115,10 +115,10 @@ the underground novelty zone with `yarn h3 render`; the report shows zero unreso
 
 ### Wiring and diagnostics
 
-- [ ] T045 [US1] Accept an optional HotA archive blob in `src/runtime/engine.ts` and build the archive set with it in front (depends on T014)
-- [ ] T046 [US1] Count and report unresolved object classes (class, subtype, DEF name, map position) instead of drawing them, and mark them visibly in the dev harness only, in `src/core/state/render-objects.ts` and `src/adapters/dev-harness/` (FR-017) (depends on T045)
-- [ ] T047 [US1] Report a clear diagnostic naming the missing HotA archive when a HotA map is loaded without one, in `src/adapters/shared/controller.ts` and `src/adapters/shared/strings.ts` (en/ru) (SC-007)
-- [ ] T048 [P] [US1] Report format, sub-version, HotA version triple and script-section state in `yarn h3 map info`, and HotA subtypes in `map objects|object|tiles|tile`, in `tools/inspect/` (FR-019)
+- [X] T045 [US1] Accept an optional HotA archive blob in `src/runtime/engine.ts` and build the archive set with it in front (depends on T014)
+- [X] T046 [US1] Count and report unresolved object classes (class, subtype, DEF name, map position) instead of drawing them, and mark them visibly in the dev harness only, in `src/core/state/render-objects.ts` and `src/adapters/dev-harness/` (FR-017) (depends on T045)
+- [X] T047 [US1] Report a clear diagnostic naming the missing HotA archive when a HotA map is loaded without one, in `src/adapters/shared/controller.ts` and `src/adapters/shared/strings.ts` (en/ru) (SC-007)
+- [X] T048 [P] [US1] Report format, sub-version, HotA version triple and script-section state in `yarn h3 map info`, and HotA subtypes in `map objects|object|tiles|tile`, in `tools/inspect/` (FR-019)
 - [ ] T049 [US1] Load a HotA archive in the dev harness (`src/adapters/dev-harness/index.html` and its script) so `yarn dev` can open `test_map_hota.h3m` (depends on T045)
 - [ ] T050 [US1] Add a real-file test in `test/real/hota-render.test.ts` that renders the underground novelty zone and a surface region of `test_map_hota.h3m` and asserts zero unresolved objects, skipping when the files are absent (FR-011, FR-012, FR-016, SC-002) (depends on T046, T035, T043)
 

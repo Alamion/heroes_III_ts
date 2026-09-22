@@ -217,9 +217,17 @@ while the copy in the install's `Maps` folder is sub-version 10.
   in palette indices 2 and 3 (index 3 behaving like base index 1, index 2 like base index 4) and 11
   DEFs whose player-flag colour sits at index 255 instead of 5, plus one DEF whose index 5 must not
   be made transparent. The tool keys these by **file name**, not by archive or heuristic.
-- **D32/P32**: the archive holds 49 `.d32` and 2 `.p32` entries and every one is interface or
-  tutorial art (`tut*`, campaign screens, `spelsphr`, `fr32_67.p32`, `spellbe.p32`) — no `av*`,
-  `ah*`, terrain or town entry. They are not used on the adventure map.
+- **D32/P32**: corrected while implementing (2026-09-23). Counting by *extension* undercounts
+  them: by content magic the archive holds **74 `D32F` and 269 `P32F`** entries, many stored under
+  a `.def` or `.pcx` name (`artifact.def`, `couatl.def`, `hpl*.pcx`, `bobu*.pcx`, `cmbk*.pcx`, …).
+  The conclusion is unchanged and now rests on a full sweep: **none of them has an adventure-map
+  name** (`av*`/`ah*`), so the map renderer needs no truecolour decoder. Both parsers now report
+  the magic with a typed "interface art only" error instead of a confusing layout failure.
+- **DEF packer quirk**: 30 of the archive's 1838 `.def` entries — including adventure-map sprites
+  such as `avlhpn07`–`avlhpn11` (Highlands pines) and `ahplace.def` — declare a last-frame size
+  that counts the 32-byte frame header, so the frame appears to overrun the file by exactly 32
+  bytes. Accepting that one alternative reading (and only when it fits the file exactly) makes all
+  **1813 palette DEFs decode**; anything else still fails as truncated.
 - **`HotA.dat`**: an `HDAT` container of name/description/localisation strings used by the editor;
   it holds no sprites and no map data.
 
@@ -381,6 +389,27 @@ re-checked against the HotA palette during implementation.
 - **`EdObjts.txt`**: an editor-only table in a different, undocumented shape (no count line, mixed
   field counts, comments) with no established rendering role (M1).
 - **HotA saves, random-map templates and campaigns**: later roadmap items.
+
+### R12a — Object atlas page size (added 2026-09-23)
+
+**Decision**: the object atlas page size is chosen from the GPU's `MAX_TEXTURE_SIZE`, clamped to
+2048–4096, instead of being fixed at the 2048 that WebGL 1.0 guarantees. The size is part of the
+decode-cache identity.
+
+**Rationale**: measured — `test_map_hota.h3m` needs 4610 object frames and 29.3 M sprite pixels,
+while six 2048² pages hold 25.2 M, so the object layer failed outright with `OBJECT_ATLAS_OVERFLOW`.
+Six 4096² pages hold 100 M and leave headroom for the 252×252 HotA map. The page count stays 6
+because WebGL 1.0 guarantees only 8 texture units (6 pages + palette + terrain).
+
+**Alternatives considered**: raising the page count to 7 (rejected: it would use the last guaranteed
+texture unit and still only just fits this one map); dropping sprites that do not fit and reporting
+them as unresolved (rejected as the primary answer: it would fail the spec's "zero unresolved
+objects" bar for the owner's own check map, though it remains the fallback if a map ever exceeds
+even the larger pages); scoping the atlas to the visible region (the proper long-term fix for
+constitution IV, but a renderer change well beyond this feature — recorded as a follow-up).
+
+**Follow-up**: a region-scoped object atlas is the only thing that makes object GPU memory
+independent of map size; until then the budget check must measure the HotA case (FR-027).
 
 ### R13 — Fidelity reference for HotA
 

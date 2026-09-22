@@ -1,8 +1,9 @@
 // Decoding work shared by the worker and the in-thread fallback: archive → terrain atlas, map →
 // world state, both cached by source identity.
 
-import { terrainLayerDefs, TERRAINS } from '../core/data/terrain.ts'
+import { HOTA_TERRAINS, terrainLayerDefs, terrainTileName, TERRAINS } from '../core/data/terrain.ts'
 import { parseDef } from '../core/formats/def/def.ts'
+import { parsePcx } from '../core/formats/pcx/pcx.ts'
 import { parseH3mFile } from '../core/formats/h3m/h3m.ts'
 import { ArchiveSet } from '../core/formats/lod/archive-set.ts'
 import { LodArchive } from '../core/formats/lod/lod.ts'
@@ -17,7 +18,7 @@ import { archiveIdentity, BlobSource, mapIdentity } from './file-source.ts'
 import type { WorkerDiagnostic } from './protocol.ts'
 import { flagColors } from '../core/data/players.ts'
 import { toDisplayColor } from '../core/render/atlas.ts'
-import { buildObjectAtlas } from '../core/render/object-atlas.ts'
+import { buildObjectAtlas, OBJECT_PAGE_SIZE } from '../core/render/object-atlas.ts'
 import type { ObjectAtlas } from '../core/render/object-atlas.ts'
 import { parseRiffPal } from '../core/formats/pal/riff-pal.ts'
 import { parseArtTraits } from '../core/formats/text/artraits.ts'
@@ -101,9 +102,27 @@ export async function decodeArchive(files: readonly ArchiveFile[], cache: Decode
   for (const defName of terrainLayerDefs()) {
     inputs.push({ def: parseDef(await lod.read(defName), defName), overlay: !TERRAINS.some((t) => t.defName === defName) })
   }
+  // HotA terrains ship as numbered PCX tiles and are appended, so the base-game rows and cells
+  // keep the values they had before (spec 005 FR-011, US3).
+  const hotaWarnings: WorkerDiagnostic[] = []
+  for (const terrain of HOTA_TERRAINS) {
+    if (!lod.has(terrainTileName(terrain.prefix, 0))) continue
+    const tiles = []
+    let missing = false
+    for (let i = 0; i < terrain.count; i++) {
+      const tileName = terrainTileName(terrain.prefix, i)
+      if (!lod.has(tileName)) {
+        missing = true
+        hotaWarnings.push({ level: 'warn', code: 'MISSING_TERRAIN_TILE', message: `${terrain.name} tile ${tileName} is missing; the terrain is not drawn`, file: name })
+        break
+      }
+      tiles.push(parsePcx(await lod.read(tileName), tileName))
+    }
+    if (!missing) inputs.push({ tileSet: { name: terrain.prefix, tiles }, overlay: false })
+  }
   const atlas = buildAtlas(inputs)
   await cache.put('atlas', key, atlas)
-  return { identity, atlas, fromCache: false, warnings: setWarnings(lod, name) }
+  return { identity, atlas, fromCache: false, warnings: [...setWarnings(lod, name), ...hotaWarnings] }
 }
 
 /** Files of the data archive (h3bitmap.lod) the object layer needs. */
@@ -143,8 +162,10 @@ export async function decodeObjects(
   map: { world: WorldState; identity: string },
   seed: number,
   cache: DecodedCache,
+  pageSize = OBJECT_PAGE_SIZE,
 ): Promise<ObjectsResult> {
-  const identity = `${sprites.identity}:${data.identity}:${map.identity}:${seed}`
+  // The page size is part of the identity: a cached atlas was packed for one page size.
+  const identity = `${sprites.identity}:${data.identity}:${map.identity}:${seed}:${pageSize}`
   const key = cacheKey('objects', identity)
   const cached = await cache.get<Omit<ObjectsResult, 'fromCache' | 'identity'>>('objects', key)
   if (cached !== undefined) return { ...cached, identity, fromCache: true }
@@ -164,10 +185,10 @@ export async function decodeObjects(
   const warnings: WorkerDiagnostic[] = missing.length === 0 ? [] : [{ level: 'warn', code: 'MISSING_SPRITE', message: `sprites not found in ${spritesName}, objects skipped: ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ', …' : ''}`, file: spritesName }]
   let atlas: ObjectAtlas
   try {
-    atlas = buildObjectAtlas(defs)
+    atlas = buildObjectAtlas(defs, pageSize)
   } catch (err) {
     if (!(err instanceof RangeError)) throw err
-    return { identity, objects: [], atlas: buildObjectAtlas([]), flagColors: new Uint8Array(27), fromCache: false, warnings: [...warnings, { level: 'error', code: 'OBJECT_ATLAS_OVERFLOW', message: err.message, file: map.world.map.name }] }
+    return { identity, objects: [], atlas: buildObjectAtlas([], pageSize), flagColors: new Uint8Array(27), fromCache: false, warnings: [...warnings, { level: 'error', code: 'OBJECT_ATLAS_OVERFLOW', message: err.message, file: map.world.map.name }] }
   }
   const result = { objects, atlas, flagColors: flagColors({ 'game.pal': pal }, toDisplayColor), warnings }
   await cache.put('objects', key, result)

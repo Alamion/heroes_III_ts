@@ -47,7 +47,7 @@ class FakeEngine implements ControllerEngine {
   forgetCache = async () => void this.forgot++
   onStatus = (l: (s: EngineStatus) => void) => ((this.statusListener = l), () => true)
   emitDiagnostic(code: string) {
-    this.statusListener?.({ state: 'ready', archive: null, dataArchive: null, map: null, diagnostics: [{ level: 'warn', code, message: code }] })
+    this.statusListener?.({ state: 'ready', archive: null, dataArchive: null, hotaArchive: null, map: null, diagnostics: [{ level: 'warn', code, message: code }] })
   }
   stats = () => ({ paused: this.paused, visible: this.visible }) as unknown as EngineStats
 }

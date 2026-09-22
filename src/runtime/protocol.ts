@@ -27,6 +27,8 @@ export type WorkerRequest =
       /** The worker uses the world it decoded for this identity. */
       mapIdentity: string
       seed: number
+      /** Object atlas page size the renderer's GPU supports (spec 005). */
+      pageSize: number
       useCache: boolean
     }
 

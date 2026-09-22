@@ -61,8 +61,8 @@ scope.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     } else {
       const world = worlds.get(req.mapIdentity)
       if (world === undefined) throw new Error(`map ${req.mapIdentity} is not loaded in the worker`)
-      const r = await withDecodeLock(`objects:${req.sprites.identity}:${req.data.identity}:${req.mapIdentity}:${req.seed}`, () =>
-        decodeObjects(req.sprites, req.data, { world, identity: req.mapIdentity }, req.seed, cacheFor(req.useCache)),
+      const r = await withDecodeLock(`objects:${req.sprites.identity}:${req.data.identity}:${req.mapIdentity}:${req.seed}:${req.pageSize}`, () =>
+        decodeObjects(req.sprites, req.data, { world, identity: req.mapIdentity }, req.seed, cacheFor(req.useCache), req.pageSize),
       )
       // The cache stored its own structured clone (or this is a fresh clone read from it), so the
       // buffers can be transferred without copying 16 MB of pages.

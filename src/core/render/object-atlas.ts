@@ -7,7 +7,21 @@ import { decodeFrame } from '../formats/def/def.ts'
 import type { DefSprite } from '../formats/def/def.ts'
 import { toDisplayColor } from './atlas.ts'
 
+/** Page size WebGL 1.0 guarantees everywhere. */
 export const OBJECT_PAGE_SIZE = 2048
+
+/**
+ * Upper bound for the page size on GPUs that allow more. 4096 quadruples the sprite area a page
+ * holds, which is what a HotA map needs (spec 005): its object sprites do not fit into six 2048²
+ * pages. Larger pages are not used: the gain stops mattering and very large textures are slow to
+ * upload on the minimum hardware profile.
+ */
+export const MAX_OBJECT_PAGE_SIZE = 4096
+
+/** Page size for a context whose largest texture is `maxTextureSize`. */
+export function objectPageSize(maxTextureSize: number): number {
+  return Math.max(OBJECT_PAGE_SIZE, Math.min(MAX_OBJECT_PAGE_SIZE, 2 ** Math.floor(Math.log2(maxTextureSize))))
+}
 /**
  * Pages are bound to texture units 0–5 of one draw call (the palette uses unit 6); WebGL 1.0
  * guarantees 8 fragment texture units.

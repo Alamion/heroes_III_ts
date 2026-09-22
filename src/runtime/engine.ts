@@ -21,6 +21,7 @@ import { log } from '../core/util/log.ts'
 import type { Logger } from './logger.ts'
 import { installLogger } from './logger.ts'
 import { openCache } from './cache.ts'
+import { objectPageSize } from '../core/render/object-atlas.ts'
 import { checkDataArchive, decodeArchive, decodeMap, decodeObjects } from './decode.ts'
 import type { ArchiveFileMsg, WorkerDiagnostic, WorkerRequest, WorkerResponse } from './protocol.ts'
 import { FrameScheduler } from './scheduler.ts'
@@ -62,6 +63,8 @@ export interface EngineStatus {
   state: 'idle' | 'loading' | 'ready' | 'error'
   archive: string | null
   dataArchive: string | null
+  /** Name of the loaded HotA archive, if any (spec 005). */
+  hotaArchive: string | null
   map: string | null
   diagnostics: Diagnostic[]
 }
@@ -79,6 +82,12 @@ export interface EngineStats extends RendererStats {
 
 export interface Engine {
   loadArchive(file: Blob, name?: string): Promise<LoadResult>
+  /**
+   * HotA archive (spec 005). It goes in front of every archive set, so it overrides base-game
+   * entries and supplies the HotA terrains, towns and objects. Loading it re-decodes whatever is
+   * already loaded, so the order the host calls the loaders in does not matter.
+   */
+  loadHotaArchive(file: Blob, name?: string): Promise<LoadResult>
   loadMap(file: Blob, name?: string): Promise<LoadResult>
   /** h3bitmap.lod: Objects.txt, artraits.txt and game.pal; objects are drawn only with it. */
   loadDataArchive(file: Blob, name?: string): Promise<LoadResult>
@@ -145,7 +154,7 @@ export function createEngine(options: EngineOptions): Engine {
   const renderer = new TerrainRenderer(gl, () => performance.now())
   const cache = openCache(options.cache !== false)
   const listeners = new Set<(s: EngineStatus) => void>()
-  const status: EngineStatus = { state: 'idle', archive: null, dataArchive: null, map: null, diagnostics: [] }
+  const status: EngineStatus = { state: 'idle', archive: null, dataArchive: null, hotaArchive: null, map: null, diagnostics: [] }
   let world: WorldState | undefined
   let atlas: Atlas | undefined
   const seed = options.seed ?? 1
@@ -154,6 +163,9 @@ export function createEngine(options: EngineOptions): Engine {
   let dataFile: { files: ArchiveFileMsg[]; identity: string; name: string } | undefined
   /** Optional HotA archive: it goes in front of every archive set (spec 005 FR-004). */
   let hotaFile: ArchiveFileMsg | undefined
+  /** The base archives as the host supplied them, so a later HotA archive can re-decode them. */
+  let primarySprite: ArchiveFileMsg | undefined
+  let primaryData: ArchiveFileMsg | undefined
   const archiveFiles = (primary: ArchiveFileMsg): ArchiveFileMsg[] => (hotaFile === undefined ? [primary] : [hotaFile, primary])
   let mapIdentity: string | undefined
   let objectsKey: string | undefined
@@ -224,7 +236,7 @@ export function createEngine(options: EngineOptions): Engine {
         }
         if (req.kind === 'buildObjects') {
           if (world === undefined) throw new Error('no map loaded')
-          const r = await decodeObjects(req.sprites, req.data, { world, identity: req.mapIdentity }, req.seed, cache)
+          const r = await decodeObjects(req.sprites, req.data, { world, identity: req.mapIdentity }, req.seed, cache, req.pageSize)
           return { id: 0, kind: 'objectsReady', ...r }
         }
         const r = await decodeMap(req.file, req.name, cache)
@@ -259,6 +271,12 @@ export function createEngine(options: EngineOptions): Engine {
   /** Builds the object layer once sprite archive, data archive and map are loaded. */
   const refreshObjects = async (): Promise<void> => {
     if (options.objects === false || world === undefined || spriteFile === undefined || mapIdentity === undefined) return
+    if (dataFile !== undefined && dataMissingReported) {
+      // The archive arrived after the warning; drop it so the report shows the current state.
+      dataMissingReported = false
+      status.diagnostics = status.diagnostics.filter((d) => d.code !== 'DATA_ARCHIVE_MISSING')
+      emit()
+    }
     if (dataFile === undefined) {
       if (!dataMissingReported) {
         dataMissingReported = true
@@ -267,11 +285,12 @@ export function createEngine(options: EngineOptions): Engine {
       }
       return
     }
-    const key = `${spriteFile.identity}:${dataFile.identity}:${mapIdentity}:${seed}`
+    const pageSize = objectPageSize(renderer.maxTextureSize())
+    const key = `${spriteFile.identity}:${dataFile.identity}:${mapIdentity}:${seed}:${pageSize}`
     if (key === objectsKey) return
     objectsKey = key
     renderer.setObjects(undefined)
-    const r = await run({ kind: 'buildObjects', sprites: spriteFile, data: dataFile, mapIdentity, seed, useCache: options.cache !== false })
+    const r = await run({ kind: 'buildObjects', sprites: spriteFile, data: dataFile, mapIdentity, seed, pageSize, useCache: options.cache !== false })
     if (key !== objectsKey || world === undefined) return
     if (r.kind === 'failed') {
       failure(r.error, dataFile.name)
@@ -301,11 +320,28 @@ export function createEngine(options: EngineOptions): Engine {
       atlas = r.atlas
       renderer.setAtlas(r.atlas)
       status.archive = n
+      primarySprite = { file, name: n }
       spriteFile = { files: archiveFiles({ file, name: n }), name: n, identity: r.identity }
       r.warnings.forEach(diagnose)
       refreshReady()
       await scheduleObjects()
       return { ok: true, identity: r.identity, fromCache: r.fromCache, warnings: r.warnings }
+    },
+    async loadHotaArchive(file, name) {
+      const n = fileName(file, name)
+      hotaFile = { file, name: n }
+      status.hotaArchive = n
+      emit()
+      // Re-decode what is already loaded so the HotA entries win from now on.
+      if (primarySprite !== undefined) {
+        const r = await engine.loadArchive(primarySprite.file, primarySprite.name)
+        if (!r.ok) return r
+      }
+      if (primaryData !== undefined) {
+        const r = await engine.loadDataArchive(primaryData.file, primaryData.name)
+        if (!r.ok) return r
+      }
+      return { ok: true, identity: n, fromCache: false, warnings: [] }
     },
     async loadMap(file, name) {
       const n = fileName(file, name)
@@ -336,6 +372,7 @@ export function createEngine(options: EngineOptions): Engine {
       if (gen !== generations.data) return superseded(n)
       if (r.kind === 'failed') return failure(r.error, n)
       if (r.kind !== 'dataArchiveReady') return failure({ level: 'error', code: 'PROTOCOL', message: 'unexpected worker reply' }, n)
+      primaryData = { file, name: n }
       dataFile = { files: archiveFiles({ file, name: n }), name: n, identity: r.identity }
       status.dataArchive = n
       emit()
