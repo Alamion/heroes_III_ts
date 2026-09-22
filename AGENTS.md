@@ -11,6 +11,12 @@ Read it first. If this file conflicts with it, the constitution wins — fix thi
 
 ## Current State
 
+HotA support ([specs/005-hota-support/](specs/005-hota-support/)) is implemented: the obfuscated
+HotA 1.8 archive, the `0x20` map format (sub-versions 6, 7, 9 and 10, including the event-system
+block), the Highlands and Wasteland terrains, five town forms per faction, hero classes to 24, the
+HotA sprite conventions, a `hotaarchive` setting on every host and `yarn verify maps`. All 453
+local maps parse to the exact last byte.
+
 The foundation ([specs/002-foundation-rewrite/](specs/002-foundation-rewrite/)) and map objects
 ([specs/003-map-objects/](specs/003-map-objects/)) are implemented: parsers for LOD, DEF, PCX and
 H3M (RoE/AB/SoD), a version-independent world state, a WebGL 1.0 renderer for terrain, rivers,
@@ -40,6 +46,33 @@ Facts measured against the original game that code must respect (details in
 - Accepted deviations (003 research, owner review 2026-09-17): draw order in dense mountain clusters,
   reef frames/shadows (the render keeps its reef shadows). Fidelity reports these views as `fail`;
   do not chase them.
+
+Facts about HotA (measured in [005 research](specs/005-hota-support/research.md); the owner's files
+are HotA 1.8.1):
+- Archives: HotA 1.8 keeps the vanilla header and 32-byte entries but stores a u32 XOR key at
+  header offset 12 (0 and `0x7E0213` mean "plain": the second is uninitialised filler in
+  `h3sprite.lod`). Names are FNV-1a-32 of the lower-cased name, so lookups hash and need no
+  dictionary; `yarn h3 lod list` resolves names from the git-ignored `context/` list when present.
+  Only raw and zlib entries occur; LZMA raises a typed error. Archives are an ordered **set** with
+  HotA in front — it overrides `grastl.def`, `watrtl.def` (80 frames, not 33), `clrrvr.def`,
+  `icyrvr.def` and `game.pal` (two flag colours), while `artraits.txt` and several town sprites
+  exist only in the base archive.
+- Maps: version `0x20` with a sub-version. 9 and 10 are the owner's; 6 and 7 also occur locally.
+  The event-system block (sub ≥ 9, 4 local maps) has no length prefix and must be walked; the whole
+  parse is validated by ending exactly at the 124-byte trailer. Object class ids stay ≤ 231: HotA
+  adds **subtypes**, and classes 144/145/146 carry bodies where the base game has none.
+- Data: `Objects.txt` uses 12-wide terrain masks in HotA and 9-wide in the base game (and in HotA's
+  own `objtmplt.txt`), so the width is read per file. Highlands (id 10) and Wasteland (id 11) ship
+  as 124 numbered PCX tiles each, one palette per tile.
+- Sprites: HotA shades with palette indices 2 and 3 (3 like base 1, 2 like base 4) — that is the
+  rule, not an exception (699 of 1072 HotA sprites, 2 of 1369 base ones). A short ported list
+  covers the sprites whose flag colour sits at index 255, and one sprite name in HotA's tables is a
+  typo (`avwcoat.def` → `avwccoat.def`). 74 D32F and 269 P32F truecolour entries exist, some under
+  `.def`/`.pcx` names, but none is an adventure-map sprite. 30 DEFs declare a last frame whose size
+  counts the 32-byte header.
+- Towns: **five** forms per faction in HotA (village, fort `f0`, citadel `c0`, castle `x0`, capitol
+  `z0`) with irregular stems; the base game only ever shows three, because its `Objects.txt`
+  declares the castle template alone. The two-sprite rule above is base-game only.
 
 ---
 
@@ -107,17 +140,20 @@ yarn h3 map info|tiles|tile|objects|object|parse-all MAP [--level Z --region x0,
 yarn h3 map floating MAP [--level 0] [--region ...] [--format list|json]   # for yarn ref selfcheck --floating-tiles
 yarn h3 map draw-list MAP --level Z --region x0,y0,x1,y1 (--tick N | --time MS) [--seed S]
 yarn h3 map random MAP [--seed S] [--level Z]
-yarn h3 render MAP --level Z --region x0,y0,x1,y1 (--palette-step N | --time MS) [--tick N] [--seed S] [--no-objects] [--draw-list] [--scale F] --out F.png
+yarn h3 render MAP --level Z --region x0,y0,x1,y1 (--palette-step N | --time MS) [--tick N] [--seed S] [--no-objects] [--draw-list] [--scale F] [--hota HotA.lod] --out F.png
 ```
 
 Objects need the data archive `h3bitmap.lod` (Objects.txt, artraits.txt, game.pal); tools find it in
-`<bundleDir>/Data`.
+`<bundleDir>/Data`. HotA maps additionally need `HotA.lod` from the HotA install
+(`hotaBundleDir` in the local config, `H3REF_HOTA_BUNDLE_DIR`); both installs may ship a file of
+that name, and the tools warn which copy they picked.
 
 Checks (exit 0 pass / not-checkable, 1 fail, 3 prerequisite missing with `--require`, 4 skip;
 reports in git-ignored `check-reports/`):
 
 ```bash
 yarn verify layers
+yarn verify maps [--dir PATH]... [--all]   # every kind of map opens: one per coverage class
 yarn verify determinism [--runs 10] [--rebuild]
 yarn verify fidelity --map test_map.h3m --all-regions [--kind still|clip] [--capture ID] [--exclude-objects] [--seed S]
 yarn verify fidelity --map M --level Z --region x0,y0,x1,y1
@@ -184,9 +220,11 @@ real game files must skip with a clear message when absent.
   copies of Complete maps that have captures (the reveal-cheat and level-switch cases)
 - `paragon-ultimate-edition.h3m` — SoD 144×144, two levels, ~30 000 objects (large real-map load); built for
   HD Mod + SoD_SP, so that plugin's objects show as missing sprites (expected)
-- `По праву силы.h3m` — map with non-ASCII file name; HotA format (0x20), rejected by the base-game tooling
-- `[HotA] The Devil Is in the Detail.h3m` — HotA map, 252×252 (HotA support comes later; budget
-  checks use a synthetic 252×252 two-level map meanwhile)
+- `По праву силы.h3m` — non-ASCII file name; HotA `0x20` sub-version 9 with an **active event
+  system** (one of four such maps locally)
+- `[HotA] The Devil Is in the Detail.h3m` — HotA map, 252×252, format `0x20` sub-version 9
+- `test_map_hota.h3m` — the primary HotA check map (built by the owner, format `0x20` sub-version
+  10, two levels, HotA novelties in the lower-left corner of the underground level)
 
 Checks and tests may use any map and archive from the configured install (`<bundleDir>/Maps`,
 `<bundleDir>/Data`); `dev-assets` are only examples.

@@ -1,14 +1,14 @@
 // `yarn verify hosts [--host …] [--files synthetic|real] [--map NAME] [--no-build] [--require]` (spec 004
 // contracts/cli.md): host simulations of built packages in headless Chromium.
 
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { log } from '../../../src/core/util/log.ts'
 import { flag, opt } from '../../shared/cli-runner.ts'
 import type { CommandResult, ParsedArgs } from '../../shared/cli-runner.ts'
 import { hasChromium, launchBrowser } from '../../shared/browser.ts'
 import { usage } from '../../shared/errors.ts'
-import { requireGameFile, requireTestMap } from '../../shared/game-files.ts'
+import { gameDirs, requireGameFile, requireTestMap } from '../../shared/game-files.ts'
 import { HeadlessRenderer } from '../../shared/render-page.ts'
 import { writeWallpaperSet } from '../../../test/fixtures/synthetic/wallpaper-set.ts'
 import { assemble, packageVersion, parseHosts, writePackage } from '../../package/cli.ts'
@@ -29,6 +29,10 @@ export async function hostsCommand(args: ParsedArgs): Promise<CommandResult> {
   mkdirSync(reportDir, { recursive: true })
 
   const synthetic = writeWallpaperSet()
+  // The HotA archive is optional: with it, the simulations also exercise the HotA slot (spec 005).
+  const hotaDataDir = gameDirs().hotaDataDir
+  const hotaCandidate = hotaDataDir === undefined ? undefined : join(hotaDataDir, 'HotA.lod')
+  const hotaArchive = hotaCandidate !== undefined && existsSync(hotaCandidate) ? hotaCandidate : undefined
   let files: FileSet
   if (which === 'real') {
     const sprite = requireGameFile('h3sprite.lod')
@@ -38,7 +42,7 @@ export async function hostsCommand(args: ParsedArgs): Promise<CommandResult> {
       rmSync(synthetic.dir, { recursive: true, force: true })
       return { ok: !flag(args, 'require'), exitCode: flag(args, 'require') ? 3 : 4, outcome: 'skip', skipReason: 'game-files-missing' }
     }
-    files = { spriteArchive: sprite, dataArchive: data, map, bad: { ...synthetic.bad, missing: join(synthetic.dir, 'Нет такого файла.lod') } }
+    files = { spriteArchive: sprite, dataArchive: data, map, ...(hotaArchive === undefined ? {} : { hotaArchive }), bad: { ...synthetic.bad, missing: join(synthetic.dir, 'Нет такого файла.lod') } }
   } else {
     files = { spriteArchive: synthetic.spriteArchive, dataArchive: synthetic.dataArchive, map: synthetic.map, bad: { ...synthetic.bad, missing: join(synthetic.dir, 'Нет такого файла.lod') } }
   }

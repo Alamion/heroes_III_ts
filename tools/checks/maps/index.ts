@@ -99,8 +99,9 @@ function discover(dirs: readonly string[]): { dir: string; file: string }[] {
 
 export async function mapsCommand(args: ParsedArgs): Promise<CommandResult> {
   const dirs = gameDirs()
-  const extra = args.flags.get('dir') ?? []
-  const searchDirs = [dirs.devAssets, dirs.mapsDir, dirs.hotaMapsDir, ...extra.map((d) => resolve(d))].filter((d): d is string => d !== undefined)
+  // `--dir` names exactly where to look; without it, everywhere the user's maps live.
+  const explicit = (args.flags.get('dir') ?? []).map((d) => resolve(d))
+  const searchDirs = explicit.length > 0 ? explicit : [dirs.devAssets, dirs.mapsDir, dirs.hotaMapsDir].filter((d): d is string => d !== undefined)
   const candidates = discover(searchDirs)
   if (candidates.length === 0) {
     const missing = { ok: true, exitCode: 4, outcome: 'skip', skipReason: 'no maps found in dev-assets or a configured install' }

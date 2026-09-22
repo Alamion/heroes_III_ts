@@ -16,6 +16,8 @@ import type { StaticServer } from './static-server.ts'
 export interface HostFiles {
   spriteArchive?: string
   dataArchive?: string
+  /** Optional HotA archive (spec 005). */
+  hotaArchive?: string
   map?: string
 }
 
@@ -74,7 +76,7 @@ async function newHostPage(browser: Browser, opts: OpenOptions): Promise<HostPag
   return { page, context, close: () => context.close() }
 }
 
-const SETTING_OF_SLOT = { spriteArchive: 'spritearchive', dataArchive: 'dataarchive', map: 'mapfile' } as const
+const SETTING_OF_SLOT = { spriteArchive: 'spritearchive', dataArchive: 'dataarchive', hotaArchive: 'hotaarchive', map: 'mapfile' } as const
 
 // --- Browser version ------------------------------------------------------------------------------
 

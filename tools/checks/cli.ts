@@ -33,7 +33,7 @@ export const VERIFY_COMMANDS: Record<string, CommandSpec> = {
     load: async () => (await import('./packages/index.ts')).packagesCommand,
   },
   maps: {
-    help: 'every kind of map the user owns opens: one per coverage class plus the edge cases [--dir PATH]... [--all] [--require]',
+    help: 'every kind of map the user owns opens: one per coverage class plus the edge cases [--dir PATH]... (only those folders) [--all] [--require]',
     booleanFlags: ['all', 'require'],
     load: async () => (await import('./maps/index.ts')).mapsCommand,
   },

@@ -3,7 +3,7 @@
 import { format } from './strings.ts'
 import type { Language, StringKey } from './strings.ts'
 
-export type FileSlot = 'spriteArchive' | 'dataArchive' | 'map'
+export type FileSlot = 'spriteArchive' | 'dataArchive' | 'hotaArchive' | 'map'
 
 export type MessageCode =
   | 'LOADING'
@@ -33,6 +33,7 @@ export interface UserMessage {
 export const SLOT_KIND_KEYS: Record<FileSlot | 'unknown', StringKey> = {
   spriteArchive: 'kind_spriteArchive',
   dataArchive: 'kind_dataArchive',
+  hotaArchive: 'kind_hotaArchive',
   map: 'kind_map',
   unknown: 'kind_unknown',
 }

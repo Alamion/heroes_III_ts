@@ -4,7 +4,7 @@
 
 import type { StringKey } from './strings.ts'
 
-export type SettingKey = 'spritearchive' | 'dataarchive' | 'mapfile' | 'level' | 'viewmode' | 'viewx' | 'viewy' | 'viewinterval' | 'scale' | 'objects'
+export type SettingKey = 'spritearchive' | 'dataarchive' | 'hotaarchive' | 'mapfile' | 'level' | 'viewmode' | 'viewx' | 'viewy' | 'viewinterval' | 'scale' | 'objects'
 
 /** Keys kept for a later map-folder source (FR-018a); never used for anything else. */
 export const RESERVED_KEYS = ['mapsource', 'mapfolder', 'maprotation'] as const
@@ -16,6 +16,8 @@ export type ScaleSetting = 1 | 2 | 3
 export interface WallpaperSettings {
   spritearchive: string | null
   dataarchive: string | null
+  /** Optional HotA archive (spec 005); unset means the base game only. */
+  hotaarchive: string | null
   mapfile: string | null
   level: LevelSetting
   viewmode: ViewMode
@@ -78,7 +80,8 @@ export const ACTIONS: readonly ActionDef[] = [{ key: 'viewreroll', type: 'action
 export const SETTINGS: readonly SettingDef[] = [
   { key: 'spritearchive', type: 'file', label: 'setting_spritearchive', default: null, fileFilter: '*.lod', order: 1 },
   { key: 'dataarchive', type: 'file', label: 'setting_dataarchive', default: null, fileFilter: '*.lod', order: 2 },
-  { key: 'mapfile', type: 'file', label: 'setting_mapfile', default: null, fileFilter: '*.h3m', order: 3 },
+  { key: 'hotaarchive', type: 'file', label: 'setting_hotaarchive', default: null, fileFilter: '*.lod', order: 3 },
+  { key: 'mapfile', type: 'file', label: 'setting_mapfile', default: null, fileFilter: '*.h3m', order: 4 },
   {
     key: 'level',
     type: 'enum',
@@ -121,7 +124,7 @@ export const SETTINGS: readonly SettingDef[] = [
   { key: 'objects', type: 'bool', label: 'setting_objects', default: true, order: 11 },
 ]
 
-export const FILE_SETTING_KEYS = ['spritearchive', 'dataarchive', 'mapfile'] as const satisfies readonly SettingKey[]
+export const FILE_SETTING_KEYS = ['spritearchive', 'dataarchive', 'hotaarchive', 'mapfile'] as const satisfies readonly SettingKey[]
 
 export function settingDef(key: SettingKey): SettingDef {
   const def = SETTINGS.find((d) => d.key === key)
@@ -130,7 +133,7 @@ export function settingDef(key: SettingKey): SettingDef {
 }
 
 export function defaultSettings(): WallpaperSettings {
-  return { spritearchive: null, dataarchive: null, mapfile: null, level: 'random', viewmode: 'random', viewx: 50, viewy: 50, viewinterval: 0, scale: 1, objects: true }
+  return { spritearchive: null, dataarchive: null, hotaarchive: null, mapfile: null, level: 'random', viewmode: 'random', viewx: 50, viewy: 50, viewinterval: 0, scale: 1, objects: true }
 }
 
 export interface ValidatedPatch {

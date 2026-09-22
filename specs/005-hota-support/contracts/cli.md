@@ -30,6 +30,7 @@ yarn verify maps [--dir PATH]... [--all] [--require] [--json]
 | --- | --- |
 | Default | Classify every discoverable map, open at least one per coverage class plus the named edge cases |
 | `--all` | Open every discoverable map instead of one per class |
+| `--dir PATH` | Search exactly these folders (repeatable); without it, dev assets and both configured installs |
 | Class key | format code, sub-version, level count, size class, terrain ids, object families, file-name encoding, script-active flag |
 | Edge cases always included | 252×252 two-level map, non-ASCII file name, active script block, sub-9 and sub-10 dev maps, one map per base-game generation |
 | Pass | Every opened map parses to exact EOF **and** reports zero unresolved object classes |
