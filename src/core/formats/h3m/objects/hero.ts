@@ -30,6 +30,14 @@ export function readHero(c: H3mContext): HeroBody {
   else if (c.ab) abSpell = r.u8()
   const primarySkills = c.sod && r.bool() ? readPrimarySkills(c) : null
   r.zeros(16, 'hero padding')
+  if (c.f.hotaHeroLevelBlock) {
+    // HotA: the same per-hero block the header carries for predefined heroes.
+    r.scope('hotaHeroLevel', () => {
+      r.u8()
+      r.u8()
+      r.i32()
+    })
+  }
   return { kind: 'hero', identifier, owner, type, name, experience, portrait, secondarySkills, garrison, formation, artifacts, patrolRadius, biography, gender, abSpell, spells, primarySkills }
 }
 
@@ -37,5 +45,19 @@ export function readHeroPlaceholder(c: H3mContext): ObjectBody {
   const owner = c.r.u8()
   const heroType = c.r.u8()
   const powerRank = heroType === 0xff ? c.r.u8() : null
+  if (c.f.hotaHeroPlaceholderArmy) {
+    // HotA: customised starting units and artifacts (names from VCMI, sizes measured).
+    c.r.scope('hotaPlaceholder', () => {
+      c.r.u8()
+      for (let i = 0; i < 7; i++) {
+        c.r.i32()
+        c.r.u32()
+      }
+      const at = c.r.offset
+      const count = c.r.i32()
+      if (count < 0 || count > 256) c.r.invalid(`hero placeholder artifact count ${count} outside 0..256`, at)
+      for (let i = 0; i < count; i++) c.r.u32()
+    })
+  }
   return { kind: 'heroPlaceholder', owner, heroType, powerRank }
 }

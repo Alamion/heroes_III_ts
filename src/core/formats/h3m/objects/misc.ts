@@ -1,6 +1,7 @@
 import type { H3mContext } from '../context.ts'
 import type { ObjectBody } from '../types.ts'
 import { readArmy, readGuard, readReward } from './common.ts'
+import { readBoxHotaTail } from './hota.ts'
 
 export function readMessage(c: H3mContext): ObjectBody {
   const text = c.r.string()
@@ -20,6 +21,22 @@ export function readOwned(c: H3mContext): ObjectBody {
   return { kind: 'owned', owner: c.r.u32() }
 }
 
+/**
+ * Abandoned mines: a resource bitmask instead of an owner, plus HotA's custom guards. The 12
+ * guard bytes are skipped whether or not the flag is set — that is byte-correct on every local
+ * map, but the branch itself is unverified (spec 005 research, "measured vs assumed").
+ */
+export function readAbandonedMine(c: H3mContext): ObjectBody {
+  const resources = c.r.bytesCopy(4)
+  if (c.f.hotaMineGuards) {
+    c.r.scope('hotaMineGuards', () => {
+      c.r.u8()
+      c.r.bytesCopy(12)
+    })
+  }
+  return { kind: 'abandonedMine', resources }
+}
+
 export function readShrine(c: H3mContext): ObjectBody {
   return { kind: 'shrine', spell: c.r.u32() }
 }
@@ -31,13 +48,18 @@ export function readWitchHut(c: H3mContext): ObjectBody {
 export function readScholar(c: H3mContext): ObjectBody {
   const bonusType = c.r.u8()
   const bonusId = c.r.u8()
-  c.r.zeros(6, 'scholar padding')
+  // The base game leaves these six bytes zero; HotA does not, so they are skipped, not checked.
+  if (c.f.hota) c.r.scope('scholar padding', () => c.r.bytesCopy(6))
+  else c.r.zeros(6, 'scholar padding')
   return { kind: 'scholar', bonusType, bonusId }
 }
 
 export function readPandora(c: H3mContext): ObjectBody {
   const guard = readGuard(c)
-  return { kind: 'pandora', guard, reward: readReward(c) }
+  const reward = readReward(c)
+  if (c.f.hotaPandoraPad) c.r.zeros(1, 'pandora padding')
+  readBoxHotaTail(c)
+  return { kind: 'pandora', guard, reward }
 }
 
 export function readEvent(c: H3mContext): ObjectBody {
@@ -47,10 +69,14 @@ export function readEvent(c: H3mContext): ObjectBody {
   const computerActivate = c.r.bool()
   const removeAfterVisit = c.r.bool()
   c.r.zeros(4, 'event padding')
+  if (c.f.hotaEventHumanActivate) c.r.scope('humanActivate', () => c.r.u8())
+  readBoxHotaTail(c)
   return { kind: 'event', guard, reward, players, computerActivate, removeAfterVisit }
 }
 
-export function readGrail(c: H3mContext): ObjectBody {
+/** Grail. HotA reuses subtypes >= 1000 for arena battle locations, which carry no radius. */
+export function readGrail(c: H3mContext, subclassId: number): ObjectBody {
+  if (c.f.hota && subclassId >= 1000) return { kind: 'grail', radius: null }
   return { kind: 'grail', radius: c.r.u32() }
 }
 

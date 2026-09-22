@@ -126,6 +126,39 @@ location, no radius field).
 Corpus scale: largest map 252×252 two levels (127 008 tiles); most objects 53 576
 (`[HotA] Noble Nemesis.h3m`); most templates 1666.
 
+### M4a — implementation sweep (2026-09-23, during T019–T029)
+
+Implementing the reader widened the corpus: the **base install's** `Maps` folder also holds HotA
+maps, including sub-versions this project had not seen before. Over all three folders
+(`public/dev-assets/`, the HotA install's `Maps`, the base install's `Maps`) the implemented reader
+parses **449 of 453 maps to the exact last byte**:
+
+| format | maps |
+| --- | --- |
+| RoE `0x0e` | 95 |
+| AB `0x15` | 109 |
+| SoD `0x1c` | 119 |
+| HotA `0x20` sub 6 | 7 |
+| HotA `0x20` sub 7 | 51 |
+| HotA `0x20` sub 9 | 2 |
+| HotA `0x20` sub 10 | 67 |
+
+The four failures are exactly the maps with an active event-system block (M5), which fail with a
+typed error until that walker exists.
+
+Two layout facts were corrected against the file bytes during implementation:
+
+- **Town.** Between the two 9-byte spell masks and the town-event count sit **53 bytes**, not the 2
+  a first reading suggested: `u8 allowSpellResearch`, then `u32 specialBuildingsCount` (48 in the
+  measured maps) and that many bytes. A town event then carries `i32 creatureGrowth8, i32 amount,
+  i32 specialA, i16 specialB` (sub ≥ 5) and `u8 neutralAffected` (sub ≥ 7).
+- **Global events before sub 7.** Sub 6 ends a global event with the same 14-byte block a town
+  event carries; sub 7 replaced it with the `i32` difficulty mask. Measured on the seven sub-6
+  maps and on sub-7 maps that carry events.
+
+Sub-versions 6 and 7 are therefore no longer "best-effort with no local evidence": 58 maps exercise
+them. Sub-versions 0–5 and 8 remain unexercised.
+
 ### M5 — the script section (sub ≥ 9)
 
 - Position: immediately after the map-options block and immediately before the allowed-artifacts

@@ -15,6 +15,8 @@ export function readTemplates(c: H3mContext): ObjectTemplate[] {
         const editorGroups = c.r.u16()
         const classId = c.r.u32()
         const subclassId = c.r.u32()
+        // "group" (FreeHeroes: draw-order class). Base game 0-5; HotA also uses 6 creature
+        // generator, 7 teleporter, 8 guards, and 9/10 which no source identifies (research M4).
         const group = c.r.u8()
         const isOverlay = c.r.flag()
         c.r.zeros(16, 'template padding')

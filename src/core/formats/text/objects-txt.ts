@@ -1,6 +1,11 @@
 // `Objects.txt` from h3bitmap.lod: the game's full list of adventure map object templates
 // (research.md §9). First line: template count; then one template per line:
-//   DEF passable(48) active(48) terrains(9) editorGroups(9) class subclass group overlay
+//   DEF passable(48) active(48) terrains(N) editorGroups(N) class subclass group overlay
+//
+// N is 9 in the base game (terrain ids 0-8, rock omitted) and 12 in HotA, which stopped omitting
+// rock and appended Highlands (10) and Wasteland (11). The width is a property of the file, not of
+// the archive it came from: HotA's own objtmplt.txt is byte-identical to the vanilla one and still
+// 9 wide (spec 005 research M3), so it is read per file and every row must agree.
 
 import { decodeCp1251 } from '../../util/byte-reader.ts'
 import { FORMAT_ERROR_CODES, FormatError } from '../../util/errors.ts'
@@ -41,8 +46,11 @@ function templateMask(s: string, fail: (msg: string) => never, what: string): Ui
   return out
 }
 
-function maskFromBits(s: string, fail: (msg: string) => never, what: string): number {
-  const bits = bitString(s, fail, what, 9)
+/** Mask widths seen in the wild: 9 (base game) and 12 (HotA). */
+export const TERRAIN_MASK_WIDTHS: readonly number[] = [9, 12]
+
+function maskFromBits(s: string, fail: (msg: string) => never, what: string, len: number): number {
+  const bits = bitString(s, fail, what, len)
   // The rightmost character is terrain 0.
   let mask = 0
   bits.forEach((b, i) => {
@@ -66,6 +74,8 @@ export function parseObjectsTxt(bytes: Uint8Array, fileName = 'Objects.txt'): Ob
   const count = Number((lines[0] ?? '').trim())
   if (!Number.isInteger(count) || count < 0) failAt(0, `first line must be the template count (got "${lines[0]}")`)
   const rows: ObjectsTxtRow[] = []
+  /** Set by the first row; every later row must use the same width. */
+  let maskWidth: number | undefined
   for (let i = 1; i <= count; i++) {
     const line = lines[i]
     if (line === undefined) {
@@ -75,6 +85,12 @@ export function parseObjectsTxt(bytes: Uint8Array, fileName = 'Objects.txt'): Ob
     const parts = line.trim().split(/\s+/)
     if (parts.length !== 9) fail(`expected 9 fields, got ${parts.length}`)
     const [defName, passable, active, terrains, groups, cls, sub, group, overlay] = parts as [string, string, string, string, string, string, string, string, string]
+    if (maskWidth === undefined) {
+      if (!TERRAIN_MASK_WIDTHS.includes(terrains.length)) {
+        fail(`terrain mask must be ${TERRAIN_MASK_WIDTHS.join(' or ')} characters of 0/1 (got "${terrains}")`)
+      }
+      maskWidth = terrains.length
+    }
     const int = (s: string, what: string): number => {
       const n = Number(s)
       if (!Number.isInteger(n) || n < 0) fail(`${what} must be a non-negative integer (got "${s}")`)
@@ -84,8 +100,8 @@ export function parseObjectsTxt(bytes: Uint8Array, fileName = 'Objects.txt'): Ob
       defName,
       passable: templateMask(passable, fail, 'passable mask'),
       active: templateMask(active, fail, 'active mask'),
-      allowedTerrains: maskFromBits(terrains, fail, 'terrain mask'),
-      editorGroups: maskFromBits(groups, fail, 'editor group mask'),
+      allowedTerrains: maskFromBits(terrains, fail, 'terrain mask', maskWidth),
+      editorGroups: maskFromBits(groups, fail, 'editor group mask', maskWidth),
       classId: int(cls, 'class'),
       subclassId: int(sub, 'subclass'),
       group: int(group, 'group'),

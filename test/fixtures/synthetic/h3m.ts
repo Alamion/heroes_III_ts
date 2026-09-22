@@ -86,7 +86,7 @@ function player(c: Ctx, p: PlayerInfo) {
 }
 
 function victory(c: Ctx, v: H3mMap['victory']) {
-  const codes = { acquireArtifact: 0, accumulateCreatures: 1, accumulateResources: 2, upgradeTown: 3, buildGrail: 4, defeatHero: 5, captureTown: 6, defeatMonster: 7, flagDwellings: 8, flagMines: 9, transportArtifact: 10 } as const
+  const codes = { acquireArtifact: 0, accumulateCreatures: 1, accumulateResources: 2, upgradeTown: 3, buildGrail: 4, defeatHero: 5, captureTown: 6, defeatMonster: 7, flagDwellings: 8, flagMines: 9, transportArtifact: 10, defeatAllMonsters: 11, surviveDays: 12 } as const
   if (v.kind === 'none') {
     c.w.u8(0xff)
     return
@@ -181,6 +181,7 @@ function quest(c: Ctx, q: Quest) {
     c.w.u8(0)
     return
   }
+  if (q.kind === 'hotaCondition') throw new Error('the base-game writer cannot write a HotA quest condition')
   c.w.u8(codes[q.kind])
   switch (q.kind) {
     case 'experienceLevel':
@@ -373,7 +374,7 @@ function body(c: Ctx, b: ObjectBody, classId: number) {
       w.u8(b.players).bool(b.computerActivate).bool(b.removeAfterVisit).zeros(4)
       return
     case 'grail':
-      w.u32(b.radius)
+      w.u32(b.radius ?? 0)
       return
     case 'randomDwelling': {
       const family = bodyFamily(classId)
@@ -567,6 +568,8 @@ export function buildMap(opts: MapOptions): H3mMap {
     fileName: 'synthetic.h3m',
     version,
     versionCode: H3M_VERSION_CODES[version],
+    subVersion: null,
+    hota: null,
     info: { hasHero: true, size, hasUnderground: underground, name: h3s('Synthetic'), description: h3s('Синтетическая карта'), difficulty: 1, levelCap: ab ? 0 : null },
     players,
     victory: { kind: 'none' },
@@ -613,8 +616,8 @@ export function allBodiesMap(version: H3mVersion): H3mMap {
     [C.RANDOM_RELIC_ART, { kind: 'artifact', guard: null }],
     [C.SPELL_SCROLL, { kind: 'spellScroll', guard: { message: h3s(''), creatures: null }, spell: 17 }],
     [C.RANDOM_RESOURCE, { kind: 'resource', guard: null, amount: 0 }],
-    [C.RANDOM_TOWN, { kind: 'town', identifier: ab ? 99 : null, owner: 0, name: h3s('Town'), garrison: makeArmy(ab), formation: 0, buildings: { custom: true, built: Uint8Array.of(1, 2, 3, 4, 5, 6), forbidden: Uint8Array.of(0, 0, 0, 0, 0, 1) }, spellsMustHave: ab ? new Uint8Array(9) : null, spellsMayHave: new Uint8Array(9).fill(0xff), events: [{ name: h3s('E'), message: h3s('M'), resources: [0, 0, 0, 0, 0, 0, 1], players: 0xff, humanAffected: true, computerAffected: false, firstDay: 3, repeatEvery: 7, buildings: new Uint8Array(6), creatures: [1, 0, 0, 0, 0, 0, 2] }], alignment: sod ? 0xff : null }],
-    [C.TOWN, { kind: 'town', identifier: ab ? 100 : null, owner: 0xff, name: null, garrison: null, formation: 0, buildings: { custom: false, hasFort: true }, spellsMustHave: ab ? new Uint8Array(9) : null, spellsMayHave: new Uint8Array(9), events: [], alignment: sod ? 1 : null }],
+    [C.RANDOM_TOWN, { kind: 'town', identifier: ab ? 99 : null, owner: 0, name: h3s('Town'), garrison: makeArmy(ab), formation: 0, buildings: { custom: true, built: Uint8Array.of(1, 2, 3, 4, 5, 6), forbidden: Uint8Array.of(0, 0, 0, 0, 0, 1) }, spellsMustHave: ab ? new Uint8Array(9) : null, spellsMayHave: new Uint8Array(9).fill(0xff), hotaExtra: null, events: [{ name: h3s('E'), message: h3s('M'), resources: [0, 0, 0, 0, 0, 0, 1], players: 0xff, humanAffected: true, computerAffected: false, firstDay: 3, repeatEvery: 7, buildings: new Uint8Array(6), creatures: [1, 0, 0, 0, 0, 0, 2] }], alignment: sod ? 0xff : null }],
+    [C.TOWN, { kind: 'town', identifier: ab ? 100 : null, owner: 0xff, name: null, garrison: null, formation: 0, buildings: { custom: false, hasFort: true }, spellsMustHave: ab ? new Uint8Array(9) : null, spellsMayHave: new Uint8Array(9), hotaExtra: null, events: [], alignment: sod ? 1 : null }],
     [C.MINE, { kind: 'owned', owner: 0xff }],
     [C.SHRINE_OF_MAGIC_GESTURE, { kind: 'shrine', spell: 0xff }],
     [C.PANDORAS_BOX, { kind: 'pandora', guard: null, reward: makeReward(ab) }],

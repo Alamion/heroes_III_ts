@@ -86,5 +86,6 @@ u8 eventsSystemActive
 ## Errors
 
 Every failure is a `FormatError` with `format: 'h3m'` and `file`, `offset`, `structure`, plus
-`version` rendered as `0x20 sub N`. Existing codes are reused: `TRUNCATED`, `UNSUPPORTED_VERSION`,
+`version`, rendered as `HotA sub N` for HotA maps and as the version name (`RoE`, `AB`, `SoD`) for
+the base game. Existing codes are reused: `TRUNCATED`, `UNSUPPORTED_VERSION`,
 `UNSUPPORTED_OBJECT`, `INVALID_VALUE`, `TRAILING_DATA` (raised when a parse does not end at EOF).

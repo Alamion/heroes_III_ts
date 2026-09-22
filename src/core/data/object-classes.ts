@@ -282,13 +282,17 @@ export function randomRule(classId: number): RandomRule | undefined {
 }
 
 /** Number of towns (factions) in SoD: Castle … Conflux. */
+/** Base-game factions: Castle … Conflux. Random towns roll only among these. */
 export const FACTION_COUNT = 9
+
+/** HotA adds Cove (9) and Factory (10). */
+export const HOTA_FACTION_COUNT = 11
 
 /**
  * Adventure-map hero sprites, one per hero class. Heroes are not listed in Objects.txt; these are
  * the sprites the game draws for heroes on the map (research.md §9).
  */
-export const HERO_MAP_DEFS: readonly string[] = Array.from({ length: 18 }, (_, i) => `ah${String(i).padStart(2, '0')}_.def`)
+export const HERO_MAP_DEFS: readonly string[] = Array.from({ length: 24 }, (_, i) => `ah${String(i).padStart(2, '0')}_.def`)
 
 /** Adventure-map hero flag sprites, one per player colour. */
 export const HERO_FLAG_DEFS: readonly string[] = Array.from({ length: 8 }, (_, i) => `af0${i}.def`)
@@ -305,26 +309,47 @@ export const HIDDEN_CLASSES: ReadonlySet<number> = new Set([C.EVENT, C.GRAIL])
 export interface TownSprites {
   /** Town without a fort. */
   readonly village: string
-  /** Town with a fort (the variant map templates use). */
-  readonly fort: string
-  /** Town with a capitol. */
+  /** HotA only: fort built (`…f0`). The base game has no separate sprite for this. */
+  readonly fort: string | null
+  /** HotA only: citadel built (`…c0`). */
+  readonly citadel: string | null
+  /** Castle (`…x0`) — the only fortified form the base game's Objects.txt declares. */
+  readonly castle: string
+  /** Capitol built (`…z0`). */
   readonly capitol: string
 }
 
 /**
- * Adventure-map town sprites per faction 0–8 (Castle … Conflux), lower-case DEF names from
- * `h3sprite.lod`. Which built state selects which sprite is pending SPIKE T047 (research.md §5):
- * hypothesis village = `…0`, fort = `…x0` (the one `Objects.txt` lists), capitol = `…z0`.
+ * Adventure-map town sprites per faction, lower-case DEF names.
+ *
+ * Base game (factions 0–8, Castle … Conflux): only `village`, `castle` and `capitol` are ever
+ * chosen, because its `Objects.txt` declares the `x0` template alone (spec 005 research M7); the
+ * `fort` and `citadel` forms are HotA repaints of the same nine factions and are selected only for
+ * HotA maps. Cove (9) and Factory (10) are HotA-only.
+ *
+ * The stems are irregular, so no naming formula works: Fortress mixes `for`/`ftr`, and Conflux
+ * truncates to eight characters with no trailing zero.
  */
 export const TOWN_SPRITES: readonly TownSprites[] = [
-  { village: 'avccast0.def', fort: 'avccasx0.def', capitol: 'avccasz0.def' },
-  { village: 'avcramp0.def', fort: 'avcramx0.def', capitol: 'avcramz0.def' },
-  { village: 'avctowr0.def', fort: 'avctowx0.def', capitol: 'avctowz0.def' },
-  { village: 'avcinft0.def', fort: 'avcinfx0.def', capitol: 'avcinfz0.def' },
-  { village: 'avcnecr0.def', fort: 'avcnecx0.def', capitol: 'avcnecz0.def' },
-  { village: 'avcdung0.def', fort: 'avcdunx0.def', capitol: 'avcdunz0.def' },
-  { village: 'avcstro0.def', fort: 'avcstrx0.def', capitol: 'avcstrz0.def' },
-  { village: 'avcftrt0.def', fort: 'avcftrx0.def', capitol: 'avcforz0.def' },
-  { village: 'avchfor0.def', fort: 'avchforx.def', capitol: 'avchforz.def' },
+  { village: 'avccast0.def', fort: 'avccasf0.def', citadel: 'avccasc0.def', castle: 'avccasx0.def', capitol: 'avccasz0.def' },
+  { village: 'avcramp0.def', fort: 'avcramf0.def', citadel: 'avcramc0.def', castle: 'avcramx0.def', capitol: 'avcramz0.def' },
+  { village: 'avctowr0.def', fort: 'avctowf0.def', citadel: 'avctowc0.def', castle: 'avctowx0.def', capitol: 'avctowz0.def' },
+  { village: 'avcinft0.def', fort: 'avcinff0.def', citadel: 'avcinfc0.def', castle: 'avcinfx0.def', capitol: 'avcinfz0.def' },
+  { village: 'avcnecr0.def', fort: 'avcnecf0.def', citadel: 'avcnecc0.def', castle: 'avcnecx0.def', capitol: 'avcnecz0.def' },
+  { village: 'avcdung0.def', fort: 'avcdunf0.def', citadel: 'avcdunc0.def', castle: 'avcdunx0.def', capitol: 'avcdunz0.def' },
+  { village: 'avcstro0.def', fort: 'avcstrf0.def', citadel: 'avcstrc0.def', castle: 'avcstrx0.def', capitol: 'avcstrz0.def' },
+  { village: 'avcftrt0.def', fort: 'avcforf0.def', citadel: 'avcforc0.def', castle: 'avcftrx0.def', capitol: 'avcforz0.def' },
+  { village: 'avchfor0.def', fort: 'avchfof0.def', citadel: 'avchfoc0.def', castle: 'avchforx.def', capitol: 'avchforz.def' },
+  { village: 'avccove0.def', fort: 'avccovf0.def', citadel: 'avccovc0.def', castle: 'avccovx0.def', capitol: 'avccovz0.def' },
+  { village: 'avcface0.def', fort: 'avcfacf0.def', citadel: 'avcfacc0.def', castle: 'avcfacx0.def', capitol: 'avcfacz0.def' },
 ]
+
+/** Random town (class 77), same five forms. */
+export const RANDOM_TOWN_SPRITES: TownSprites = {
+  village: 'avcrand0.def',
+  fort: 'avcranf0.def',
+  citadel: 'avcranc0.def',
+  castle: 'avcranx0.def',
+  capitol: 'avcranz0.def',
+}
 

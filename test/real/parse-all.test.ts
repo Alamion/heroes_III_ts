@@ -1,6 +1,7 @@
-// SC-002a: every map in the install's Maps folder parses (RoE/AB/SoD) or is rejected as an
-// unsupported version; nothing else. Also checks that the writer reproduces each base-game map
-// byte for byte, which proves no field is skipped or guessed.
+// SC-002a: every map in the install's Maps folder parses (RoE/AB/SoD/HotA) or is rejected as an
+// unsupported version; nothing else. Base-game maps are also written back and compared byte for
+// byte, which proves no field is skipped or guessed. The synthetic writer does not cover HotA, so
+// HotA maps are held to the parser's own end-of-file invariant instead (spec 005 FR-009).
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { gunzipSync } from 'node:zlib'
@@ -16,6 +17,7 @@ if (maps.length === 0) process.stderr.write('[real-file test skipped] parse-all:
 describe.skipIf(maps.length === 0)('install map corpus (SC-002a)', () => {
   it('parses every base-game map exactly and rejects the rest as unsupported', async () => {
     let parsed = 0
+    let hota = 0
     let unsupported = 0
     const failed: string[] = []
     for (const path of maps) {
@@ -23,6 +25,10 @@ describe.skipIf(maps.length === 0)('install map corpus (SC-002a)', () => {
       try {
         const map = parseH3m(raw, basename(path))
         parsed++
+        if (map.version === 'HotA') {
+          hota++
+          continue
+        }
         const out = writeH3m(map)
         if (out.length !== raw.length || out.some((b, i) => b !== raw[i])) failed.push(`${basename(path)}: writer output differs`)
       } catch (err) {
@@ -32,6 +38,6 @@ describe.skipIf(maps.length === 0)('install map corpus (SC-002a)', () => {
     }
     expect(failed).toEqual([])
     expect(parsed).toBeGreaterThan(0)
-    process.stderr.write(`[parse-all] parsed ${parsed}, unsupported ${unsupported}\n`)
+    process.stderr.write(`[parse-all] parsed ${parsed} (HotA ${hota}), unsupported ${unsupported}\n`)
   }, 300_000)
 })

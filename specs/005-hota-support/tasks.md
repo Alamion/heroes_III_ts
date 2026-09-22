@@ -63,25 +63,25 @@ complete.
 
 ### Text tables
 
-- [ ] T017 [P] Accept a 9- or 12-character terrain and editor-group mask (width read per file, all rows must agree) and widen the `group` range to 0–10 in `src/core/formats/text/objects-txt.ts`, with a typed error for any other width (FR-007)
-- [ ] T018 [P] Add a 12-wide `Objects.txt` generator to `test/fixtures/synthetic/hota-objects-txt.ts` and unit-test both widths plus the mixed-width rejection in `test/core/formats/objects-txt.test.ts` (depends on T017)
+- [X] T017 [P] Accept a 9- or 12-character terrain and editor-group mask (width read per file, all rows must agree) and widen the `group` range to 0–10 in `src/core/formats/text/objects-txt.ts`, with a typed error for any other width (FR-007)
+- [X] T018 [P] Add a 12-wide `Objects.txt` generator to `test/fixtures/synthetic/hota-objects-txt.ts` and unit-test both widths plus the mixed-width rejection in `test/core/formats/objects-txt.test.ts` (depends on T017)
 
 ### Map format core
 
-- [ ] T019 Replace the flat version union with the `{ code, subVersion }` descriptor in `src/core/formats/h3m/types.ts` and report both from `parseH3m` in `src/core/formats/h3m/h3m.ts` (FR-006)
-- [ ] T020 Add the feature table per `(code, subVersion)` in new `src/core/formats/h3m/features.ts` with the flags listed in [data-model.md](data-model.md) §3, each carrying a comment stating whether it is documented, ported or measured (FR-006, FR-006a) (depends on T019)
-- [ ] T021 Carry the feature table in `src/core/formats/h3m/context.ts`, keeping the existing `ab`/`sod` flags working unchanged (depends on T020)
-- [ ] T022 Read the HotA header fields (version triple, mirror/arena, terrain and town counts, difficulty mask, hire-defeated, force-version, reserved i32) in `src/core/formats/h3m/header.ts`, plus the counted allowed-hero list, the map-options additions and the counted allowed-artifact mask, per [contracts/map-format.md](contracts/map-format.md) (FR-006, FR-007) (depends on T021)
-- [ ] T023 Read the HotA predefined-hero additions (u16 scroll spell per artifact slot, trailing 6-byte block per hero) and the victory-condition-12 u32 day count in `src/core/formats/h3m/header.ts` (depends on T022)
-- [ ] T024 [P] Accept object-template `type` values 0–10 in `src/core/formats/h3m/templates.ts`, recording 9 and 10 as unidentified
-- [ ] T025 [P] Accept terrain ids 10 and 11 with a bounds check of `terrainView` against the terrain's tile count in `src/core/formats/h3m/tiles.ts`
-- [ ] T026 Add the HotA object bodies in `src/core/formats/h3m/objects/`: classes 144/145/146, class 212 subtypes 1000 (Quest Gate) and 1001 (Grave), class 36 subtype ≥ 1000 (arena, no radius), the widened subtype ranges for classes 16/34/53/98, and the HotA preset/guard blocks, keeping `UNSUPPORTED_OBJECT` for anything unmapped (FR-007, FR-010) (depends on T021)
-- [ ] T027 Add the sub-version 10 deltas behind their feature flags in `src/core/formats/h3m/objects/`: +4 bytes at the end of a quest record, +4 bytes before a seer hut's reward type, +1 byte after a seer hut object (FR-006) (depends on T026)
-- [ ] T028 Read the HotA global and town event changes (occurrence as u16 + 16 zero bytes, `i32 affectedDifficulties`) in `src/core/formats/h3m/h3m.ts` (depends on T021)
-- [ ] T029 Enforce the parse invariant in `src/core/formats/h3m/h3m.ts`: the 124 trailing zero bytes followed by exact end of file, raising `TRAILING_DATA` with the offset otherwise (FR-009, FR-010) (depends on T028)
+- [X] T019 Replace the flat version union with the `{ code, subVersion }` descriptor in `src/core/formats/h3m/types.ts` and report both from `parseH3m` in `src/core/formats/h3m/h3m.ts` (FR-006)
+- [X] T020 Add the feature table per `(code, subVersion)` in new `src/core/formats/h3m/features.ts` with the flags listed in [data-model.md](data-model.md) §3, each carrying a comment stating whether it is documented, ported or measured (FR-006, FR-006a) (depends on T019)
+- [X] T021 Carry the feature table in `src/core/formats/h3m/context.ts`, keeping the existing `ab`/`sod` flags working unchanged (depends on T020)
+- [X] T022 Read the HotA header fields (version triple, mirror/arena, terrain and town counts, difficulty mask, hire-defeated, force-version, reserved i32) in `src/core/formats/h3m/header.ts`, plus the counted allowed-hero list, the map-options additions and the counted allowed-artifact mask, per [contracts/map-format.md](contracts/map-format.md) (FR-006, FR-007) (depends on T021)
+- [X] T023 Read the HotA predefined-hero additions (u16 scroll spell per artifact slot, trailing 6-byte block per hero) and the victory-condition-12 u32 day count in `src/core/formats/h3m/header.ts` (depends on T022)
+- [X] T024 [P] Accept object-template `type` values 0–10 in `src/core/formats/h3m/templates.ts`, recording 9 and 10 as unidentified
+- [X] T025 [P] Accept terrain ids 10 and 11 with a bounds check of `terrainView` against the terrain's tile count in `src/core/formats/h3m/tiles.ts`
+- [X] T026 Add the HotA object bodies in `src/core/formats/h3m/objects/`: classes 144/145/146, class 212 subtypes 1000 (Quest Gate) and 1001 (Grave), class 36 subtype ≥ 1000 (arena, no radius), the widened subtype ranges for classes 16/34/53/98, and the HotA preset/guard blocks, keeping `UNSUPPORTED_OBJECT` for anything unmapped (FR-007, FR-010) (depends on T021)
+- [X] T027 Add the sub-version 10 deltas behind their feature flags in `src/core/formats/h3m/objects/`: +4 bytes at the end of a quest record, +4 bytes before a seer hut's reward type, +1 byte after a seer hut object (FR-006) (depends on T026)
+- [X] T028 Read the HotA global and town event changes (occurrence as u16 + 16 zero bytes, `i32 affectedDifficulties`) in `src/core/formats/h3m/h3m.ts` (depends on T021)
+- [X] T029 Enforce the parse invariant in `src/core/formats/h3m/h3m.ts`: the 124 trailing zero bytes followed by exact end of file, raising `TRAILING_DATA` with the offset otherwise (FR-009, FR-010) (depends on T028)
 - [ ] T030 [P] Add a HotA map generator (format `0x20`, sub-versions 9 and 10, both script-flag states, the sub-10 deltas, HotA object subtypes) to `test/fixtures/synthetic/hota-map.ts`
 - [ ] T031 [P] Unit-test the map format on synthetic fixtures in `test/core/formats/h3m-hota.test.ts`: header fields per sub-version, sub-10 deltas, HotA object bodies, unsupported sub-version and unmapped class errors (depends on T030, T027)
-- [ ] T032 Add a real-file test in `test/real/hota-maps.test.ts` that parses `test_map_hota.h3m` (sub 10), `[HotA] The Devil Is in the Detail.h3m` (sub 9) and the 252×252 map to exact end of file, skipping with a message when the files are absent (depends on T029)
+- [X] T032 Add a real-file test in `test/real/hota-maps.test.ts` that parses `test_map_hota.h3m` (sub 10), `[HotA] The Devil Is in the Detail.h3m` (sub 9) and the 252×252 map to exact end of file, skipping with a message when the files are absent (depends on T029)
 
 **Checkpoint**: HotA archives open and HotA maps without an active script block parse to the byte.
 
@@ -97,7 +97,7 @@ the underground novelty zone with `yarn h3 render`; the report shows zero unreso
 
 ### Terrain
 
-- [ ] T033 [P] [US1] Add the per-terrain sprite source (`def` or `tiles`) and terrain ids 10 Highlands / 11 Wasteland with 124 tiles each to `src/core/data/terrain.ts`, leaving the ten existing terrains on their DEF source (FR-011)
+- [X] T033 [P] [US1] Add the per-terrain sprite source (`def` or `tiles`) and terrain ids 10 Highlands / 11 Wasteland with 124 tiles each to `src/core/data/terrain.ts`, leaving the ten existing terrains on their DEF source (FR-011)
 - [ ] T034 [US1] Accept decoded PCX tiles as atlas inputs beside DEF frames in `src/core/render/atlas.ts`, keeping `toDisplayColor` and the page budget unchanged (FR-011) (depends on T033)
 - [ ] T035 [US1] Load a terrain tile set through the archive set in `src/runtime/decode.ts` (`<prefix>000…123.pcx`) and feed it to the atlas (depends on T034, T014)
 - [ ] T036 [P] [US1] Add a synthetic 124-tile PCX terrain set to `test/fixtures/synthetic/terrain-archive.ts` and unit-test tile selection, mirroring and the out-of-range tile error in `test/core/render/terrain-tiles.test.ts` (depends on T035)
@@ -105,9 +105,9 @@ the underground novelty zone with `yarn h3 render`; the report shows zero unreso
 
 ### Towns, heroes, sprite conventions
 
-- [ ] T038 [P] [US1] Replace the town sprite record with the five-form table (village, fort, citadel, castle, capitol) for the nine base factions, Cove, Factory and the random town, with the irregular Fortress and Conflux stems spelled out, in `src/core/data/object-classes.ts` (FR-013)
-- [ ] T039 [US1] Select the town form by fortification level in `src/core/state/render-objects.ts`, keeping the measured base-game behaviour when no HotA archive is loaded (FR-013) (depends on T038)
-- [ ] T040 [P] [US1] Extend the hero class table to `ah00_…ah23_` with the gendered `b` bodies present but unused (non-suffixed body rendered) in `src/core/data/heroes.ts` (FR-014)
+- [X] T038 [P] [US1] Replace the town sprite record with the five-form table (village, fort, citadel, castle, capitol) for the nine base factions, Cove, Factory and the random town, with the irregular Fortress and Conflux stems spelled out, in `src/core/data/object-classes.ts` (FR-013)
+- [X] T039 [US1] Select the town form by fortification level in `src/core/state/render-objects.ts`, keeping the measured base-game behaviour when no HotA archive is loaded (FR-013) (depends on T038)
+- [X] T040 [P] [US1] Extend the hero class table to `ah00_…ah23_` with the gendered `b` bodies present but unused (non-suffixed body rendered) in `src/core/data/heroes.ts` (FR-014)
 - [ ] T041 [P] [US1] Sweep the HotA archive for DEF conventions (FR-015): a throwaway script in the scratchpad (not committed — it is a measurement, not a tool) decodes every `av*`/`ah*` DEF and counts pixels at palette indices 2, 3 and 255; record the resulting name lists and the stem-vs-exact-name answer in [research.md](research.md) R10
 - [ ] T042 [US1] Commit the verified name-keyed convention table (shadows at 2/3, flag at 255, keep-selection) in new `src/core/data/hota-def-conventions.ts`, seeded from the MIT source and corrected by the sweep of T041 (FR-015) (depends on T041)
 - [ ] T043 [US1] Apply the convention by DEF name when decoding shadows and the flag slot in `src/core/render/object-atlas.ts` and `src/core/data/animation.ts`, leaving every DEF outside the table on the base-game rules (FR-015) (depends on T042)

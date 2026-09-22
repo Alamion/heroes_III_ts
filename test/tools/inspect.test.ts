@@ -95,7 +95,8 @@ describe('yarn h3 (synthetic files)', () => {
     const missing = await h3(['map', 'info', 'definitely-missing.h3m'])
     expect(missing.code).toBe(3)
     const broken = join(dir, 'broken.h3m')
-    writeFileSync(broken, Uint8Array.of(0x20, 0, 0, 0, 1, 2))
+    // 0x33 is WoG: a format the reader knows of but does not support.
+    writeFileSync(broken, Uint8Array.of(0x33, 0, 0, 0, 1, 2))
     const bad = await h3(['map', 'info', broken])
     expect(bad.code).toBe(1)
     expect(bad.json).toMatchObject({ ok: false, error: { name: 'FormatError', code: 'UNSUPPORTED_VERSION', file: 'broken.h3m' } })

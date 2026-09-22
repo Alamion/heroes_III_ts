@@ -61,9 +61,13 @@ describe.skipIf(arrogance === null)('Arrogance.h3m (SC-002)', () => {
   })
 })
 
-describe.skipIf(hotaMap === null)('HotA map rejection', () => {
-  it('fails with UNSUPPORTED_VERSION', async () => {
-    await expect(parseH3mFile(new Uint8Array(await readFile(hotaMap as string)), 'По праву силы.h3m')).rejects.toMatchObject({ code: 'UNSUPPORTED_VERSION', version: '0x20' })
+describe.skipIf(hotaMap === null)('HotA map with an active event system', () => {
+  it('fails with a typed error naming the section (spec 005 FR-009; the walker is task T051)', async () => {
+    await expect(parseH3mFile(new Uint8Array(await readFile(hotaMap as string)), 'По праву силы.h3m')).rejects.toMatchObject({
+      code: 'UNSUPPORTED_VERSION',
+      version: 'HotA sub 9',
+      structure: 'scriptSection',
+    })
   })
 })
 
