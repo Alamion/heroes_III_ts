@@ -77,10 +77,15 @@ One `/speckit-specify` each and roughly in this order:
 
 After the open fixes of item 2, the order is (owner, 2026-09-22):
 
-3. **HotA support** — read HotA archives and maps, render HotA terrains, objects, towns and heroes.
-   Target **HotA 1.8** directly: that is what users run, and both HotA maps in `public/dev-assets/`
-   are map version 0x20 sub-version 9 (written by 1.8.0). HotA saves come later with item 5.
-   `[HotA] The Devil Is in the Detail.h3m` (252×252) is the stress-test map.
+3. **HotA support** — specified in [specs/005-hota-support/](specs/005-hota-support/). Read HotA
+   archives and maps, render HotA terrains, objects, towns and heroes. Target **HotA 1.8** directly:
+   that is what users run. Map version is 0x20 with a sub-version; measured on 2026-09-22, the
+   owner's maps carry two of them: sub-version 9 (`[HotA] The Devil Is in the Detail.h3m`,
+   `По праву силы.h3m` and 2 maps of the HotA `Maps` folder) and sub-version 10
+   (`test_map_hota.h3m` and 70 maps of that folder). HotA saves come later with item 5.
+   `[HotA] The Devil Is in the Detail.h3m` (252×252) is the stress-test map, `test_map_hota.h3m`
+   (built by the owner, HotA novelties in the lower-left corner of the underground level) is the
+   primary check map.
 
    Sources were surveyed on 2026-09-22 and cloned into `context/` (see the table in AGENTS.md for
    each one's license and what it may be used for). Measurements below were verified against the
@@ -98,11 +103,12 @@ After the open fixes of item 2, the order is (owner, 2026-09-22):
       byte-135 check in `src/core/formats/lod/lod.ts`. Archive order must let HotA override the base
       game (`Objects.txt`, `game.pal` and sprites all exist in both).
    2. **Map format (the real unknown).** Version 0x20 with a sub-version: port sub-versions up to 5
-      from FreeHeroes (MIT), then derive 7/8/9 from our own maps, using VCMI only as study material
-      and `h3m2json`'s Corpus as the prose spec. The sub-version 9 script block has no fixed size —
-      skipping it still means walking its bytecode, so either budget that or start at sub-version 8
-      (which leaves our two dev maps unreadable). Parsers stay bounds-checked with typed errors;
-      no guessed byte skips (constitution).
+      from FreeHeroes (MIT), then derive the rest from our own maps, using VCMI only as study
+      material and `h3m2json`'s Corpus as the prose spec. Sub-versions 9 and 10 are required (they
+      are what the owner's maps use); 0–8 are best-effort, since no map of those exists locally.
+      The script block of these sub-versions has no fixed size — skipping it still means walking its
+      bytecode, so that work must be budgeted. Parsers stay bounds-checked with typed errors; no
+      guessed byte skips (constitution).
    3. **Data and render.** New terrains Highlands and Wasteland ship as 124 numbered PCX tiles each
       (`hglnt000…123`, `wstlt000…123`) with their own transition index scheme, not as terrain DEFs.
       Towns have five adventure sprites per faction (`e0` village, `f0` fort, `c0` citadel,

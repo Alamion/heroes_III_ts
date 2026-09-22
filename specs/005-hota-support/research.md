@@ -1,0 +1,407 @@
+# Phase 0 Research: HotA Support
+
+**Feature**: [spec.md](spec.md) | **Date**: 2026-09-22
+
+All numbers below were measured on 2026-09-22 against the local installs (HotA 1.8.1 at
+`/home/JRCD/.wine/drive_c/Games/Heroes3_HotA`, Complete at
+`/home/JRCD/.wine/drive_c/Games/Heroes of Might and Magic III Complete`) and the maps in
+`public/dev-assets/`. Measurement scripts were throwaway Node scripts run outside the repository;
+no game content was copied into the repository. Where a statement could not be measured it is
+marked as such.
+
+Licence discipline for this feature (constitution I): `hota-lod-convert` (MIT OR Apache-2.0),
+`freeheroes` (MIT), `mmarchive-cli` (MIT) and `h3m2json` (Unlicense) may be ported with attribution
+in [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md); `vcmi-hota-mod` is CC BY-SA data reused
+with attribution and kept out of shipped builds; `vcmi`, `vcmiextract` and `hota-editor-hdat` are
+study-only — behaviour may be understood from them and reimplemented in our own words, never
+copied.
+
+---
+
+## Measurements
+
+### M1 — HotA 1.8.1 archive (`HotA.lod`, 111 378 616 bytes)
+
+- Header is the vanilla 92-byte header: magic `LOD\0`, version 200, 5232 entries. The u32 at
+  **offset 12** is the XOR key: `0xB5A4D744` here.
+- Entry records stay 32 bytes: `u32 nameHash` (not XORed), `i32 offset ^ key`, `i32 size ^ key`,
+  `i32 compressedSize ^ key`, `u8 compression` (not XORed), 15 bytes of random filler.
+- Self-consistency after de-XOR: no negative field, no entry past EOF, no overlap, no duplicate
+  hash; first data offset 167 516 = 92 + 32 × 5232; last entry ends exactly at file size.
+- Compression histogram `{0: 1363 raw, 3: 3869 zlib}`. **No LZMA (type 2), no type 1.** All 3869
+  zlib entries inflate with `DecompressionStream`/`zlib` to their declared size; 0 failures. Total
+  uncompressed 244 197 916 bytes (232.9 MiB).
+- Entry names are a 32-bit **FNV-1a** hash (basis `0x811C9DC5`, prime `0x01000193`) of the
+  lower-cased name, no trailing NUL. Verified against all 5239 pairs in
+  `context/hota-lod-convert/data/hashes.txt` (5239/5239); FNV-1, upper case and NUL-terminated
+  variants match 0/5239. All 5232 entries of the local archive are covered by that dictionary.
+- Extensions: pcx 2213, def 1838, msk 1106, d32 49, txt 13, fnt 10, p32 2, pal 1.
+- Notable entries: `Objects.txt` 278 015 B, `objtmplt.txt` 286 B, `EdObjts.txt` 322 280 B,
+  `game.pal` 1048 B. **`artraits.txt` is absent** — the vanilla data archive stays required.
+- Terrain tiles: `hglnt000…hglnt123.pcx` (124) and `wstlt000…wstlt123.pcx` (124), each exactly
+  1804 B, stored raw, LOD-PCX with `size=1024, w=32, h=32` (12-byte header + 1024 indexed pixels +
+  768-byte palette). There is no `hglntl.def`/`wstltl.def`.
+- HotA overrides four vanilla sprite entries: `grastl.def`, `watrtl.def`, `clrrvr.def`,
+  `icyrvr.def`, and ships its own `game.pal`, which differs from the vanilla one in exactly two
+  entries: 65 (`27,85,216` vs `50,80,255`) and 67 (`49,145,25` vs `64,150,42`) — two player flag
+  colours in the 64–71 range.
+
+### M2 — archive detection across 16 local archives
+
+| archive | u32 @12 | obfuscated |
+| --- | --- | --- |
+| HotA 1.8.1 `HotA.lod` | `0xB5A4D744` | yes |
+| HotA 1.7.x `HotA.lod` (Complete install) | 0 | no — plain LOD |
+| `h3sprite.lod`, `sprite.lod`, `lsprite.lod` | `0x7E0213` | no — uninitialised filler |
+| all others (`h3bitmap.lod`, `HotA_lng.lod`, `h3ab_*.lod`, …) | 0 | no |
+
+Rule: obfuscated **iff** `u32 @12` is neither `0` nor `0x7E0213`. `HotA_ext.lod` and
+`HotA_l_ext.lod` are 92-byte empty stubs (0 entries).
+
+The current check in [lod.ts:23,61](../../src/core/formats/lod/lod.ts) compares `header[12]` with
+the constant 135, i.e. only the low byte of one build's key. On the real 1.8.1 archive
+`header[12] === 68`, so the check does not fire and the parser dies with a misleading `TRUNCATED`
+instead of the intended message. `test/fixtures/synthetic/lod.ts` bakes in the same wrong
+assumption.
+
+### M3 — HotA `Objects.txt` vs vanilla
+
+| | HotA 1.8.1 | vanilla Complete |
+| --- | --- | --- |
+| rows (line 1 count) | 1883 | 1326 |
+| fields per row | 9 | 9 |
+| passable / active mask width | 48 / 48 | 48 / 48 |
+| **terrain and editor-group mask width** | **12** | **9** |
+| distinct class ids | 183 (max 231) | 167 (max 231) |
+| distinct class:subclass pairs | 830 | 611 |
+| `group` value range | 0–10 | 0–5 |
+
+The 12 terrain columns are ids 0–11: id 8 (water) restricted as before, id 9 (rock) present but
+never set, **ids 10 (Highlands) and 11 (Wasteland)** allowed wherever dirt is. `objtmplt.txt`
+inside the same HotA archive is byte-identical to the vanilla one and still uses **9**-wide masks,
+so mask width must be read per file, never assumed from the archive.
+
+[objects-txt.ts](../../src/core/formats/text/objects-txt.ts) calls `bitString(..., 9)` and rejects
+any other width, so it fails on every HotA row today.
+
+### M4 — HotA map format (`0x20`), measured over 72 maps
+
+A from-scratch walker parsed **72/72 HotA maps to the exact last byte** of the decompressed stream
+(70 sub-version 10, 2 sub-version 9), plus 159/159 RoE/AB/SoD maps in the same folder as a control.
+
+Header of `0x20` (gunzipped offsets, little-endian):
+
+```
+u32 format = 0x20
+u32 subVersion                                  # 9 or 10 in the wild
+u32 hotaMajor, hotaMinor, hotaPatch             # sub >= 8 (1.8.0 for sub 9, 1.8.1 for sub 10)
+u8  isMirrorMap, u8 isArenaMap                  # sub >= 1
+u32 terrainTypeCount                            # sub >= 2 (measured 12 everywhere)
+u32 townTypeCount, i8 allowedDifficultyMask     # sub >= 5 (measured 12; mask 31 or 24)
+u8  canHireDefeatedHeroes                       # sub >= 7
+u8  forceMatchingHotaVersion                    # sub >= 8
+i32 unknown (0 in all 72 maps)                  # sub >= 9
+… then the ordinary basic info (anyPlayers, size, two levels, name, description, difficulty, cap)
+```
+
+Further divergences from SoD: allowed heroes is `u32 count` + `ceil(count/8)` bytes (count = 215 in
+every HotA map) instead of a fixed 20 bytes; the map-options block gains a 16-artifact combination
+ban mask, an `i32 roundLimit` and 8 per-player recruitment bytes; allowed artifacts is
+`u32 count` + `ceil/8` (count = 166); predefined heroes is `u32 count` (215) records with a u16
+scroll spell after every artifact slot plus a trailing 6-byte block per hero; victory condition 12
+carries a **u32** day count (the Corpus says u16 — the files say u32); global events read the
+occurrence field as u16 + 16 zero bytes and gain `i32 affectedDifficulties` (sub ≥ 7).
+
+**Tiles are unchanged**: 7 bytes per tile, same field order, no new bits (only ext-flag bits 0–6
+ever set across all 72 maps). **Object templates are unchanged** in size and layout; the `type`
+byte now takes values 0–10 (base game 0–5; 9 and 10 unidentified).
+
+**Object class ids never exceed 231 and never leave the base-game range.** HotA expresses new
+content as new *subtypes* of existing class ids, notably classes 144/145/146 (which the repo's
+`bodyFamily()` currently maps to `'none'`, but which carry bodies in HotA), class 212 subtype 1000
+(Quest Gate, carries a quest) and 1001 (Grave, carries a reward), class 36 subtype ≥ 1000 (arena
+location, no radius field).
+
+Corpus scale: largest map 252×252 two levels (127 008 tiles); most objects 53 576
+(`[HotA] Noble Nemesis.h3m`); most templates 1666.
+
+### M5 — the script section (sub ≥ 9)
+
+- Position: immediately after the map-options block and immediately before the allowed-artifacts
+  mask. One `u8 eventsSystemActive`; if 0 nothing follows (68 of 72 maps), if 1 a variable-length
+  blob with **no length prefix and no terminator** follows.
+- Measured bodies: `По праву силы.h3m` 3574 B (flag at offset 1140), `[HotA] Help!` 10 630 B,
+  `[HotA] Ice Assault` 3371 B, `[HotA] Invasion` 4051 B. Each length is the unique value that makes
+  the remainder of the file end exactly at EOF, so the measurements are exact.
+- The length is **not discoverable without walking the content**: no u32 in the first 64 bytes of
+  any sample equals the body length or a simple function of it. The content is four event lists
+  (hero/player/town/quest) of variable-length records with embedded Pascal strings, then id
+  counters, a variable table and id→name maps, with event bodies as trees of typed opcodes
+  (behaviour understood from VCMI, which is GPL and therefore study-only).
+- 4 of the 72 maps have the flag set — including `По праву силы.h3m`, which the spec names in an
+  acceptance scenario.
+
+### M6 — sub-version 10 vs 9
+
+Three deltas, each required to reach EOF on the 70 sub-10 maps and absent from the sub-9 maps:
+
+1. Quest record (Quest Guard class 215, Quest Gate class 212 subtype 1000): **+4 bytes** at the end
+   of the record (after the three message strings, or immediately after a NONE mission type).
+2. Seer Hut (class 83), per quest with a non-NONE mission: **+4 bytes** between the quest strings
+   and the reward-type byte.
+3. Seer Hut object: **+1 byte** after the closing 2-byte pad.
+
+All observed values are zero; the semantics are unknown. Header-wise, sub 9 files carry HotA
+version 1.8.0 and sub 10 files 1.8.1.
+
+Note: the `public/dev-assets/` copy of `[HotA] The Devil Is in the Detail.h3m` is sub-version 9,
+while the copy in the install's `Maps` folder is sub-version 10.
+
+### M7 — HotA graphics data
+
+- **Terrains**: ids 10 Highlands, 11 Wasteland. Maximum `terrainView` measured for both is **123**
+  (124 tiles), versus 78 for grass-class terrains and 45/23/32/47 for dirt/sand/water/rock, which
+  HotA leaves unchanged. The per-tile index and the mirroring bits come from the map, so VCMI's
+  terrain *pattern* tables are only documentation of what the indices mean and are not needed at
+  render time. No new river or road ids exist: Highlands reuses the clear river, Wasteland the mud
+  river.
+- **Towns**: five adventure forms per faction keyed to fortification level — village, fort (`f0`),
+  citadel (`c0`), castle (`x0`), capitol (`z0`) — and this applies to the **base factions too**
+  (HotA ships fort/citadel/castle/capitol repaints for all nine). Stems are irregular: Fortress
+  mixes `for`/`ftr` (`avcftrt0`, `avcforf0`, `avcforc0`, `avcftrx0`, `avcforz0`), Conflux truncates
+  to eight characters without the trailing zero (`avchfor0`, `avchfof0`, `avchfoc0`, `avchforx`,
+  `avchforz`). New factions: Cove `avccove0/f0/c0/x0/z0`, Factory `avcface0/f0/c0/x0/z0`. Several
+  village DEFs live only in the base archive, so town rendering depends on archive precedence.
+  In the base game `Objects.txt` declares only the `x0` template for class 98, which is why the
+  repo's current two-form rule is correct there and must be scoped as base-game-only.
+- **Heroes**: classes extend to `ah18_…ah23_` (18 Cove Captain, 19 Cove Navigator, 20 Factory
+  Mercenary, 21 Factory Artificer; 22/23 belong to the unreleased Bulwark faction), and every class
+  gains a second gendered body with a `b` suffix (`ah00b_`). Which of the two is male differs per
+  class. Flags are unchanged: the same eight `af0?.def` with the colour baked in; HotA repaints only
+  `af01`.
+- **DEF conventions**: `context/mmarchive-cli/defConfig.json` lists 41 DEF stems whose shadows live
+  in palette indices 2 and 3 (index 3 behaving like base index 1, index 2 like base index 4) and 11
+  DEFs whose player-flag colour sits at index 255 instead of 5, plus one DEF whose index 5 must not
+  be made transparent. The tool keys these by **file name**, not by archive or heuristic.
+- **D32/P32**: the archive holds 49 `.d32` and 2 `.p32` entries and every one is interface or
+  tutorial art (`tut*`, campaign screens, `spelsphr`, `fr32_67.p32`, `spellbe.p32`) — no `av*`,
+  `ah*`, terrain or town entry. They are not used on the adventure map.
+- **`HotA.dat`**: an `HDAT` container of name/description/localisation strings used by the editor;
+  it holds no sprites and no map data.
+
+---
+
+## Decisions
+
+### R1 — HotA archive index
+
+**Decision**: extend `LodArchive` with a second index shape. Detect obfuscation by reading `u32 @12`
+and treating anything other than `0` and `0x7E0213` as the XOR key; de-XOR offset/size/compressed
+size; keep the existing `LodEntry` shape by filling `name` from the hash. Port the layout, the
+detection rule and the sanity asserts from `hota-lod-convert` (MIT OR Apache-2.0) with attribution.
+Implement the FNV-1a-32 name hash ourselves (it is not in that source) so `find`/`get`/`has` work by
+hashing the requested name — no dictionary is needed for lookups. Delete the `HOTA18_MARKER = 135`
+check and the matching synthetic fixture.
+
+**Rationale**: measured on the real archive (M1, M2); it is the minimum change that makes every
+entry addressable, and lookup-by-hash keeps the runtime free of a 120 KB name table.
+
+**Alternatives considered**: keeping a name dictionary in the runtime (rejected: needless size, and
+it would have to ship a list of game file names); converting HotA archives to plain LODs up front
+(rejected: writes derived game data to disk, contradicts constitution I).
+
+### R2 — Entry names for tooling
+
+**Decision**: names are not needed at runtime. The inspection CLIs (`yarn h3 lod list`) resolve
+hashes through `context/hota-lod-convert/data/hashes.txt` when that local, git-ignored folder is
+present, and otherwise print the hashes as `#<hex>`; `archive.lod:ENTRY` arguments always work,
+because the name is hashed. Nothing is committed to the repository.
+
+**Rationale**: keeps the repository free of game-derived name lists while leaving the dev workflow
+intact; the dictionary is already in `context/` on this machine.
+
+**Alternatives considered**: committing the MIT dictionary (it is third-party data, not game
+content, so it would be defensible — kept as a fallback if the dev experience suffers).
+
+### R3 — Multiple archives and precedence
+
+**Decision**: introduce an ordered **archive set** in `core/formats/lod`: a list of opened archives
+queried first-match-wins, with the HotA archive placed before the base archives. The runtime decode
+paths take a set instead of a single archive, and the decode cache key combines the identity of
+every archive in the set, in order.
+
+**Rationale**: HotA overrides `grastl.def`, `watrtl.def`, `clrrvr.def`, `icyrvr.def` and `game.pal`
+(M1), and several town village DEFs exist only in the base archive (M7), so both directions of the
+merge are load-bearing. `tools/shared/game-sprites.ts` already uses exactly this first-match-wins
+pattern, so the semantics are proven in the repo.
+
+**Alternatives considered**: a HotA-specific special case in each decode function (rejected:
+scattered rules, no single precedence definition).
+
+### R4 — `Objects.txt` mask width
+
+**Decision**: read the terrain and editor-group mask width from the row itself, accept exactly 9 or
+12, require every row of one file to agree, and map the 12-column form to terrain ids 0–11 with the
+same "leftmost column is the highest id" convention as today.
+
+**Rationale**: measured (M3); `objtmplt.txt` proves the width cannot be inferred from the archive.
+
+**Alternatives considered**: branching on "is this the HotA archive" (rejected by the counter-example
+in the same archive).
+
+### R5 — Map format versioning
+
+**Decision**: replace the flat `H3mVersion` union with a version descriptor carrying format code and
+sub-version, and extend `H3mContext` with a **feature table** derived from (format, sub-version):
+the existing `ab`/`sod` flags stay, and HotA features become named flags (`hotaHeaderVersionTriple`,
+`hotaCountedHeroes`, `hotaScriptSection`, `hotaQuestTail`, `hotaSeerTail`, …). Port the shape of the
+feature table from FreeHeroes (MIT, sub-versions 0–3 and 5) with attribution, and fill 6–10 from the
+measurements in M4/M6.
+
+**Rationale**: every section reader already branches on context flags rather than a raw version, so
+this keeps the existing structure and makes the sub-version deltas declarative and reviewable.
+
+**Alternatives considered**: a separate HotA parser (rejected: duplicates the 90 % of the format that
+is identical and risks base-game regressions, which US3 forbids).
+
+### R6 — The script section
+
+**Decision**: implement our own bounds-checked walker of the event-system block, written from an
+understanding of the behaviour (VCMI is study-only) and validated against the four maps that carry
+one. A parse is accepted only when the file ends exactly at EOF after the 124 trailing zero bytes;
+if the walker cannot complete, the map fails with a typed `UNSUPPORTED_*` error naming the section
+and offset. No length guessing, no trial-and-error skipping.
+
+**Rationale**: `По праву силы.h3m` is named in an acceptance scenario (US2.3) and carries an active
+script block, so skipping it is not optional. The exact-EOF rule is a strong, cheap invariant that
+already holds for all 231 maps parsed in M4.
+
+**Alternatives considered**: rejecting maps with the flag set (rejected: fails a named acceptance
+scenario, and 4 of 72 HotA maps are affected); searching for the body length by trying every offset
+and keeping the one that reaches EOF (rejected: that is exactly the guessed skip the constitution
+forbids, and it costs a full re-parse per candidate).
+
+### R7 — Terrain from PCX tiles
+
+**Decision**: give the terrain data table a per-terrain **source**: either one DEF (all ten existing
+terrains) or a numbered PCX tile set (`hglnt000…123`, `wstlt000…123`, 124 tiles each), and teach the
+atlas builder to accept decoded PCX tiles as inputs alongside DEF frames. The tile index and the
+mirroring bits keep coming from the map tile record, unchanged.
+
+**Rationale**: measured (M1, M4, M7). No pattern matching is needed: the map stores the chosen tile.
+
+**Alternatives considered**: synthesising a DEF in memory from the 124 PCX files (rejected: an extra
+representation for no gain); pattern-based tile selection from VCMI's tables (rejected: unnecessary
+for rendering an existing map, and GPL-sourced).
+
+### R8 — Town forms
+
+**Decision**: replace the three-field `TOWN_SPRITES` entry with a five-form record (village, fort,
+citadel, castle, capitol) per faction, as a hand-written table with the irregular stems spelled out,
+covering the nine base factions plus Cove and Factory plus the random town. Form selection is driven
+by the town's fortification level. The base game keeps its measured behaviour, because its
+`Objects.txt` only declares the castle form; the AGENTS.md rule is re-scoped as base-game-only.
+
+**Rationale**: measured (M7); no naming formula fits the irregular stems.
+
+**Alternatives considered**: deriving names by formula with exceptions (rejected: more moving parts
+than a table of 13 rows).
+
+### R9 — Heroes
+
+**Decision**: extend the hero class table to `ah00_…ah23_`, keep the existing flag scheme unchanged,
+and render the non-suffixed body by default. The gendered `b` bodies are supported by the data table
+but only selected once a measured source for a hero's gender exists; until then the default is
+documented as a known deviation candidate.
+
+**Rationale**: measured (M7); the gender source was not found in HotA's text tables and is not worth
+blocking the feature on.
+
+### R10 — HotA DEF conventions
+
+**Decision**: a typed data module lists the DEF names whose shadows live at palette indices 2/3 and
+those whose flag colour sits at index 255, seeded from `mmarchive-cli` (MIT, attribution) and then
+**verified by our own sweep** over every `av*`/`ah*` DEF in the HotA archive (count pixels at indices
+2, 3 and 255 and compare with the list). The decoder picks the convention by DEF name.
+
+**Rationale**: measured convention and measured detection method (M7); a heuristic would silently
+mis-shade base-game sprites, which US3 forbids.
+
+**Open point for the sweep**: `defConfig.json` lists several entries as stems (`avgflh`, `avlhpn`, …)
+and it is not established whether numbered members of those families are covered. The sweep decides
+it; whatever it finds becomes the committed table.
+
+### R11 — Palettes and player colours
+
+**Decision**: nothing special. `game.pal` resolves through the archive set (R3), so the HotA palette
+— including the two changed flag colours at indices 65 and 67 — wins automatically when the HotA
+archive is loaded, and the base palette is used when it is not. The palette rotation ranges are
+re-checked against the HotA palette during implementation.
+
+### R12 — Explicitly out of scope, with evidence
+
+- **LZMA and compression type 1**: 0 entries in the local archive (M1). An entry using them produces
+  a typed "unsupported compression" error naming the entry.
+- **D32/P32 decoding**: all 51 entries are interface art (M7).
+- **`HotA.dat`**: a text/description container, not needed for the adventure map (M7).
+- **`EdObjts.txt`**: an editor-only table in a different, undocumented shape (no count line, mixed
+  field counts, comments) with no established rendering role (M1).
+- **HotA saves, random-map templates and campaigns**: later roadmap items.
+
+### R13 — Fidelity reference for HotA
+
+**Decision**: add a second baseline to the reference environment — the HotA build (`h3hota.exe`) from
+the separate 1.8.1 install — with its own game root, its own calibration probes and its own capture
+namespace, so a capture is always labelled with the baseline it came from and HotA captures can
+never be compared against base-game renders or vice versa. The constitution is amended in the same
+change (Principle II and the "Formats in scope" list), together with the HotA budget numbers of R16.
+
+**Rationale**: the owner chose captures from the HotA build over editor-only verification; the
+constitution currently fixes Complete as the only baseline, so the amendment is part of the feature
+(FR-024).
+
+**Alternatives considered**: HotA editor captures only (rejected by the owner: no animation or
+palette verification); reusing the base-game calibration (rejected: the HotA interface and menus
+differ, and the existing probes are calibrated against the Complete build).
+
+### R14 — The coverage check
+
+**Decision**: a new check classifies every available map by (format code, sub-version, level count,
+size class, terrain ids used, object class/subtype families used, file-name encoding, script flag)
+and opens at least one map per class plus the named edge cases, reporting per opened map whether it
+parses and whether every object class resolves. A flag runs it over every available map. The
+classification reads only the header and the template table for most classes, so it is cheap.
+
+**Rationale**: the owner's acceptance bar is "every distinct variant and edge case", and a
+classification picks up a new variant automatically while a hand-written list rots.
+
+### R15 — Hosts and settings
+
+**Decision**: one new optional file setting (`hotaarchive`, filter `*.lod`) in the shared settings
+definition, flowing to all four host manifests from the same source as the existing archive
+settings, and appended to the archive set before the base archives when set. Absent setting = today's
+behaviour, byte for byte.
+
+### R16 — Budgets
+
+**Decision**: measure the HotA case separately (cold start with a 111 MB archive, cache size, memory,
+the 252×252 two-level map with up to ~53 600 objects) and record HotA-specific numbers in the
+constitution amendment of R13. Base-game budgets are unchanged and keep gating the base-game case.
+Note for the implementation: `archiveIdentity` already hashes only the header and index, so archive
+size does not affect identity cost; the decode cache and the 248 new terrain tiles are the parts to
+watch.
+
+---
+
+## Risks and open questions
+
+| # | Risk / unknown | Handling |
+| --- | --- | --- |
+| 1 | Script-section grammar is known only from a study-only source | Own walker validated by exact-EOF on the four maps that have one; honest typed failure otherwise (R6) |
+| 2 | Sub-10 deltas are measured but their meaning is unknown, and unexercised object classes may hold more | Deltas are declared as named feature flags with a comment stating they are measured-not-understood; the coverage check would catch a new failure as a parse error, not a misread |
+| 3 | HotA quirk DEF lists may be incomplete or stem-based | Verified by our own sweep before the table is committed (R10) |
+| 4 | Sub-versions 0–8 are unavailable locally | Best-effort per FR-006a; a mismatch fails with a typed error |
+| 5 | An unseen HotA build may use LZMA or a different key | Typed "unsupported compression" error; the key is read per file, never assumed constant |
+| 6 | A third-party vanilla LOD could carry junk at bytes 12–15 other than `0`/`0x7E0213` | Only two junk values observed across 16 archives; the de-XOR sanity asserts catch a wrong key and produce a typed error instead of garbage |
+| 7 | HotA hero gender source not found | Default to the non-suffixed body; documented (R9) |
+| 8 | HotA fidelity may expose base-game rules that were only ever verified on base sprites | Fidelity check compares against HotA captures; differences become accepted deviations with owner review, as in spec 003 |
