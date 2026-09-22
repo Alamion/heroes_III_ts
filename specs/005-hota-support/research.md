@@ -86,8 +86,9 @@ any other width, so it fails on every HotA row today.
 
 ### M4 — HotA map format (`0x20`), measured over 72 maps
 
-A from-scratch walker parsed **72/72 HotA maps to the exact last byte** of the decompressed stream
-(70 sub-version 10, 2 sub-version 9), plus 159/159 RoE/AB/SoD maps in the same folder as a control.
+A from-scratch walker parsed **72/72 HotA maps to the exact last byte** of the decompressed stream —
+69 in the HotA install's `Maps` folder (all sub-version 10) and 3 in `public/dev-assets/` (1 sub-10,
+2 sub-9) — plus 159/159 RoE/AB/SoD maps of the same install folder as a control.
 
 Header of `0x20` (gunzipped offsets, little-endian):
 

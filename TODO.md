@@ -80,9 +80,9 @@ After the open fixes of item 2, the order is (owner, 2026-09-22):
 3. **HotA support** — specified in [specs/005-hota-support/](specs/005-hota-support/). Read HotA
    archives and maps, render HotA terrains, objects, towns and heroes. Target **HotA 1.8** directly:
    that is what users run. Map version is 0x20 with a sub-version; measured on 2026-09-22, the
-   owner's maps carry two of them: sub-version 9 (`[HotA] The Devil Is in the Detail.h3m`,
-   `По праву силы.h3m` and 2 maps of the HotA `Maps` folder) and sub-version 10
-   (`test_map_hota.h3m` and 70 maps of that folder). HotA saves come later with item 5.
+   owner's maps carry two of them: sub-version 9 (`[HotA] The Devil Is in the Detail.h3m` and
+   `По праву силы.h3m`, both in `public/dev-assets/`) and sub-version 10 (`test_map_hota.h3m` plus
+   all 69 HotA maps of the install's `Maps` folder). HotA saves come later with item 5.
    `[HotA] The Devil Is in the Detail.h3m` (252×252) is the stress-test map, `test_map_hota.h3m`
    (built by the owner, HotA novelties in the lower-left corner of the underground level) is the
    primary check map.

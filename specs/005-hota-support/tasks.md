@@ -31,11 +31,11 @@ Single project, layers as in AGENTS.md: `src/core/{util,data,formats,state,sim,r
 
 **Purpose**: prepare the branch, the attribution and the pre-change safety net
 
-- [ ] T001 Create and switch to branch `005-hota-support` from `testing` (feature work is merged back into `testing`)
-- [ ] T002 Record the pre-change base-game renders used by US3 (FR-008, SC-003): render a fixed set of regions of `public/dev-assets/test_map.h3m` at fixed time and seed with `yarn h3 render`, store the PNGs under git-ignored `check-reports/baseline-005/` **and** commit their SHA-256 digests to `test/real/base-render-baseline.json` (a digest is a fingerprint, not game content, and survives a cleaned report folder). Both must be produced **before** any source change
-- [ ] T003 [P] Add attribution entries to `THIRD_PARTY_NOTICES.md` for `hota-lod-convert` (MIT OR Apache-2.0, archive index layout), `freeheroes` (MIT, map feature table and sub-versions 0–5), `mmarchive-cli` (MIT, DEF convention seed lists), `h3m2json` (Unlicense, prose format reference) and `vcmi-hota-mod` (CC BY-SA, naming data), stating that VCMI, vcmiextract and HotA-editor are study-only (FR-029)
-- [ ] T004 [P] Extend the local install configuration in `tools/reference-env/config.ts` with an optional HotA install root (`hotaBundleDir`, env `H3REF_HOTA_BUNDLE_DIR`) and update `reference-env.config.example.json`
-- [ ] T005 [P] Extend game-file discovery in `tools/shared/game-files.ts` so bare names also resolve from the HotA install's `Data/` and `Maps/` folders, keeping the existing search order first (FR-019)
+- [X] T001 Create and switch to branch `005-hota-support` from `testing` (feature work is merged back into `testing`)
+- [X] T002 Record the pre-change base-game renders used by US3 (FR-008, SC-003): render a fixed set of regions of `public/dev-assets/test_map.h3m` at fixed time and seed with `yarn h3 render`, store the PNGs under git-ignored `check-reports/baseline-005/` **and** commit their SHA-256 digests to `test/real/base-render-baseline.json` (a digest is a fingerprint, not game content, and survives a cleaned report folder). Both must be produced **before** any source change
+- [X] T003 [P] Add attribution entries to `THIRD_PARTY_NOTICES.md` for `hota-lod-convert` (MIT OR Apache-2.0, archive index layout), `freeheroes` (MIT, map feature table and sub-versions 0–5), `mmarchive-cli` (MIT, DEF convention seed lists), `h3m2json` (Unlicense, prose format reference) and `vcmi-hota-mod` (CC BY-SA, naming data), stating that VCMI, vcmiextract and HotA-editor are study-only (FR-029)
+- [X] T004 [P] Extend the local install configuration in `tools/reference-env/config.ts` with an optional HotA install root (`hotaBundleDir`, env `H3REF_HOTA_BUNDLE_DIR`) and update `reference-env.config.example.json`
+- [X] T005 [P] Extend game-file discovery in `tools/shared/game-files.ts` so bare names also resolve from the HotA install's `Data/` and `Maps/` folders, keeping the existing search order first (FR-019)
 
 ---
 

@@ -42,6 +42,8 @@ export interface Timeouts {
 export interface ReferenceConfig {
   repoRoot: string
   bundleDir: string
+  /** HotA install (spec 005). Optional: only the HotA baseline and HotA file lookups need it. */
+  hotaBundleDir: string | undefined
   wineBinary: string
   stateDir: string
   capturesDir: string

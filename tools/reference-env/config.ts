@@ -54,6 +54,8 @@ export function loadConfig(env: Env, repoRoot: string): ReferenceConfig {
     invalid(`bundleDir is not set: export H3REF_BUNDLE_DIR or set it in ${CONFIG_FILE} (see reference-env.config.example.json)`)
   }
 
+  const hotaBundleDir = env.H3REF_HOTA_BUNDLE_DIR ?? optString(file, 'hotaBundleDir')
+
   const home = env.HOME ?? homedir()
   const stateBase = env.XDG_STATE_HOME ?? join(home, '.local', 'state')
   const stateDir = resolve(env.H3REF_STATE_DIR ?? optString(file, 'stateDir') ?? join(stateBase, 'h3-reference'))
@@ -88,6 +90,7 @@ export function loadConfig(env: Env, repoRoot: string): ReferenceConfig {
   return {
     repoRoot: root,
     bundleDir: resolve(bundleDir),
+    hotaBundleDir: hotaBundleDir === undefined ? undefined : resolve(hotaBundleDir),
     wineBinary: env.H3REF_WINE ?? optString(file, 'wineBinary') ?? 'wine',
     stateDir,
     capturesDir,
