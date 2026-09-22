@@ -11,7 +11,7 @@ import { log } from '../../src/core/util/log.ts'
 import { flag, intOpt } from '../shared/cli-runner.ts'
 import type { CommandResult, ParsedArgs } from '../shared/cli-runner.ts'
 import { requireGameFile, requireTestMap } from '../shared/game-files.ts'
-import { assemble, packageVersion, writePackage } from '../package/cli.ts'
+import { artifactName, assemble, packageVersion, writePackage } from '../package/cli.ts'
 import { KDE_PLUGIN_ID } from '../package/manifests/kde.ts'
 
 type Outcome = 'pass' | 'fail' | 'manual' | 'skip'
@@ -47,7 +47,7 @@ export async function acceptKdeCommand(args: ParsedArgs): Promise<CommandResult>
   const version = packageVersion(repoRoot)
   const outDir = resolve(repoRoot, 'dist/packages')
   writePackage(outDir, 'kde', await assemble(repoRoot, 'kde'), version)
-  const archive = join(outDir, `h3dynam-kde-${version}.tar.gz`)
+  const archive = join(outDir, artifactName('kde', version))
 
   const installed = (() => {
     try {

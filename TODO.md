@@ -70,30 +70,50 @@ One `/speckit-specify` each and roughly in this order:
 2. **Platform adapters** — built on Linux in [specs/004-platform-adapters/](specs/004-platform-adapters/):
    browser version (GitHub Pages), Wallpaper Engine, Lively, KDE Plasma plugin, host simulations and
    package checks; accepted on the real KDE session. **Open:** verify Wallpaper Engine and Lively on Windows (move the project there; use
-   004 research "Open questions for the Windows session" and "Windows session handoff"). Later: a map
-   folder with a random map per start or timed rotation (settings keys `mapsource`/`mapfolder`/
-   `maprotation` are reserved). Original note: plain browser (file picker / drag-and-drop), Wallpaper
+   004 research "Open questions for the Windows session" and "Windows session handoff"). Map rotation
+   moved to item 5. Original note: plain browser (file picker / drag-and-drop), Wallpaper
    Engine, Lively Wallpaper, KDE Plasma wallpaper plugin; pause/visibility handling; scale setting
    (32px default); packaging without any game files.
-2a. **Multi-screen and lock screen** (candidate spec after 3.2; spike first; KDE and Windows) —
-   (a) one map spanning all screens with continuous transitions: every screen places its camera from
-   the union of all screen geometries, one seed per session and a wall-clock animation time so palette
-   and object steps change at the same moment on every screen. KDE: `Qt.application.screens` + a QML
-   singleton for the seed. Wallpaper Engine: one wallpaper can span all monitors ("Span" layout, the page
-   gets the whole desktop rectangle) — check the monitor rectangles it exposes; Lively: its "Span"
-   placement likewise. (b) the map on the lock screen: KDE's greeter (kscreenlocker) loads the
-   wallpaper plugin but sets no shared GL contexts and does not initialise Qt WebEngine, so a
-   WebEngineView there is expected to fail — test first; fallback is a native QML lock-screen view
-   (e.g. frames rendered by the desktop wallpaper into the user cache). Windows: the lock screen accepts
-   only a static image (Wallpaper Engine/Lively cannot animate it) — at most a periodically exported
-   still; confirm in the Windows session.
-3. **Complete edition save files** — research spike first (format is only partly documented);
-   load into the existing world-state model.
-4. **Interactive extras** — idle/mouse map scrolling, defeating monsters/heroes, capturing towns
-   and mines; implemented as simulation events.
-5. **HotA support** — only after base-game fidelity checks pass: HotA LOD (incl. 1.8+ encrypted
-   names), HotA H3M versions, HotA saves. `[HotA] The Devil Is in the Detail.h3m` (252×252) is
-   the stress-test map.
+
+After the open fixes of item 2, the order is (owner, 2026-09-22):
+
+3. **HotA support** — HotA LOD (incl. 1.8+ encrypted names), HotA H3M versions (`По праву силы.h3m`,
+   0x20), HotA objects and terrains; HotA saves later with item 5. `[HotA] The Devil Is in the Detail.h3m`
+   (252×252) is the stress-test map. Fidelity reference for HotA content needs its own decision (the
+   baseline game is Complete without HotA; constitution).
+4. **Publishing on the wallpaper platforms** — users download the wallpaper where they already look for
+   wallpapers: Steam Workshop for Wallpaper Engine, the Lively library/gallery, the KDE Store
+   (store.kde.org) for the Plasma plugin; the browser version stays on GitHub Pages. Ideally published
+   automatically on a release, like GitHub Pages is deployed from `testing` now (research what each platform
+   allows: Steam Workshop upload from CI via SteamCMD `workshop_build_item`, KDE Store/OCS API, Lively
+   options). Write the text for each platform page, generated from the same source as the manifests where
+   possible; each page states:
+   - a link to this repository (the source);
+   - that the game files are not included and the user supplies them (which files, where they come from);
+   - the platform's own quirks (Wallpaper Engine has many: files copied into the wallpaper folder by
+     hand, `game\` paths, image/video-only file pickers — see 004 research);
+   - that suggestions and bug reports are handled only in the GitHub issues of this repository (not in
+     Workshop comments or store reviews), so there is one place to watch.
+   Name everywhere: "Heroes 3 Living Map" (`APP_NAME` in `src/adapters/shared/strings.ts`).
+5. **Other extras**, one `/speckit-specify` each:
+   - **Multi-screen and lock screen** (spike first; KDE and Windows) —
+     (a) one map spanning all screens with continuous transitions: every screen places its camera from
+     the union of all screen geometries, one seed per session and a wall-clock animation time so palette
+     and object steps change at the same moment on every screen. KDE: `Qt.application.screens` + a QML
+     singleton for the seed. Wallpaper Engine: one wallpaper can span all monitors ("Span" layout, the page
+     gets the whole desktop rectangle) — check the monitor rectangles it exposes; Lively: its "Span"
+     placement likewise. (b) the map on the lock screen: KDE's greeter (kscreenlocker) loads the
+     wallpaper plugin but sets no shared GL contexts and does not initialise Qt WebEngine, so a
+     WebEngineView there is expected to fail — test first; fallback is a native QML lock-screen view
+     (e.g. frames rendered by the desktop wallpaper into the user cache). Windows: the lock screen accepts
+     only a static image (Wallpaper Engine/Lively cannot animate it) — at most a periodically exported
+     still; confirm in the Windows session.
+   - **Map rotation** — a map folder with a random map per start or timed rotation (settings keys
+     `mapsource`/`mapfolder`/`maprotation` are reserved in `src/adapters/shared/settings.ts`).
+   - **Complete edition save files** — research spike first (format is only partly documented);
+     load into the existing world-state model.
+   - **Interactive extras** — idle/mouse map scrolling, defeating monsters/heroes, capturing towns
+     and mines; implemented as simulation events.
 
 ## Spin-off: browser extension "battlefield header"
 

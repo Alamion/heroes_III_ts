@@ -1,6 +1,9 @@
 // User-facing text in English and Russian (spec 004 FR-003b, research R9). DOM-free: tools import it
 // to generate host manifests. `ru` must have exactly the keys of `en` (checked by type and tests).
 
+/** Product name, the same in every language and on every host (searchable: "Heroes 3"). */
+export const APP_NAME = 'Heroes 3 Living Map'
+
 export const en = {
   // Settings (labels and option labels)
   setting_spritearchive: 'Sprite archive (H3sprite.lod)',
@@ -37,7 +40,7 @@ export const en = {
   kind_unknown: 'unknown file',
 
   // Placeholder and messages ({name} placeholders are filled by format())
-  placeholder_title: 'Heroes III living map',
+  placeholder_title: APP_NAME,
   placeholder_missing: 'Choose in the wallpaper settings: {files}.',
   placeholder_hint: 'The files come from your own Heroes of Might and Magic III Complete installation and never leave this computer.',
   msg_LOADING: 'Loading {file}…',
@@ -53,7 +56,7 @@ export const en = {
   msg_CACHE_UNAVAILABLE: 'Local cache is unavailable, so every start decodes the files again.',
 
   // Browser panel
-  panel_title: 'Heroes III living map',
+  panel_title: APP_NAME,
   panel_files: 'Files',
   panel_choose: 'Choose files…',
   panel_drop: 'or drop the two archives and a map anywhere on the page',
@@ -65,8 +68,8 @@ export const en = {
   panel_none: 'not chosen',
 
   // Packages and documentation
-  package_title: 'H3 Living Map',
-  package_description: 'An animated adventure map from your own Heroes of Might and Magic III Complete files: terrain, objects, heroes and towns, as in the original game. Fan-made, not affiliated with the game publishers. No game files are included.',
+  package_title: APP_NAME,
+  package_description: 'An animated adventure map of Heroes of Might and Magic III (Heroes 3, HoMM3) from your own Complete edition files: terrain, objects, heroes and towns, as in the original game. Fan-made, not affiliated with the game publishers. No game files are included.',
   help_files: 'Take H3sprite.lod and H3bitmap.lod from the Data folder of your Heroes III Complete installation and any map (.h3m) from its Maps folder. Maps of Restoration of Erathia, Armageddon\'s Blade and Shadow of Death are supported; HotA maps are not yet.',
   help_privacy: 'The files stay on this computer: they are read locally and never uploaded.',
   help_web: 'Choose the files with the button or drop them onto the page. The browser remembers them until you press "Forget files".',
@@ -74,7 +77,7 @@ export const en = {
   notice_wallpaper_engine: '<b><i><u>Important:</u></i></b> the wallpaper can only read files inside its own folder, so copy H3sprite.lod, H3bitmap.lod and your map (.h3m) into the wallpaper folder yourself (next to index.html; a "game" subfolder is fine) — otherwise it will not load. The archive settings below already point to game\\H3sprite.lod and game\\h3bitmap.lod; enter your map the same way (game\\YourMap.h3m).<br></br>',
   spacer_wallpaper_engine: '<br></br>',
   help_lively: 'Open "Customise" for the wallpaper in Lively and use "Browse" in the three file settings; Lively copies the files into the wallpaper folder.',
-  help_kde: 'Install the plugin, open "Configure Desktop and Wallpaper", pick "H3 Living Map" and choose the three files.',
+  help_kde: `Install the plugin, open "Configure Desktop and Wallpaper", pick "${APP_NAME}" and choose the three files.`,
 } as const
 
 export type StringKey = keyof typeof en
@@ -113,7 +116,7 @@ export const ru: Record<StringKey, string> = {
   kind_map: 'карта (.h3m)',
   kind_unknown: 'неизвестный файл',
 
-  placeholder_title: 'Живая карта Heroes III',
+  placeholder_title: APP_NAME,
   placeholder_missing: 'Выберите в настройках обоев: {files}.',
   placeholder_hint: 'Файлы берутся из вашей установки Heroes of Might and Magic III Complete и не покидают этот компьютер.',
   msg_LOADING: 'Загрузка {file}…',
@@ -128,7 +131,7 @@ export const ru: Record<StringKey, string> = {
   msg_CONTEXT_LOST: 'Графика была сброшена, карта скоро появится снова.',
   msg_CACHE_UNAVAILABLE: 'Локальный кэш недоступен, поэтому при каждом запуске файлы декодируются заново.',
 
-  panel_title: 'Живая карта Heroes III',
+  panel_title: APP_NAME,
   panel_files: 'Файлы',
   panel_choose: 'Выбрать файлы…',
   panel_drop: 'или перетащите два архива и карту в любое место страницы',
@@ -139,8 +142,8 @@ export const ru: Record<StringKey, string> = {
   panel_hide: 'Скрыть панель',
   panel_none: 'не выбран',
 
-  package_title: 'H3 Living Map',
-  package_description: 'Анимированная карта приключений из ваших файлов Heroes of Might and Magic III Complete: местность, объекты, герои и города, как в оригинальной игре. Фанатский проект, не связан с издателями игры. Игровые файлы не входят в комплект.',
+  package_title: APP_NAME,
+  package_description: 'Анимированная карта приключений Heroes of Might and Magic III (Герои 3, HoMM3) из ваших файлов издания Complete: местность, объекты, герои и города, как в оригинальной игре. Фанатский проект, не связан с издателями игры. Игровые файлы не входят в комплект.',
   help_files: 'Возьмите H3sprite.lod и H3bitmap.lod из папки Data вашей установки Heroes III Complete и любую карту (.h3m) из папки Maps. Поддерживаются карты Restoration of Erathia, Armageddon\'s Blade и Shadow of Death; карты HotA пока нет.',
   help_privacy: 'Файлы остаются на этом компьютере: они читаются локально и никуда не загружаются.',
   help_web: 'Выберите файлы кнопкой или перетащите их на страницу. Браузер запомнит их, пока вы не нажмёте «Забыть файлы».',
@@ -148,7 +151,7 @@ export const ru: Record<StringKey, string> = {
   notice_wallpaper_engine: '<b><i><u>Важно:</u></i></b> обои могут читать файлы только внутри своей папки, поэтому скопируйте H3sprite.lod, H3bitmap.lod и карту (.h3m) в папку обоев самостоятельно (рядом с index.html; подойдёт подпапка «game») — иначе обои не загрузятся. Настройки архивов ниже уже указывают на game\\H3sprite.lod и game\\h3bitmap.lod; карту впишите так же (game\\ВашаКарта.h3m).<br></br>',
   spacer_wallpaper_engine: '<br></br>',
   help_lively: 'Откройте «Настроить» для обоев в Lively и нажмите «Обзор» в трёх настройках файлов; Lively скопирует файлы в папку обоев.',
-  help_kde: 'Установите плагин, откройте «Настроить рабочий стол и обои», выберите «H3 Living Map» и укажите три файла.',
+  help_kde: `Установите плагин, откройте «Настроить рабочий стол и обои», выберите «${APP_NAME}» и укажите три файла.`,
 }
 
 export const STRINGS: Record<Language, Record<StringKey, string>> = { en, ru }

@@ -1,4 +1,4 @@
-# H3 Living Map
+# Heroes 3 Living Map
 
 An animated **Heroes of Might and Magic III** adventure map for your desktop or your browser. The
 map is drawn from your own copy of the game: terrain, rivers, roads, objects, heroes and towns,
@@ -94,17 +94,17 @@ Prebuilt packages are not published yet. Build them from source (see
    archive** and **Map**.
 
 **Lively Wallpaper** (Windows)
-1. Drag `dist/packages/h3dynam-lively-<version>.zip` into Lively.
+1. Drag `dist/packages/heroes3-living-map-lively-<version>.zip` into Lively.
 2. Open **Customise** for the wallpaper and use **Browse** in the three file settings. Lively copies
    the chosen files into the wallpaper's folder.
 
 **KDE Plasma 6** (Linux)
 1. Install the plugin:
    ```bash
-   kpackagetool6 -t Plasma/Wallpaper -i dist/packages/h3dynam-kde-<version>.tar.gz
+   kpackagetool6 -t Plasma/Wallpaper -i dist/packages/heroes3-living-map-kde-<version>.tar.gz
    # later updates: -u instead of -i
    ```
-2. Right-click the desktop → **Configure Desktop and Wallpaper** → wallpaper type **H3 Living Map**.
+2. Right-click the desktop → **Configure Desktop and Wallpaper** → wallpaper type **Heroes 3 Living Map**.
 3. Choose the three files and press **Apply**.
 
 The map pauses while a maximised or full-screen window covers the screen. The lock screen shows a

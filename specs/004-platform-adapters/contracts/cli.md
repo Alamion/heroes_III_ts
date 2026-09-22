@@ -10,13 +10,13 @@ yarn package [--host web|wallpaper-engine|lively|kde|all] [--out dist/packages] 
 ```
 
 Builds the flavour(s) needed (R3), generates manifests (settings + strings), writes
-`dist/packages/<host>/` and archives `dist/packages/h3dynam-lively-<version>.zip`,
-`dist/packages/h3dynam-kde-<version>.tar.gz`. Output:
+`dist/packages/<host>/` and archives `dist/packages/heroes3-living-map-lively-<version>.zip`,
+`dist/packages/heroes3-living-map-kde-<version>.tar.gz`. Output:
 
 ```json
 { "ok": true, "version": "0.0.1",
   "packages": [ { "host": "kde", "flavour": "classic", "path": "dist/packages/kde",
-                  "artifact": "dist/packages/h3dynam-kde-0.0.1.tar.gz", "files": 14,
+                  "artifact": "dist/packages/heroes3-living-map-kde-0.0.1.tar.gz", "files": 14,
                   "runtimeGzipBytes": 61234, "sha256": "…" } ] }
 ```
 

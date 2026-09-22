@@ -529,7 +529,7 @@ events plus `document.hidden`. To verify or correct there:
 
 Packages: `yarn package --host wallpaper-engine,lively` → `dist/packages/wallpaper-engine/` (copy the folder
 into Wallpaper Engine's `projects/myprojects/`, or open `project.json` from the WE editor) and
-`dist/packages/h3dynam-lively-<version>.zip` (drag into Lively).
+`dist/packages/heroes3-living-map-lively-<version>.zip` (drag into Lively).
 
 Install notes measured in the 2026-09-19 session (see Measurements):
 - WE: WE's CEF reads files only inside the wallpaper folder; the three file settings are text inputs

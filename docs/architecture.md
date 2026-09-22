@@ -1,4 +1,4 @@
-# How H3 Living Map works
+# How Heroes 3 Living Map works
 
 This document is for developers who want to understand the code, fix something, or reuse parts of
 it in their own project. It explains the architecture, then goes through the problems that were

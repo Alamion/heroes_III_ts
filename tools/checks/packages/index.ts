@@ -13,7 +13,7 @@ import { flag, opt } from '../../shared/cli-runner.ts'
 import type { CommandResult, ParsedArgs } from '../../shared/cli-runner.ts'
 import type { HostId, PackageFiles } from '../../package/build.ts'
 import { FLAVOUR } from '../../package/build.ts'
-import { assemble, packageHash, packageVersion, parseHosts, runtimeGzipBytes, writePackage } from '../../package/cli.ts'
+import { artifactName, assemble, packageHash, packageVersion, parseHosts, runtimeGzipBytes, writePackage } from '../../package/cli.ts'
 
 export const RUNTIME_LIMIT_GZIP_BYTES = 102_400
 export const MAX_FILE_BYTES = 2 * 1024 * 1024
@@ -229,7 +229,7 @@ export async function packagesCommand(args: ParsedArgs): Promise<CommandResult> 
       checkNoInlineScripts(files),
       { id: size.id, outcome: size.outcome, details: size.details },
     ]
-    if (host === 'kde') checks.push(checkKpackage(join(outDir, `h3dynam-kde-${version}.tar.gz`)))
+    if (host === 'kde') checks.push(checkKpackage(join(outDir, artifactName('kde', version))))
     if (flag(args, 'reproducible')) {
       const again = await assemble(repoRoot, host)
       const first = packageHash(files)

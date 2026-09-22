@@ -53,9 +53,12 @@ export async function assemble(repoRoot: string, host: HostId): Promise<PackageF
   return (await import('./manifests/kde.ts')).kdePackage(repoRoot, bundle)
 }
 
-function artifactName(host: HostId, version: string): string {
-  if (host === 'lively') return `h3dynam-lively-${version}.zip`
-  if (host === 'kde') return `h3dynam-kde-${version}.tar.gz`
+/** File-name prefix of the release archives (the product name, see APP_NAME in strings.ts). */
+export const ARTIFACT_PREFIX = 'heroes3-living-map'
+
+export function artifactName(host: HostId, version: string): string {
+  if (host === 'lively') return `${ARTIFACT_PREFIX}-lively-${version}.zip`
+  if (host === 'kde') return `${ARTIFACT_PREFIX}-kde-${version}.tar.gz`
   return host
 }
 
