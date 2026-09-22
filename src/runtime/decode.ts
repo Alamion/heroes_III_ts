@@ -17,6 +17,7 @@ import type { DecodedCache } from './cache-key.ts'
 import { archiveIdentity, BlobSource, mapIdentity } from './file-source.ts'
 import type { WorkerDiagnostic } from './protocol.ts'
 import { flagColors } from '../core/data/players.ts'
+import { resolveSpriteName } from '../core/data/hota-def-conventions.ts'
 import { toDisplayColor } from '../core/render/atlas.ts'
 import { buildObjectAtlas, OBJECT_PAGE_SIZE } from '../core/render/object-atlas.ts'
 import type { ObjectAtlas } from '../core/render/object-atlas.ts'
@@ -179,7 +180,9 @@ export async function decodeObjects(
   const defs: DefSprite[] = []
   const missing: string[] = []
   for (const name of [...new Set(objects.map((o) => o.def))].sort()) {
-    if (spriteLod.has(name)) defs.push(parseDef(await spriteLod.read(name), name))
+    // HotA's own tables name one sprite wrongly; the alias is what the archive stores it under.
+    const stored = resolveSpriteName(name)
+    if (spriteLod.has(stored)) defs.push(parseDef(await spriteLod.read(stored), name))
     else missing.push(name)
   }
   // An object whose sprite cannot be resolved is not drawn, but it is counted and named with the

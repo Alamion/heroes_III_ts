@@ -314,6 +314,20 @@ one. A parse is accepted only when the file ends exactly at EOF after the 124 tr
 if the walker cannot complete, the map fails with a typed `UNSUPPORTED_*` error naming the section
 and offset. No length guessing, no trial-and-error skipping.
 
+**Done (2026-09-23, T051/T052).** The grammar was derived for this project and the walker consumes
+exactly the measured body of every map that has one — 3574, 10 630, 3371 and 4051 bytes — with no
+length hint, after which each map still ends at its 124-byte trailer. Shape: four event lists
+(hero, player, town, quest), five next-id counters, a variable table and five id tables; an event
+holds an id, an action block and a name; an action block is a marker, a reserved byte, a count and
+that many actions; actions, conditions and expressions are typed trees with embedded Pascal
+strings. Six values that are constant in every measured block are asserted, because nothing here is
+length-prefixed and a wrong opcode would otherwise desynchronise silently. Opcodes the four maps do
+not exercise are implemented from the same understanding and marked in the source; an unknown code
+raises `UNSUPPORTED_OBJECT` rather than guessing.
+
+**Corpus effect**: all 453 local maps now parse to the exact last byte — 95 RoE, 109 AB, 119 SoD
+and 130 HotA across sub-versions 6, 7, 9 and 10.
+
 **Rationale**: `По праву силы.h3m` is named in an acceptance scenario (US2.3) and carries an active
 script block, so skipping it is not optional. The exact-EOF rule is a strong, cheap invariant that
 already holds for all 231 maps parsed in M4.

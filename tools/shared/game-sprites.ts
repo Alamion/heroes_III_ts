@@ -9,6 +9,7 @@ import { spriteMaskFromDef } from '../../src/core/state/footprint.ts'
 import type { SpriteMask } from '../../src/core/state/footprint.ts'
 import { CandidateMasks, HERO_SPRITES, outcomeClass } from '../../src/core/state/floating.ts'
 import { OBJECT_CLASS } from '../../src/core/data/object-classes.ts'
+import { resolveSpriteName } from '../../src/core/data/hota-def-conventions.ts'
 import type { WorldState } from '../../src/core/state/world.ts'
 import { NodeFileSource } from './node-source.ts'
 import { resolveGameFile } from './game-files.ts'
@@ -42,12 +43,13 @@ export async function openGameSprites(opts: { sprites?: string[]; bitmaps?: stri
     for (const raw of names) {
       const name = raw.toLowerCase()
       if (masks.has(name)) continue
-      const archive = archives.find((a) => a.has(name))
+      const stored = resolveSpriteName(name)
+      const archive = archives.find((a) => a.has(stored))
       if (archive === undefined) {
         masks.set(name, null)
         continue
       }
-      masks.set(name, spriteMaskFromDef(parseDef(await archive.read(name), name)))
+      masks.set(name, spriteMaskFromDef(parseDef(await archive.read(stored), name)))
     }
   }
   const candidates = new CandidateMasks(templates, lookup)

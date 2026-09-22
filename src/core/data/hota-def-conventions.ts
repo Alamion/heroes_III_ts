@@ -31,6 +31,19 @@ export const HOTA_FLAG_AT_255: ReadonlySet<string> = new Set([
 /** Sprites whose index-5 pixels are an ordinary colour and must not be made transparent. */
 export const HOTA_KEEP_SELECTION: ReadonlySet<string> = new Set(['ava0037.def'])
 
+/**
+ * Sprite names HotA's own object tables get wrong. Measured (spec 005 T057): three shipped maps
+ * place an object whose template names `avwcoat.def`, while the archive holds `avwccoat.def` —
+ * note that the matching mask file *is* called `avwcoat.msk`, so the sprite name is the typo. The
+ * game resolves it; without this alias those objects would be reported unresolved and not drawn.
+ */
+export const HOTA_SPRITE_ALIASES: ReadonlyMap<string, string> = new Map([['avwcoat.def', 'avwccoat.def']])
+
+/** The name an archive actually stores this sprite under. */
+export function resolveSpriteName(defName: string): string {
+  return HOTA_SPRITE_ALIASES.get(defName.toLowerCase()) ?? defName
+}
+
 /** Palette index carrying the flag colour in this sprite. */
 export function flagIndexFor(defName: string, baseIndex: number): number {
   return HOTA_FLAG_AT_255.has(defName.toLowerCase()) ? 255 : baseIndex

@@ -4,7 +4,7 @@
 // byte: the parser only accepts a map whose 124 trailing zero bytes are followed by end of file.
 // Skips with a message when the files are absent.
 
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parseH3mFile } from '../../src/core/formats/h3m/h3m.ts'
@@ -59,14 +59,27 @@ describe.skipIf(devilMap === null)('[HotA] The Devil Is in the Detail.h3m (252x2
   })
 })
 
-describe.skipIf(scriptMap === null)('a map with an active HotA event system', () => {
-  it('fails with a typed error naming the section (the walker is task T051)', async () => {
-    await expect(parse(scriptMap as string)).rejects.toMatchObject({
-      code: 'UNSUPPORTED_VERSION',
-      structure: 'scriptSection',
-      version: 'HotA sub 9',
-    })
+describe.skipIf(scriptMap === null)('maps with an active HotA event system', () => {
+  it('walks the event-system block to the byte', async () => {
+    // The block has no length prefix, so the only proof is that the body consumes exactly the
+    // measured number of bytes and the map still ends at its 124-byte trailer (research M5).
+    const map = await parse(scriptMap as string)
+    expect(map.hota?.scriptBytes).toBe(3574)
+    expect(map.trailerLength).toBe(124)
   })
+
+  it('walks the other three local maps that carry one', async () => {
+    const dir = gameDirs().hotaMapsDir
+    if (dir === undefined) return
+    const expected: Record<string, number> = { '[HotA] Help!.h3m': 10630, '[HotA] Ice Assault.h3m': 3371, '[HotA] Invasion.h3m': 4051 }
+    for (const [file, bytes] of Object.entries(expected)) {
+      const path = join(dir, file)
+      if (!existsSync(path)) continue
+      const map = await parse(path)
+      expect({ file, bytes: map.hota?.scriptBytes }).toEqual({ file, bytes })
+      expect(map.trailerLength).toBe(124)
+    }
+  }, 60_000)
 })
 
 const hotaMaps = (): string[] => {
@@ -82,7 +95,7 @@ const corpus = hotaMaps()
 if (corpus.length === 0) process.stderr.write('[real-file test skipped] HotA map corpus: no HotA install configured (hotaBundleDir)\n')
 
 describe.skipIf(corpus.length === 0)('the HotA install map corpus', () => {
-  it('parses every map, or fails only on the event-system block', async () => {
+  it('parses every map to the exact end of file', async () => {
     const bySubVersion = new Map<string, number>()
     const unsupported: string[] = []
     const failed: string[] = []
@@ -97,7 +110,8 @@ describe.skipIf(corpus.length === 0)('the HotA install map corpus', () => {
       }
     }
     expect(failed).toEqual([])
+    expect(unsupported).toEqual([])
     expect(bySubVersion.size).toBeGreaterThan(0)
-    process.stderr.write(`[hota-maps] ${JSON.stringify(Object.fromEntries([...bySubVersion].sort()))}, event-system maps not yet readable: ${unsupported.length}\n`)
+    process.stderr.write(`[hota-maps] ${JSON.stringify(Object.fromEntries([...bySubVersion].sort()))}\n`)
   }, 300_000)
 })

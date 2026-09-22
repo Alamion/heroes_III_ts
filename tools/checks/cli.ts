@@ -32,6 +32,11 @@ export const VERIFY_COMMANDS: Record<string, CommandSpec> = {
     booleanFlags: ['no-build', 'reproducible'],
     load: async () => (await import('./packages/index.ts')).packagesCommand,
   },
+  maps: {
+    help: 'every kind of map the user owns opens: one per coverage class plus the edge cases [--dir PATH]... [--all] [--require]',
+    booleanFlags: ['all', 'require'],
+    load: async () => (await import('./maps/index.ts')).mapsCommand,
+  },
   layers: {
     help: 'layer import order and platform globals',
     load: async () => (await import('./layers.ts')).layersCommand,

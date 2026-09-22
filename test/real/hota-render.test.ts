@@ -1,7 +1,9 @@
 // Rendering a HotA map from the owner's files (spec 005 FR-011, FR-012, FR-016, FR-017, SC-002).
 //
 // The map is rendered through the same headless page the fidelity checks use, so this exercises
-// the real runtime: archive set, terrain tile sets, object atlas and draw order.
+// the real runtime: archive set, terrain tile sets, object atlas and draw order. It renders from
+// the dev server: the preview server serves dist/, which a concurrently running browser test may
+// be rebuilding.
 // Skips with a message when the files are absent.
 
 import { describe, expect, it } from 'vitest'
@@ -22,7 +24,7 @@ if (!ready) process.stderr.write('[real-file test skipped] HotA render: needs te
 
 describe.skipIf(!ready)('rendering test_map_hota.h3m', () => {
   it('draws the underground novelty zone with no unresolved object', async () => {
-    const renderer = await HeadlessRenderer.open({ width: 640, height: 640 })
+    const renderer = await HeadlessRenderer.open({ mode: 'dev', width: 640, height: 640 })
     try {
       const frame = await renderer.render({
         archive: sprites as string,
@@ -53,7 +55,7 @@ describe.skipIf(!ready)('rendering test_map_hota.h3m', () => {
   }, 300_000)
 
   it('draws a surface region of the same map', async () => {
-    const renderer = await HeadlessRenderer.open({ width: 512, height: 512 })
+    const renderer = await HeadlessRenderer.open({ mode: 'dev', width: 512, height: 512 })
     try {
       const frame = await renderer.render({
         archive: sprites as string,

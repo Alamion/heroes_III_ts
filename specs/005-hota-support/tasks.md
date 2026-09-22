@@ -134,17 +134,17 @@ the maps with an active script block and the non-ASCII file name.
 **Independent Test**: `yarn verify maps` passes with every class represented, and `--all` opens
 every discoverable map.
 
-- [ ] T051 [US2] Implement the event-system walker (four event lists, id counters, variable table, id→name maps, opcode trees with length-prefixed strings) in new `src/core/formats/h3m/script.ts`, bounds-checked, with a typed error naming section and offset on failure and no length guessing (FR-007, FR-009; depends on T029)
+- [X] T051 [US2] Implement the event-system walker (four event lists, id counters, variable table, id→name maps, opcode trees with length-prefixed strings) in new `src/core/formats/h3m/script.ts`, bounds-checked, with a typed error naming section and offset on failure and no length guessing (FR-007, FR-009; depends on T029)
   - **Fallback if the walker does not converge on the four local maps**: US2 ships with a typed "unsupported: map uses the HotA event system" error, the 4 affected maps become a recorded known limitation in [research.md](research.md), and the acceptance scenario naming `По праву силы.h3m` moves to a follow-up item with the owner's agreement. Length searching stays forbidden either way.
-- [ ] T052 [US2] Call the walker from the map parser at its measured position — after the map-options block, before the allowed-artifact mask, gated on the sub ≥ 9 flag — in `src/core/formats/h3m/h3m.ts` (depends on T051)
+- [X] T052 [US2] Call the walker from the map parser at its measured position — after the map-options block, before the allowed-artifact mask, gated on the sub ≥ 9 flag — in `src/core/formats/h3m/h3m.ts` (depends on T051)
 - [ ] T053 [P] [US2] Extend `test/fixtures/synthetic/hota-map.ts` with an active script block and unit-test the walker (valid block, truncated block, unknown opcode) in `test/core/formats/h3m-script.test.ts` (depends on T052)
-- [ ] T054 [US2] Add a real-file test in `test/real/hota-maps.test.ts` that parses the four local maps with an active script block to exact end of file, asserting the measured body lengths (3574, 10 630, 3371, 4051 bytes) (depends on T052)
+- [X] T054 [US2] Add a real-file test in `test/real/hota-maps.test.ts` that parses the four local maps with an active script block to exact end of file, asserting the measured body lengths (3574, 10 630, 3371, 4051 bytes) (depends on T052)
 - [ ] T055 [P] [US2] Fill the feature flags for HotA sub-versions 0–8 from the ported sources in `src/core/formats/h3m/features.ts`, marked best-effort, so a mismatch surfaces as a typed error rather than a misread map (FR-006a, FR-010) (depends on T020)
 - [ ] T056 [P] [US2] Confirm the non-ASCII map file name path end to end (CLI by name, file picker, cache identity) and add a case for it to `test/real/hota-maps.test.ts`
-- [ ] T057 [US2] Implement the coverage-class check in new `tools/checks/maps/index.ts`: classification, one map per class plus the named edge cases, `--dir`, `--all`, `--require`, the report shape and the exit codes of [contracts/cli.md](contracts/cli.md) (FR-020, SC-001) (depends on T052)
-- [ ] T058 [US2] Register `maps` in `tools/checks/cli.ts` and include it in `yarn verify all` in `tools/checks/all.ts` (depends on T057)
+- [X] T057 [US2] Implement the coverage-class check in new `tools/checks/maps/index.ts`: classification, one map per class plus the named edge cases, `--dir`, `--all`, `--require`, the report shape and the exit codes of [contracts/cli.md](contracts/cli.md) (FR-020, SC-001) (depends on T052)
+- [X] T058 [US2] Register `maps` in `tools/checks/cli.ts` and include it in `yarn verify all` in `tools/checks/all.ts` (depends on T057)
 - [ ] T059 [P] [US2] Unit-test the classification and the pass/fail rules of the coverage check on synthetic maps in `test/tools/maps-check.test.ts` (depends on T057)
-- [ ] T060 [US2] Run `yarn verify maps --all` over `public/dev-assets/` and the configured HotA maps folder, fix what it finds, and record the resulting class table in [research.md](research.md) (SC-001) (depends on T058)
+- [X] T060 [US2] Run `yarn verify maps --all` over `public/dev-assets/` and the configured HotA maps folder, fix what it finds, and record the resulting class table in [research.md](research.md) (SC-001) (depends on T058)
 
 **Checkpoint**: US2 is complete — every map variant the user owns opens, with honest failures for
 anything unsupported.
