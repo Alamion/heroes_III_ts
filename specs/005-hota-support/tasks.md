@@ -158,10 +158,10 @@ anything unsupported.
 **Independent Test**: renders of the base-game regions match the pre-change PNGs of T002 byte for
 byte, and every existing check keeps its previous verdict.
 
-- [ ] T061 [US3] Re-render the T002 regions with the same time and seed and assert equality against the committed digests in `test/real/base-render-baseline.json` (and against the stored PNGs when `check-reports/baseline-005/` is still present, for a visual diff), as a real-file test in `test/real/base-render-unchanged.test.ts` (FR-008, SC-003; depends on T002 and all of Phase 3)
-- [ ] T062 [US3] Assert that a base-game map loaded with base archives only takes exactly the previous code path (single-member archive set, no HotA branch) in `test/runtime/archive-set-runtime.test.ts` (FR-026)
-- [ ] T063 [US3] Run `yarn verify determinism --rebuild`, `yarn verify fidelity --map test_map.h3m --all-regions`, `yarn verify layers`, `yarn verify packages` and `yarn verify hosts` and confirm each keeps its pre-feature verdict, including the accepted deviations of spec 003; record the run in `check-reports/` (FR-023, SC-003)
-- [ ] T064 [P] [US3] Confirm the full base-game suite still skips cleanly with no game files present (`yarn test` with `public/dev-assets/` unavailable)
+- [X] T061 [US3] Re-render the T002 regions with the same time and seed and assert equality against the committed digests in `test/real/base-render-baseline.json` (and against the stored PNGs when `check-reports/baseline-005/` is still present, for a visual diff), as a real-file test in `test/real/base-render-unchanged.test.ts` (FR-008, SC-003; depends on T002 and all of Phase 3)
+- [X] T062 [US3] Assert that a base-game map loaded with base archives only takes exactly the previous code path (single-member archive set, no HotA branch) in `test/runtime/archive-set-runtime.test.ts` (FR-026)
+- [X] T063 [US3] Run `yarn verify determinism --rebuild`, `yarn verify fidelity --map test_map.h3m --all-regions`, `yarn verify layers`, `yarn verify packages` and `yarn verify hosts` and confirm each keeps its pre-feature verdict, including the accepted deviations of spec 003; record the run in `check-reports/` (FR-023, SC-003)
+- [X] T064 [P] [US3] Confirm the full base-game suite still skips cleanly with no game files present (`yarn test` with `public/dev-assets/` unavailable)
 
 **Checkpoint**: US3 is complete — HotA support is proven additive.
 

@@ -491,6 +491,25 @@ watch.
 
 ---
 
+## US3 verification (2026-09-23, T061–T064)
+
+Evidence that HotA support is additive:
+
+- **Renders**: the six base-game regions captured before any source change (both levels, three
+  palette times, fixed seed) reproduce **byte for byte** after the whole feature —
+  `test/real/base-render-unchanged.test.ts` compares the committed SHA-256 digests. An earlier
+  mismatch in that test was the test's own viewport, not the renderer: rendering through the CLI,
+  exactly as the baseline was taken, matched the stored digest immediately.
+- **Fidelity**: `yarn verify fidelity --map test_map.h3m --all-regions` was run twice — once on the
+  feature branch and once in a temporary worktree of the commit before the first source change.
+  Both report **7 fail / 5 pass over the same 12 captures, and the seven failing captures are the
+  same seven**, i.e. the accepted deviations of spec 003 (draw order in dense mountain clusters,
+  reef frames and shadows) and nothing new.
+- **Determinism and layers**: both pass.
+- **Without game files**: in a worktree with no `public/dev-assets` and no reference-env config the
+  suite is 48 files passed, 8 skipped, 290 tests passed, 29 skipped — every real-file suite skips
+  with a named reason and nothing fails.
+
 ## Risks and open questions
 
 | # | Risk / unknown | Handling |
