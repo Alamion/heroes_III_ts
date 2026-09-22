@@ -22,7 +22,7 @@ import type { Logger } from './logger.ts'
 import { installLogger } from './logger.ts'
 import { openCache } from './cache.ts'
 import { checkDataArchive, decodeArchive, decodeMap, decodeObjects } from './decode.ts'
-import type { WorkerDiagnostic, WorkerRequest, WorkerResponse } from './protocol.ts'
+import type { ArchiveFileMsg, WorkerDiagnostic, WorkerRequest, WorkerResponse } from './protocol.ts'
 import { FrameScheduler } from './scheduler.ts'
 import type { SchedulerHost } from './scheduler.ts'
 
@@ -150,8 +150,11 @@ export function createEngine(options: EngineOptions): Engine {
   let atlas: Atlas | undefined
   const seed = options.seed ?? 1
   renderer.setCollectDrawList(options.preserveDrawingBuffer === true)
-  let spriteFile: { file: Blob; name: string; identity: string } | undefined
-  let dataFile: { file: Blob; name: string; identity: string } | undefined
+  let spriteFile: { files: ArchiveFileMsg[]; identity: string; name: string } | undefined
+  let dataFile: { files: ArchiveFileMsg[]; identity: string; name: string } | undefined
+  /** Optional HotA archive: it goes in front of every archive set (spec 005 FR-004). */
+  let hotaFile: ArchiveFileMsg | undefined
+  const archiveFiles = (primary: ArchiveFileMsg): ArchiveFileMsg[] => (hotaFile === undefined ? [primary] : [hotaFile, primary])
   let mapIdentity: string | undefined
   let objectsKey: string | undefined
   let objectsBuild: Promise<void> | undefined
@@ -212,11 +215,11 @@ export function createEngine(options: EngineOptions): Engine {
     if (worker === undefined) {
       try {
         if (req.kind === 'openArchive') {
-          const r = await decodeArchive(req.file, req.name, cache)
+          const r = await decodeArchive(req.files, cache)
           return { id: 0, kind: 'archiveReady', ...r }
         }
         if (req.kind === 'openDataArchive') {
-          const r = await checkDataArchive(req.file, req.name)
+          const r = await checkDataArchive(req.files)
           return { id: 0, kind: 'dataArchiveReady', ...r }
         }
         if (req.kind === 'buildObjects') {
@@ -228,7 +231,8 @@ export function createEngine(options: EngineOptions): Engine {
         return { id: 0, kind: 'mapReady', ...r }
       } catch (err) {
         const e = err as { toJSON?: () => SerializedFormatError }
-        return { id: 0, kind: 'failed', error: typeof e.toJSON === 'function' ? e.toJSON() : { level: 'error', code: 'INTERNAL', message: String(err), file: 'name' in req ? req.name : req.data.name } }
+        const where = 'name' in req ? req.name : 'files' in req ? ((req.files[req.files.length - 1] as ArchiveFileMsg).name) : ((req.data.files[req.data.files.length - 1] as ArchiveFileMsg).name)
+        return { id: 0, kind: 'failed', error: typeof e.toJSON === 'function' ? e.toJSON() : { level: 'error', code: 'INTERNAL', message: String(err), file: where } }
       }
     }
     const id = nextId++
@@ -290,14 +294,14 @@ export function createEngine(options: EngineOptions): Engine {
       const gen = ++generations.archive
       status.state = 'loading'
       emit()
-      const r = await run({ kind: 'openArchive', file, name: n, useCache: options.cache !== false })
+      const r = await run({ kind: 'openArchive', files: archiveFiles({ file, name: n }), useCache: options.cache !== false })
       if (gen !== generations.archive) return superseded(n)
       if (r.kind === 'failed') return failure(r.error, n)
       if (r.kind !== 'archiveReady') return failure({ level: 'error', code: 'PROTOCOL', message: 'unexpected worker reply' }, n)
       atlas = r.atlas
       renderer.setAtlas(r.atlas)
       status.archive = n
-      spriteFile = { file, name: n, identity: r.identity }
+      spriteFile = { files: archiveFiles({ file, name: n }), name: n, identity: r.identity }
       r.warnings.forEach(diagnose)
       refreshReady()
       await scheduleObjects()
@@ -328,11 +332,11 @@ export function createEngine(options: EngineOptions): Engine {
     async loadDataArchive(file, name) {
       const n = fileName(file, name)
       const gen = ++generations.data
-      const r = await run({ kind: 'openDataArchive', file, name: n, useCache: options.cache !== false })
+      const r = await run({ kind: 'openDataArchive', files: archiveFiles({ file, name: n }), useCache: options.cache !== false })
       if (gen !== generations.data) return superseded(n)
       if (r.kind === 'failed') return failure(r.error, n)
       if (r.kind !== 'dataArchiveReady') return failure({ level: 'error', code: 'PROTOCOL', message: 'unexpected worker reply' }, n)
-      dataFile = { file, name: n, identity: r.identity }
+      dataFile = { files: archiveFiles({ file, name: n }), name: n, identity: r.identity }
       status.dataArchive = n
       emit()
       await scheduleObjects()

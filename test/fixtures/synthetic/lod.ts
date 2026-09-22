@@ -9,16 +9,14 @@ export interface SyntheticLodEntry {
   type?: number
 }
 
-export function writeLod(entries: SyntheticLodEntry[], opts: { version?: number; hota18Marker?: boolean } = {}): Uint8Array {
+export function writeLod(entries: SyntheticLodEntry[], opts: { version?: number } = {}): Uint8Array {
   const payloads = entries.map((e) => (e.compress === true ? zlib(e.data) : e.data))
   const header = new ByteWriter()
     .bytes([0x4c, 0x4f, 0x44, 0x00])
     .u32(opts.version ?? 200)
     .u32(entries.length)
   header.zeros(92 - header.length)
-  const headerBytes = header.toBytes()
-  if (opts.hota18Marker === true) headerBytes[12] = 135
-  const w = new ByteWriter().bytes(headerBytes)
+  const w = new ByteWriter().bytes(header.toBytes())
   let offset = 92 + entries.length * 32
   entries.forEach((e, i) => {
     const p = payloads[i] as Uint8Array

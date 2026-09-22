@@ -4,6 +4,7 @@
 import { terrainLayerDefs, TERRAINS } from '../core/data/terrain.ts'
 import { parseDef } from '../core/formats/def/def.ts'
 import { parseH3mFile } from '../core/formats/h3m/h3m.ts'
+import { ArchiveSet } from '../core/formats/lod/archive-set.ts'
 import { LodArchive } from '../core/formats/lod/lod.ts'
 import { buildAtlas } from '../core/render/atlas.ts'
 import type { Atlas, AtlasInput } from '../core/render/atlas.ts'
@@ -25,6 +26,33 @@ import type { DefSprite } from '../core/formats/def/def.ts'
 import { buildRenderObjects } from '../core/state/render-objects.ts'
 import type { RenderObject } from '../core/state/render-objects.ts'
 import { createRng } from '../core/util/rng.ts'
+
+/**
+ * One user-supplied archive. Several of them form an ordered set (spec 005 FR-004): the HotA
+ * archive comes first and overrides the base archives, and names it does not have fall through.
+ */
+export interface ArchiveFile {
+  file: Blob
+  name: string
+}
+
+/** Opens every member in order. */
+async function openSet(files: readonly ArchiveFile[]): Promise<ArchiveSet> {
+  const archives: LodArchive[] = []
+  for (const f of files) archives.push(await LodArchive.open(new BlobSource(f.file, f.name)))
+  return new ArchiveSet(archives)
+}
+
+/** Ordered identity of a set: order matters, because it decides which archive wins. */
+export async function archiveSetIdentity(files: readonly ArchiveFile[]): Promise<string> {
+  const parts: string[] = []
+  for (const f of files) parts.push(await archiveIdentity(f.file))
+  return parts.join('|')
+}
+
+function setWarnings(set: ArchiveSet, name: string): WorkerDiagnostic[] {
+  return set.warnings.map((w) => ({ level: 'warn' as const, code: 'LOD_WARNING', message: w, file: name }))
+}
 
 export interface ArchiveResult {
   identity: string
@@ -48,14 +76,16 @@ function wrongSlot(name: string, message: string): FormatError {
   return new FormatError({ code: FORMAT_ERROR_CODES.BAD_MAGIC, file: name, offset: 0, format: 'data', structure: 'file type', message })
 }
 
-export async function decodeArchive(file: Blob, name: string, cache: DecodedCache): Promise<ArchiveResult> {
-  const head = await magic(file)
+export async function decodeArchive(files: readonly ArchiveFile[], cache: DecodedCache): Promise<ArchiveResult> {
+  const primary = files[files.length - 1] as ArchiveFile
+  const name = primary.name
+  const head = await magic(primary.file)
   if (head[0] === 0x1f && head[1] === 0x8b) throw wrongSlot(name, 'this looks like a map file (.h3m); supply the sprite archive (h3sprite.lod) here')
-  const identity = await archiveIdentity(file)
+  const identity = await archiveSetIdentity(files)
   const key = cacheKey('atlas', identity)
   const cached = await cache.get<Atlas>('atlas', key)
   if (cached !== undefined) return { identity, atlas: cached, fromCache: true, warnings: [] }
-  const lod = await LodArchive.open(new BlobSource(file, name))
+  const lod = await openSet(files)
   const missing = terrainLayerDefs().filter((d) => !lod.has(d))
   if (missing.length > 0) {
     throw new FormatError({
@@ -73,7 +103,7 @@ export async function decodeArchive(file: Blob, name: string, cache: DecodedCach
   }
   const atlas = buildAtlas(inputs)
   await cache.put('atlas', key, atlas)
-  return { identity, atlas, fromCache: false, warnings: lod.warnings.map((w) => ({ level: 'warn', code: 'LOD_WARNING', message: w, file: name })) }
+  return { identity, atlas, fromCache: false, warnings: setWarnings(lod, name) }
 }
 
 /** Files of the data archive (h3bitmap.lod) the object layer needs. */
@@ -84,15 +114,17 @@ export interface DataArchiveResult {
   warnings: WorkerDiagnostic[]
 }
 
-export async function checkDataArchive(file: Blob, name: string): Promise<DataArchiveResult> {
-  const head = await magic(file)
+export async function checkDataArchive(files: readonly ArchiveFile[]): Promise<DataArchiveResult> {
+  const primary = files[files.length - 1] as ArchiveFile
+  const name = primary.name
+  const head = await magic(primary.file)
   if (!(head[0] === 0x4c && head[1] === 0x4f && head[2] === 0x44 && head[3] === 0)) throw wrongSlot(name, 'this is not a LOD archive; supply the data archive (h3bitmap.lod) here')
-  const lod = await LodArchive.open(new BlobSource(file, name))
+  const lod = await openSet(files)
   const missing = DATA_ARCHIVE_ENTRIES.filter((e) => !lod.has(e))
   if (missing.length > 0) {
     throw new FormatError({ code: FORMAT_ERROR_CODES.NOT_FOUND, file: name, offset: 0, format: 'lod', structure: 'entries', message: `archive has no ${missing.join(', ')}; supply the data archive (h3bitmap.lod)` })
   }
-  return { identity: await archiveIdentity(file), warnings: [] }
+  return { identity: await archiveSetIdentity(files), warnings: [] }
 }
 
 /** Object layer of a map: render objects, object atlas and flag colours (specs/003-map-objects). */
@@ -106,8 +138,8 @@ export interface ObjectsResult {
 }
 
 export async function decodeObjects(
-  sprites: { file: Blob; name: string; identity: string },
-  data: { file: Blob; name: string; identity: string },
+  sprites: { files: readonly ArchiveFile[]; identity: string },
+  data: { files: readonly ArchiveFile[]; identity: string },
   map: { world: WorldState; identity: string },
   seed: number,
   cache: DecodedCache,
@@ -116,19 +148,20 @@ export async function decodeObjects(
   const key = cacheKey('objects', identity)
   const cached = await cache.get<Omit<ObjectsResult, 'fromCache' | 'identity'>>('objects', key)
   if (cached !== undefined) return { ...cached, identity, fromCache: true }
-  const dataLod = await LodArchive.open(new BlobSource(data.file, data.name))
+  const spritesName = (sprites.files[sprites.files.length - 1] as ArchiveFile).name
+  const dataLod = await openSet(data.files)
   const templates = parseObjectsTxt(await dataLod.read('Objects.txt'))
   const artifactClasses = parseArtTraits(await dataLod.read('artraits.txt'))
   const pal = parseRiffPal(await dataLod.read('game.pal'), 'game.pal')
   const { objects } = buildRenderObjects({ ...map.world, seed }, { templates, artifactClasses }, createRng(seed))
-  const spriteLod = await LodArchive.open(new BlobSource(sprites.file, sprites.name))
+  const spriteLod = await openSet(sprites.files)
   const defs: DefSprite[] = []
   const missing: string[] = []
   for (const name of [...new Set(objects.map((o) => o.def))].sort()) {
     if (spriteLod.has(name)) defs.push(parseDef(await spriteLod.read(name), name))
     else missing.push(name)
   }
-  const warnings: WorkerDiagnostic[] = missing.length === 0 ? [] : [{ level: 'warn', code: 'MISSING_SPRITE', message: `sprites not found in ${sprites.name}, objects skipped: ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ', …' : ''}`, file: sprites.name }]
+  const warnings: WorkerDiagnostic[] = missing.length === 0 ? [] : [{ level: 'warn', code: 'MISSING_SPRITE', message: `sprites not found in ${spritesName}, objects skipped: ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ', …' : ''}`, file: spritesName }]
   let atlas: ObjectAtlas
   try {
     atlas = buildObjectAtlas(defs)

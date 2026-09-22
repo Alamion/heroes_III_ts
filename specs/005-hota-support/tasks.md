@@ -48,18 +48,18 @@ complete.
 
 ### Archives
 
-- [ ] T006 [P] Implement the FNV-1a-32 name hash over the lower-cased entry name in new `src/core/formats/lod/name-hash.ts` per [contracts/archives.md](contracts/archives.md) (FR-001, FR-003)
-- [ ] T007 [P] Add a HotA-shaped obfuscated LOD generator (random XOR key, hashed names, raw and zlib entries, a deliberately wrong-key case) to `test/fixtures/synthetic/hota-lod.ts`
-- [ ] T008 Replace the `HOTA18_MARKER = 135` check in `src/core/formats/lod/lod.ts` with the measured detection rule (`u32 @12 ∉ {0, 0x7E0213}` = XOR key), read the obfuscated entry record, de-XOR offset/size/compressed size, and enforce the post-conditions from [contracts/archives.md](contracts/archives.md) as typed `FormatError`s (FR-001, FR-002, FR-009) (depends on T006)
-- [ ] T009 Remove the `hota18Marker` case from `test/fixtures/synthetic/lod.ts` and any test asserting the old marker behaviour
-- [ ] T010 Raise a typed "unsupported compression" error for compression types 1 and 2 in `src/core/formats/lod/lod.ts`, leaving every other entry of the archive readable (FR-005)
-- [ ] T011 [P] Unit-test the archive index in `test/core/formats/lod.test.ts`: plain vs obfuscated detection including the `0x7E0213` filler, hash lookup, de-XOR asserts on a wrong key, unsupported compression (depends on T007, T008)
-- [ ] T011a [P] Resolve obfuscated entry names in `tools/inspect/` for `lod list` and friends: hash the requested name for lookups, resolve listings through the local git-ignored `context/hota-lod-convert/data/hashes.txt` when present, and print `#<hex>` for an unrecovered hash, per [contracts/archives.md](contracts/archives.md) (FR-003, FR-019; depends on T006, T008)
-- [ ] T012 Implement the ordered archive set (first-match-wins lookup, combined ordered identity, debug log on a duplicate name) in new `src/core/formats/lod/archive-set.ts` per [contracts/archives.md](contracts/archives.md) (FR-004)
-- [ ] T013 [P] Unit-test precedence and identity of the archive set in `test/core/formats/archive-set.test.ts` (depends on T012)
-- [ ] T014 Make `src/runtime/decode.ts` take an archive set instead of single archives for sprite and data lookups, keeping today's behaviour when the set has one member per role (FR-004) (depends on T012)
-- [ ] T015 Bump `CACHE_SCHEMA` and derive the cache identity from the archive set in `src/runtime/cache-key.ts` (depends on T012)
-- [ ] T016 [P] Classify a HotA archive in `src/runtime/file-kind.ts` and cover it in `test/runtime/file-kind.test.ts`
+- [X] T006 [P] Implement the FNV-1a-32 name hash over the lower-cased entry name in new `src/core/formats/lod/name-hash.ts` per [contracts/archives.md](contracts/archives.md) (FR-001, FR-003)
+- [X] T007 [P] Add a HotA-shaped obfuscated LOD generator (random XOR key, hashed names, raw and zlib entries, a deliberately wrong-key case) to `test/fixtures/synthetic/hota-lod.ts`
+- [X] T008 Replace the `HOTA18_MARKER = 135` check in `src/core/formats/lod/lod.ts` with the measured detection rule (`u32 @12 ∉ {0, 0x7E0213}` = XOR key), read the obfuscated entry record, de-XOR offset/size/compressed size, and enforce the post-conditions from [contracts/archives.md](contracts/archives.md) as typed `FormatError`s (FR-001, FR-002, FR-009) (depends on T006)
+- [X] T009 Remove the `hota18Marker` case from `test/fixtures/synthetic/lod.ts` and any test asserting the old marker behaviour
+- [X] T010 Raise a typed "unsupported compression" error for compression types 1 and 2 in `src/core/formats/lod/lod.ts`, leaving every other entry of the archive readable (FR-005)
+- [X] T011 [P] Unit-test the archive index in `test/core/formats/lod.test.ts`: plain vs obfuscated detection including the `0x7E0213` filler, hash lookup, de-XOR asserts on a wrong key, unsupported compression (depends on T007, T008)
+- [X] T011a [P] Resolve obfuscated entry names in `tools/inspect/` for `lod list` and friends: hash the requested name for lookups, resolve listings through the local git-ignored `context/hota-lod-convert/data/hashes.txt` when present, and print `#<hex>` for an unrecovered hash, per [contracts/archives.md](contracts/archives.md) (FR-003, FR-019; depends on T006, T008)
+- [X] T012 Implement the ordered archive set (first-match-wins lookup, combined ordered identity, debug log on a duplicate name) in new `src/core/formats/lod/archive-set.ts` per [contracts/archives.md](contracts/archives.md) (FR-004)
+- [X] T013 [P] Unit-test precedence and identity of the archive set in `test/core/formats/archive-set.test.ts` (depends on T012)
+- [X] T014 Make `src/runtime/decode.ts` take an archive set instead of single archives for sprite and data lookups, keeping today's behaviour when the set has one member per role (FR-004) (depends on T012)
+- [X] T015 Bump `CACHE_SCHEMA` and derive the cache identity from the archive set in `src/runtime/cache-key.ts` (depends on T012)
+- [X] T016 [P] Classify a HotA archive in `src/runtime/file-kind.ts` and cover it in `test/runtime/file-kind.test.ts`
 
 ### Text tables
 

@@ -6,15 +6,24 @@ import type { RenderObject } from '../core/state/render-objects.ts'
 import type { WorldState } from '../core/state/world.ts'
 import type { SerializedFormatError } from '../core/util/errors.ts'
 
+/**
+ * One archive of an ordered set (spec 005 FR-004). The last member is the base archive of its
+ * role, earlier members (the HotA archive) override it.
+ */
+export interface ArchiveFileMsg {
+  file: File | Blob
+  name: string
+}
+
 export type WorkerRequest =
-  | { id: number; kind: 'openArchive'; file: File | Blob; name: string; useCache: boolean }
+  | { id: number; kind: 'openArchive'; files: ArchiveFileMsg[]; useCache: boolean }
   | { id: number; kind: 'openMap'; file: File | Blob; name: string; useCache: boolean }
-  | { id: number; kind: 'openDataArchive'; file: File | Blob; name: string; useCache: boolean }
+  | { id: number; kind: 'openDataArchive'; files: ArchiveFileMsg[]; useCache: boolean }
   | {
       id: number
       kind: 'buildObjects'
-      sprites: { file: File | Blob; name: string; identity: string }
-      data: { file: File | Blob; name: string; identity: string }
+      sprites: { files: ArchiveFileMsg[]; identity: string }
+      data: { files: ArchiveFileMsg[]; identity: string }
       /** The worker uses the world it decoded for this identity. */
       mapIdentity: string
       seed: number

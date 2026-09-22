@@ -44,7 +44,8 @@ scope.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const req = event.data
   try {
     if (req.kind === 'openArchive') {
-      const r = await withDecodeLock(`archive:${req.file.size}:${req.name}`, () => decodeArchive(req.file, req.name, cacheFor(req.useCache)))
+      const lockKey = req.files.map((f) => `${f.name}:${f.file.size}`).join('|')
+      const r = await withDecodeLock(`archive:${lockKey}`, () => decodeArchive(req.files, cacheFor(req.useCache)))
       // Copies are transferred; the cache keeps its own structured clone.
       const indices = r.atlas.indices.slice()
       const palettes = r.atlas.palettes.slice()
@@ -55,7 +56,7 @@ scope.onmessage = async (event: MessageEvent<WorkerRequest>) => {
       worlds.set(r.identity, r.world)
       post({ id: req.id, kind: 'mapReady', identity: r.identity, world: r.world, fromCache: r.fromCache, warnings: r.warnings })
     } else if (req.kind === 'openDataArchive') {
-      const r = await checkDataArchive(req.file, req.name)
+      const r = await checkDataArchive(req.files)
       post({ id: req.id, kind: 'dataArchiveReady', identity: r.identity, warnings: r.warnings })
     } else {
       const world = worlds.get(req.mapIdentity)
@@ -73,7 +74,9 @@ scope.onmessage = async (event: MessageEvent<WorkerRequest>) => {
       )
     }
   } catch (err) {
-    const error = err instanceof FormatError ? err.toJSON() : { level: 'error' as const, code: 'INTERNAL', message: err instanceof Error ? err.message : String(err), file: 'name' in req ? req.name : req.data.name }
+    const lastName = (files: readonly { name: string }[]): string => files[files.length - 1]?.name ?? 'archive'
+    const where = 'name' in req ? req.name : 'files' in req ? lastName(req.files) : lastName(req.data.files)
+    const error = err instanceof FormatError ? err.toJSON() : { level: 'error' as const, code: 'INTERNAL', message: err instanceof Error ? err.message : String(err), file: where }
     post({ id: req.id, kind: 'failed', error })
   }
 }

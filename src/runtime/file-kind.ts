@@ -12,6 +12,8 @@ import { BlobSource } from './file-source.ts'
 export type FileKind =
   | { kind: 'spriteArchive' }
   | { kind: 'dataArchive' }
+  /** HotA archive (spec 005): obfuscated index, or the HotA-only terrain tiles. */
+  | { kind: 'hotaArchive' }
   | { kind: 'map'; version: H3mVersion }
   /** HotA, WoG, Chronicles or an unknown version code. */
   | { kind: 'unsupportedMap'; versionCode: number; format: string | null }
@@ -20,6 +22,9 @@ export type FileKind =
 
 /** Upper bound of inflated bytes read to find a gzip map's version. */
 export const MAP_PROBE_BYTES = 64 * 1024
+
+/** Entries only HotA ships: the Highlands and Wasteland tile sets (research M1, M7). */
+const HOTA_MARKER_ENTRIES = ['hglnt000.pcx', 'wstlt000.pcx'] as const
 
 const isLodMagic = (b: Uint8Array): boolean => b.length >= 4 && b[0] === 0x4c && b[1] === 0x4f && b[2] === 0x44 && b[3] === 0
 const isGzipMagic = (b: Uint8Array): boolean => b.length >= 2 && b[0] === 0x1f && b[1] === 0x8b
@@ -72,6 +77,9 @@ export async function classifyFile(blob: Blob, name = 'file'): Promise<FileKind>
     } catch (err) {
       return { kind: 'unknownArchive', reason: err instanceof Error ? err.message : String(err) }
     }
+    // Checked first: a HotA archive holds some data tables and some sprites, but neither set in
+    // full (it has no artraits.txt and only four terrain DEFs), so the role checks below miss it.
+    if (lod.kind === 'obfuscated' || HOTA_MARKER_ENTRIES.every((e) => lod.has(e))) return { kind: 'hotaArchive' }
     if (DATA_ARCHIVE_ENTRIES.every((e) => lod.has(e))) return { kind: 'dataArchive' }
     if (terrainLayerDefs().every((d) => lod.has(d))) return { kind: 'spriteArchive' }
     return { kind: 'unknownArchive', reason: 'the archive has neither map sprites nor the data tables' }
