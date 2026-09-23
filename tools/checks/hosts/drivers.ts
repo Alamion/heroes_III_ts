@@ -28,6 +28,8 @@ export interface OpenOptions {
   /** Manual engine clock start (ms). */
   clockMs: number
   noCache?: boolean
+  /** Delay the page's read of a file whose name ends with the key (ms); see TestOptions.readDelays. */
+  readDelays?: Record<string, number>
   viewport?: { width: number; height: number }
 }
 
@@ -62,7 +64,7 @@ async function newHostPage(browser: Browser, opts: OpenOptions): Promise<HostPag
   await page.addInitScript((o) => {
     const w = window as unknown as Record<string, unknown>
     w.__h3testHook = true
-    w.__h3testOptions = { seed: o.seed, clockMs: o.clockMs, ...(o.noCache === true ? { noCache: true } : {}) }
+    w.__h3testOptions = { seed: o.seed, clockMs: o.clockMs, ...(o.noCache === true ? { noCache: true } : {}), ...(o.readDelays !== undefined ? { readDelays: o.readDelays } : {}) }
     w.__cspViolations = []
     document.addEventListener('securitypolicyviolation', (e) => (w.__cspViolations as string[]).push(`${e.violatedDirective} ${e.blockedURI}`))
     if (o.noCache === true) {

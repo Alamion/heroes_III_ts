@@ -19,6 +19,11 @@ export interface TestOptions {
   clockMs?: number
   /** Disable the decode cache (invariant 9). */
   noCache?: boolean
+  /**
+   * Extra delay in ms before reading a file whose name ends with the key resolves, so a check can
+   * force the order in which host files arrive (invariant 13). Test mode only.
+   */
+  readDelays?: Record<string, number>
 }
 
 declare global {
@@ -95,7 +100,11 @@ export function createBrowserController(opts: BrowserControllerOptions): Browser
       return engine
     },
     fileUrl: opts.fileUrl,
-    readFile: (url) => readUserFile(url, browserReadDeps()),
+    readFile: (url) => {
+      const read = readUserFile(url, browserReadDeps())
+      const delay = Object.entries(testOptions.readDelays ?? {}).find(([name]) => decodeURIComponent(url).endsWith(name))?.[1] ?? 0
+      return delay === 0 ? read : read.then((blob) => new Promise<Blob>((resolve) => window.setTimeout(() => resolve(blob), delay)))
+    },
     classify: classifyFile,
     overlay: createOverlay(opts.overlayRoot),
     timers: { set: (cb, ms) => window.setTimeout(cb, ms), clear: (h) => window.clearTimeout(h) },

@@ -165,7 +165,7 @@ yarn verify fidelity --map test_map.h3m --all-regions [--kind still|clip] [--cap
 yarn verify fidelity --map M --level Z --region x0,y0,x1,y1
 yarn verify budget [--no-build] [--throttle 4] [--viewport 1920x1080]   # + package sizes and package start-up
 yarn verify packages [--host …] [--no-build] [--reproducible]
-yarn verify hosts [--host …] [--files synthetic|real] [--map NAME] [--no-build]    # host simulations, invariants 1–10
+yarn verify hosts [--host …] [--files synthetic|real] [--map NAME] [--no-build]    # host simulations, invariants 1–13
 yarn verify all
 ```
 
@@ -344,13 +344,13 @@ Facts measured on HotA 1.8.1 (2026-09-23, details in [005 research](specs/005-ho
   base game draws 19×17, while the view itself is still 17 rows.
 - Fidelity: the water clip matches pixel for pixel over 17 frames. The stills' object pixels differ
   by 0.4 %–8.6 % after two town-form rules were found and fixed with these captures. What is left is
-  **object shadows, and the difference follows the terrain**: on sand nearly every single-dark
-  shadow pixel is `(terrain >> 1) + (3, 1, 0)` in 5/6/5 where ours is `terrain >> 1`; on the other
-  terrains most agree and the rest scatter. Five mechanisms are tested and ruled out (shadow-index
-  mapping, RGB565 quantisation, shading strength, per-sprite shadow colour, the tile's palette);
-  the next step is a probe map with one object per terrain (005 research). Open; do not treat it as
-  accepted yet. `rasterizeScene` takes an optional `layers` output with the shadow steps per pixel,
-  which is what makes this measurable.
+  **object shadows on two terrains**. The owner's probe map `test_shadows.h3m` (in the HotA install's
+  `Maps`, one witch hut per surface terrain) shows the shadow rule `terrain >> 1` holds exactly on
+  dirt, grass, snow, swamp, rough, lava and highlands, and fails on every shadow pixel of sand and
+  wasteland — not at the edges, the whole shadow. On sand the channels disagree in different ways
+  (red like `× 5/8`, green `+1`, blue exact), so it is not arithmetic on the colour; seven mechanisms
+  are ruled out (005 research). Open; do not treat it as accepted yet. `rasterizeScene` takes an
+  optional `layers` output with the shadow steps per pixel, which is what makes this measurable.
 
 ---
 
@@ -383,6 +383,14 @@ Facts measured on HotA 1.8.1 (2026-09-23, details in [005 research](specs/005-ho
   panel button (key `R`). They are handled by the bridges, never stored in `WallpaperSettings`.
 - KDE live debugging: restart plasmashell with `QTWEBENGINE_REMOTE_DEBUGGING=127.0.0.1:9333`, attach over the
   DevTools protocol (Playwright's `connectOverCDP` is not supported by QtWebEngine; use the raw websocket).
+- An upgraded KDE package is not picked up by an open wallpaper page, not even by `location.reload()`:
+  it keeps running the old script until plasmashell restarts (measured 2026-09-23). Restart it after
+  `yarn accept kde` before trusting what the live page does.
+- Files arrive several at once — a host's settings, a drop of several files, the remembered files. The
+  HotA archive goes in front of every archive set, so the controller loads it first (`hotaFirst`) and the
+  engine re-decodes an archive when HotA arrives mid-decode; loading them together dropped every
+  HotA-only sprite without an error (found on a real KDE session; host invariant 13, which holds the
+  HotA read back with the test option `readDelays` so the race is lost every time).
 - Test hook on a real host: `localStorage.setItem('h3dynam:test', '1')` in DevTools, reload, then
   `__h3wallpaper.controller.state()`.
 

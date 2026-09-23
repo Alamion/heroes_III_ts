@@ -350,6 +350,18 @@ export function createController(deps: ControllerDeps): WallpaperController {
     return true
   }
 
+  /**
+   * Runs slot loads with the HotA archive first. It goes in front of every archive set (spec 005
+   * FR-004), so it has to be in place before the archives that are decoded against it. Every caller
+   * hands over several files at once — a host's settings, a drop of several files, the remembered
+   * files — and loading them together decoded the sprite archive without HotA and silently dropped
+   * every HotA-only sprite (found on a real KDE session, 2026-09-23).
+   */
+  const hotaFirst = async (loads: readonly { slot: FileSlot; load: () => Promise<unknown> }[]): Promise<void> => {
+    for (const l of loads) if (l.slot === 'hotaArchive') await l.load()
+    await Promise.all(loads.filter((l) => l.slot !== 'hotaArchive').map((l) => l.load()))
+  }
+
   /** Reads a file named by a host setting and loads it into its slot. */
   const loadFromSetting = async (slot: FileSlot, value: string | null): Promise<void> => {
     const gen = ++generation[slot]
@@ -396,9 +408,11 @@ export function createController(deps: ControllerDeps): WallpaperController {
   const applyPatch = async (patch: Partial<WallpaperSettings>): Promise<void> => {
     const prev = settings
     settings = { ...settings, ...patch }
-    const loads: Promise<void>[] = []
+    const loads: { slot: FileSlot; load: () => Promise<void> }[] = []
     for (const key of FILE_SETTING_KEYS) {
-      if (key in patch && patch[key] !== prev[key]) loads.push(loadFromSetting(SLOT_OF_SETTING[key], settings[key]))
+      if (!(key in patch) || patch[key] === prev[key]) continue
+      const slot = SLOT_OF_SETTING[key]
+      loads.push({ slot, load: () => loadFromSetting(slot, settings[key]) })
     }
     if (engine !== undefined) {
       if (patch.scale !== undefined && patch.scale !== prev.scale) engine.setUserScale(settings.scale)
@@ -416,7 +430,7 @@ export function createController(deps: ControllerDeps): WallpaperController {
       }
     }
     refresh()
-    await Promise.all(loads)
+    await hotaFirst(loads)
   }
 
   const flush = (): Promise<void> => {
@@ -466,7 +480,7 @@ export function createController(deps: ControllerDeps): WallpaperController {
       if (deps.remembered !== undefined) {
         const files = await track(deps.remembered.load().catch((err: unknown) => (log.warn('remembered files unavailable', String(err)), [] as RememberedFile[])))
         if (files.length > 0) startedAt ??= deps.now()
-        await Promise.all(files.map((f) => loadIntoSlot(f.slot, f.blob, f.name, ++generation[f.slot])))
+        await hotaFirst(files.map((f) => ({ slot: f.slot, load: () => loadIntoSlot(f.slot, f.blob, f.name, ++generation[f.slot]) })))
       }
       await flush()
     },
@@ -485,28 +499,36 @@ export function createController(deps: ControllerDeps): WallpaperController {
     async supplyFiles(files) {
       startedAt ??= deps.now()
       await track(
-        Promise.all(
-          files.map(async (file) => {
-            const name = file.name ?? 'file'
-            let kind: FileKind
-            try {
-              kind = await deps.classify(file, name)
-            } catch (err) {
-              addMessage({ code: 'FILE_UNREADABLE', level: 'error', file: name, detail: err instanceof Error ? err.message : String(err) })
-              refresh()
-              return
-            }
-            const slot = kindSlot(kind)
-            if (slot === undefined) {
-              if (kind.kind === 'unsupportedMap') addMessage({ code: 'UNSUPPORTED_MAP', level: 'error', file: name, format: kind.format ?? `0x${kind.versionCode.toString(16)}` })
-              else addMessage({ code: 'UNKNOWN_FILE', level: 'error', file: name, ...(kind.kind === 'unknownArchive' ? { detail: kind.reason } : {}) })
-              refresh()
-              return
-            }
-            const ok = await loadIntoSlot(slot, file, name, ++generation[slot])
-            if (ok && deps.remembered !== undefined) await deps.remembered.save({ slot, name, blob: file }).catch((err: unknown) => log.warn('could not remember file', String(err)))
-          }),
-        ),
+        (async () => {
+          const classified = await Promise.all(
+            files.map(async (file) => {
+              const name = file.name ?? 'file'
+              let kind: FileKind
+              try {
+                kind = await deps.classify(file, name)
+              } catch (err) {
+                addMessage({ code: 'FILE_UNREADABLE', level: 'error', file: name, detail: err instanceof Error ? err.message : String(err) })
+                refresh()
+                return undefined
+              }
+              const slot = kindSlot(kind)
+              if (slot === undefined) {
+                if (kind.kind === 'unsupportedMap') addMessage({ code: 'UNSUPPORTED_MAP', level: 'error', file: name, format: kind.format ?? `0x${kind.versionCode.toString(16)}` })
+                else addMessage({ code: 'UNKNOWN_FILE', level: 'error', file: name, ...(kind.kind === 'unknownArchive' ? { detail: kind.reason } : {}) })
+                refresh()
+                return undefined
+              }
+              return {
+                slot,
+                load: async () => {
+                  const ok = await loadIntoSlot(slot, file, name, ++generation[slot])
+                  if (ok && deps.remembered !== undefined) await deps.remembered.save({ slot, name, blob: file }).catch((err: unknown) => log.warn('could not remember file', String(err)))
+                },
+              }
+            }),
+          )
+          await hotaFirst(classified.filter((c) => c !== undefined))
+        })(),
       )
     },
     setHostPaused(paused) {

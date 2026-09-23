@@ -73,6 +73,7 @@ class FakeTimers implements Timers {
 const KINDS: Record<string, FileKind> = {
   'H3sprite.lod': { kind: 'spriteArchive' },
   'H3bitmap.lod': { kind: 'dataArchive' },
+  'HotA.lod': { kind: 'hotaArchive' },
   'a.h3m': { kind: 'map', version: 'SoD' },
   'b.h3m': { kind: 'map', version: 'AB' },
   'hota.h3m': { kind: 'unsupportedMap', versionCode: 0x20, format: 'HotA' },
@@ -120,6 +121,48 @@ describe('wallpaper controller', () => {
     expect(c.state().phase).toBe('waiting')
     expect(engine.paused).toBe(true)
     expect(overlay.at(-1)?.missing).toEqual(['spriteArchive', 'dataArchive', 'map'])
+  })
+
+  it('loads the HotA archive before the archives decoded against it', async () => {
+    // A host hands over every file setting at once. The HotA archive goes in front of every archive
+    // set, so loading them together decodes the sprite archive without it and loses HotA sprites
+    // (measured on a real KDE session, 2026-09-23).
+    const { c, engine } = setup()
+    engine.loadDelay = 5
+    await c.start()
+    c.applySettings({ ...ALL_FILES, hotaarchive: 'HotA.lod' })
+    await c.idle()
+    expect(engine.calls[0]).toBe('hota:HotA.lod')
+    expect(engine.calls.slice(1).sort()).toEqual(['archive:H3sprite.lod', 'data:H3bitmap.lod', 'map:a.h3m'])
+    expect(c.state().slots.hotaArchive).toMatchObject({ status: 'loaded', name: 'HotA.lod' })
+  })
+
+  it('loads a dropped HotA archive before the other dropped files', async () => {
+    const { c, engine } = setup()
+    engine.loadDelay = 5
+    await c.start()
+    await c.supplyFiles([new File(['x'], 'H3sprite.lod'), new File(['x'], 'H3bitmap.lod'), new File(['x'], 'a.h3m'), new File(['x'], 'HotA.lod')])
+    await c.idle()
+    expect(engine.calls[0]).toBe('hota:HotA.lod')
+    expect(engine.calls.slice(1).sort()).toEqual(['archive:H3sprite.lod', 'data:H3bitmap.lod', 'map:a.h3m'])
+  })
+
+  it('restores a remembered HotA archive before the other remembered files', async () => {
+    const { c, engine } = setup({
+      remembered: {
+        load: async () => [
+          { slot: 'spriteArchive', name: 'H3sprite.lod', blob: new Blob(['x']) },
+          { slot: 'map', name: 'a.h3m', blob: new Blob(['x']) },
+          { slot: 'hotaArchive', name: 'HotA.lod', blob: new Blob(['x']) },
+        ],
+        save: async () => {},
+        clear: async () => {},
+      },
+    })
+    engine.loadDelay = 5
+    await c.start()
+    await c.idle()
+    expect(engine.calls[0]).toBe('hota:HotA.lod')
   })
 
   it('loads host files, shows the map and places the view once', async () => {

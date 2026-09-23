@@ -704,15 +704,65 @@ dark warm brown. Ruled out as its source: the sprite's palette (the shadow indic
 sprites hold marker colours, and the sprites that share the offset have different palettes) and the
 sand tile's own palette (its only dark entries are `(39,57,21)` and `(41,36,25)`).
 
-So five mechanisms have been tested and eliminated: the shadow-index mapping, RGB565 quantisation,
-a different shading strength, a per-sprite shadow colour, and the terrain tile's palette.
+So five mechanisms were tested and eliminated on the town views: the shadow-index mapping, RGB565
+quantisation, a different shading strength, a per-sprite shadow colour, and the terrain tile's
+palette.
 
-**Next experiment**, and the cheapest one: a purpose-built probe map — one shadow-casting object of
-the same sprite on each terrain, nothing else — captured once on the HotA baseline. That isolates
-`terrain → shadow` with no draw-order, frame or neighbour effects, and would settle in one capture
-whether the rule is per terrain, per tile palette or per sprite. Failing that, instrumenting the
-terrain rasterizer to report the atlas row and palette index per pixel would show whether the
-game's shadowed colour is a palette entry of the tile rather than arithmetic on the colour.
+### The probe map: the rule depends on the terrain, and only two terrains break it
+
+The town views could not separate the terrain from draw order, frames and neighbours, so the owner
+built a probe map (`test_shadows.h3m`, HotA 1.8.1, 36×36, 2026-09-23): one witch hut
+(`AVSwtch0.def`) on each surface terrain — dirt, sand, grass, snow, swamp, rough, lava (two),
+highlands, wasteland — and nothing else near them; the player's start is in the far corner.
+Subterranean has no surface patch of its own under a hut and rock holds no objects. Two captures
+on the HotA baseline (`--x 12` and `--x 9`, both mapped with 0 shift) together see every hut's
+whole shadow.
+
+Each hut casts exactly 417 single-dark shadow pixels on plain terrain, and the result is
+all-or-nothing per terrain, identical in both captures:
+
+| Terrain | Shadow pixels | Differ |
+| --- | --- | --- |
+| dirt, grass, snow, swamp, rough, lava, highlands | 417 each (lava 834) | **0** |
+| sand | 417 | **417 (100 %)** |
+| wasteland | 417 | **405 (97 %)** |
+
+So `terrain >> 1` per 5/6/5 channel is the rule, and it holds exactly on seven terrains. The
+scatter measured earlier on dirt and highlands in the town views came from draw order and
+neighbours, not from the shadow rule. The differing pixels are not an edge effect (about a third
+lie on the shadow's border, two thirds inside it) and the shadow's shape matches pixel for pixel;
+only the colour differs. On sand the game's shadow is warmer than ours, on wasteland darker.
+
+What the colours say, on sand (5/6/5 values): red `24 → 15`, `25 → 15`, `26 → 16`, which is
+`floor(T × 5/8)`; green `(T >> 1) + 1` for every value from 37 to 50, even and odd alike; blue
+`T >> 1`. No single formula fits the three channels, so it is not arithmetic on the colour. Tested
+and ruled out on the probe captures, in addition to the five mechanisms above:
+
+- **a palette entry of the tile**: the game's colour is usually not in the tile's palette at all,
+  and where it is, the index offset is arbitrary;
+- **the nearest palette entry to `terrain >> 1`**: explains 0 of 417 sand pixels and 15 of 405
+  wasteland ones.
+
+Open. What sand and wasteland share, and the other seven terrains do not, is the next question;
+the probe map and its two captures make any candidate a one-command test
+(`yarn verify fidelity --map test_shadows.h3m --all-regions`).
+
+### Hosts: the HotA archive must be loaded first (found on a real KDE session, 2026-09-23)
+
+On a real Plasma session a HotA map showed without 602 of its objects (340 HotA-only sprites "not
+found in H3sprite.lod") although all four slots reported `loaded`. Every path that takes several
+files at once — a host's settings in one patch, a drop of several files, the remembered files on
+start — loaded them in parallel, and the sprite archive was decoded before the HotA archive joined the
+set. When HotA arrived while the sprite archive was still decoding, `loadHotaArchive` had nothing to
+re-decode yet, so the loss was permanent. The browser harness never showed it (files arrive one at a
+time) and neither did the host simulation, whose invariant 12 supplies the HotA archive separately and
+whose local reads happened to finish in the right order.
+
+Fixed twice over: the controller loads the HotA archive before the others on all three paths
+(`hotaFirst`), and the engine decodes an archive again when the HotA archive arrived during its decode.
+Guarded by three controller tests (each fails on the old controller) and host invariant 13, which
+delays the read of `HotA.lod` so the race is lost deterministically: it fails without the fix with the
+exact symptom seen on the desktop and passes with it.
 
 ## Risks and open questions
 

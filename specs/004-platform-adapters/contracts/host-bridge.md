@@ -102,3 +102,11 @@ Scrolling is browser-only (wallpaper hosts show a static view).
 9. With IndexedDB unavailable the page still reaches `showing`; no message unless the start exceeds the
    warm-start budget.
 10. No CSP violation is reported by the page (`securitypolicyviolation` listener).
+11. (browser only) Remembered files survive a reload; forgetting them returns the placeholder.
+12. (spec 005 FR-025, FR-026) The optional HotA archive loads when supplied, and the placeholder never asks
+    for it when it is unset.
+13. (spec 005 FR-004) Every file setting supplied **in one patch**, as a host does, still resolves HotA-only
+    sprites: the HotA archive must be in the archive set before the sprite archive is decoded, so no
+    "sprite(s) not found" diagnostic appears at any point of the load. The check delays the page's read
+    of `HotA.lod` (test option `readDelays`), so a controller that loads the slots together fails it
+    every time instead of by chance.

@@ -313,10 +313,14 @@ export function createEngine(options: EngineOptions): Engine {
       const gen = ++generations.archive
       status.state = 'loading'
       emit()
+      const hotaAtStart = hotaFile
       const r = await run({ kind: 'openArchive', files: archiveFiles({ file, name: n }), useCache: options.cache !== false })
       if (gen !== generations.archive) return superseded(n)
       if (r.kind === 'failed') return failure(r.error, n)
       if (r.kind !== 'archiveReady') return failure({ level: 'error', code: 'PROTOCOL', message: 'unexpected worker reply' }, n)
+      // The HotA archive arrived while this set was decoding without it, and loadHotaArchive could not
+      // re-decode an archive that was not loaded yet: decode again with it in front.
+      if (hotaFile !== hotaAtStart) return engine.loadArchive(file, name)
       atlas = r.atlas
       renderer.setAtlas(r.atlas)
       status.archive = n
@@ -368,10 +372,13 @@ export function createEngine(options: EngineOptions): Engine {
     async loadDataArchive(file, name) {
       const n = fileName(file, name)
       const gen = ++generations.data
+      const hotaAtStart = hotaFile
       const r = await run({ kind: 'openDataArchive', files: archiveFiles({ file, name: n }), useCache: options.cache !== false })
       if (gen !== generations.data) return superseded(n)
       if (r.kind === 'failed') return failure(r.error, n)
       if (r.kind !== 'dataArchiveReady') return failure({ level: 'error', code: 'PROTOCOL', message: 'unexpected worker reply' }, n)
+      // As in loadArchive: the HotA archive arrived mid-decode.
+      if (hotaFile !== hotaAtStart) return engine.loadDataArchive(file, name)
       primaryData = { file, name: n }
       dataFile = { files: archiveFiles({ file, name: n }), name: n, identity: r.identity }
       status.dataArchive = n

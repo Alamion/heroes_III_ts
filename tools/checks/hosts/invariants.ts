@@ -108,7 +108,7 @@ async function loaded(ctx: InvariantContext, hp: HostPage, fail: (m: string) => 
   return s
 }
 
-const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[]; opts?: { locale?: string; noCache?: boolean } }[] = [
+const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[]; opts?: { locale?: string; noCache?: boolean; readDelays?: Record<string, number> } }[] = [
   {
     id: 1,
     name: 'placeholder without files, no frames',
@@ -339,13 +339,17 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
     id: 12,
     name: 'the optional HotA archive loads, and is never asked for when unset (spec 005 FR-025, FR-026)',
     run: async (ctx, hp, fail) => {
-      // Unset: the placeholder must not ask for it, and the base-game files still reach 'ready'.
+      // Unset: the placeholder lists the files it wants by their kind labels, and the optional
+      // archive's label must not be among them. Read it before any file arrives, while the list is
+      // shown; matching "HotA" anywhere would also hit a map's file name or the help text.
+      await hp.page.waitForFunction((label) => document.body.innerText.includes(label), en.kind_spriteArchive, { timeout: 30_000 }).catch(() => undefined)
+      const waiting = await overlayText(hp.page)
+      if (!waiting.includes(en.kind_spriteArchive)) fail(`the placeholder does not list the missing files: ${waiting.slice(0, 200)}`)
+      if (waiting.includes(en.kind_hotaArchive)) fail(`the placeholder asks for the optional HotA archive: ${waiting.slice(0, 200)}`)
+      // The base-game files alone still reach 'showing'.
       await ctx.driver.supplyFiles(hp, { spriteArchive: ctx.files.spriteArchive, dataArchive: ctx.files.dataArchive, map: ctx.files.map })
       const ready = await waitPhase(hp.page, 'showing', 120_000)
       if (ready.phase !== 'showing') fail(`base-game files did not reach showing: ${ready.phase}`)
-      // The placeholder text lists the files it still wants; the optional archive must not be there.
-      const waiting = await overlayText(hp.page)
-      if (/HotA/i.test(waiting) && ready.phase !== 'ready') fail(`the placeholder asks for the optional HotA archive: ${waiting.slice(0, 200)}`)
       const hota = ctx.files.hotaArchive
       if (hota === undefined) return
       await ctx.driver.supplyFiles(hp, { hotaArchive: hota })
@@ -354,6 +358,34 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
         .then(() => true)
         .catch(() => false)
       if (!loaded) fail(`the HotA archive did not load: ${JSON.stringify((await state(hp.page)).slots.hotaArchive)}`)
+    },
+  },
+  {
+    id: 13,
+    name: 'every file setting arriving at once still resolves HotA sprites (spec 005 FR-004)',
+    // The HotA archive is the largest file and could win the race by luck; holding its read back
+    // makes the check fail deterministically whenever the controller loads the slots together.
+    opts: { readDelays: { 'HotA.lod': 4000 } },
+    run: async (ctx, hp, fail) => {
+      const hota = ctx.files.hotaArchive
+      if (hota === undefined) return
+      // A host hands over all four file settings in one go. The HotA archive goes in front of every
+      // archive set, so it has to be in place before the sprite archive is decoded; loading them
+      // together used to decode without it and silently drop every HotA-only sprite (measured on a
+      // real KDE session, 2026-09-23). Invariant 12 supplies the archive separately and cannot see
+      // this.
+      const missing: string[] = []
+      hp.page.on('console', (m) => {
+        const t = m.text()
+        if (/sprite\(s\) not found/i.test(t)) missing.push(t.slice(0, 200))
+      })
+      await ctx.driver.supplyFiles(hp, { ...all(ctx.files), hotaArchive: hota })
+      const shown = await waitPhase(hp.page, 'showing', 180_000)
+      if (shown.phase !== 'showing') fail(`files supplied together did not reach showing: ${shown.phase}`)
+      const slots = (await state(hp.page)).slots
+      if (slots.hotaArchive?.status !== 'loaded') fail(`the HotA archive did not load: ${JSON.stringify(slots.hotaArchive)}`)
+      await idle(hp.page)
+      if (missing.length > 0) fail(`sprites unresolved although the HotA archive is loaded: ${missing[0] as string}`)
     },
   },
 ]
@@ -365,7 +397,13 @@ export async function runInvariants(ctx: InvariantContext): Promise<InvariantRes
     const details: string[] = []
     let hp: HostPage | undefined
     try {
-      hp = await ctx.driver.open({ seed: SEED, clockMs: CLOCK_START, locale: check.opts?.locale ?? 'en-US', ...(check.opts?.noCache === true ? { noCache: true } : {}) })
+      hp = await ctx.driver.open({
+        seed: SEED,
+        clockMs: CLOCK_START,
+        locale: check.opts?.locale ?? 'en-US',
+        ...(check.opts?.noCache === true ? { noCache: true } : {}),
+        ...(check.opts?.readDelays !== undefined ? { readDelays: check.opts.readDelays } : {}),
+      })
       await check.run(ctx, hp, (m) => details.push(m))
       const csp = await hp.page.evaluate(() => (window as unknown as Wallpaper).__cspViolations)
       if (check.id !== 10 && csp.length > 0) details.push(`CSP violations: ${csp.join('; ')}`)
