@@ -1,7 +1,11 @@
 // Cache keys and the no-op cache (DOM-free so they can be unit-tested in Node).
 
-/** Bump when cached payload formats change. */
-export const CACHE_SCHEMA = 5
+/**
+ * Bump when cached payload formats change. 6: archive identity became the ordered identity of an
+ * archive set (spec 005 FR-004), so an entry cached under a single archive's identity must not be
+ * reused.
+ */
+export const CACHE_SCHEMA = 6
 
 export type CacheStore = 'atlas' | 'world' | 'objects'
 

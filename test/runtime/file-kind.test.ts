@@ -16,7 +16,8 @@ describe('classifyFile (spec 004 FR-002)', () => {
 
   it('reports unsupported maps, other archives and unknown files', async () => {
     const bad = badFiles()
-    expect(await classifyFile(blob(bad.hotaMap))).toEqual({ kind: 'unsupportedMap', versionCode: 0x20, format: 'HotA' })
+    // HotA maps are supported since spec 005; only genuinely unknown formats are rejected.
+    expect(await classifyFile(blob(bad.hotaMap))).toEqual({ kind: 'map', version: 'HotA' })
     expect(await classifyFile(blob(bad.wogMap))).toMatchObject({ kind: 'unsupportedMap', format: 'WoG' })
     expect(await classifyFile(blob(bad.plainArchive))).toMatchObject({ kind: 'unknownArchive' })
     expect(await classifyFile(blob(bad.randomBytes))).toEqual({ kind: 'unknown' })

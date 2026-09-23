@@ -6,6 +6,9 @@ import type { Engine } from '../../runtime/engine.ts'
 
 export interface RenderParams {
   archiveUrl: string
+  /** Optional HotA archive; loaded first so it wins over the base archives (spec 005). */
+  hotaArchiveUrl?: string
+  hotaArchiveName?: string
   mapUrl: string
   archiveName: string
   mapName: string
@@ -54,7 +57,7 @@ declare global {
 
 const canvas = document.getElementById('map') as HTMLCanvasElement
 let engine: Engine | undefined
-let loaded: { archive: string; map: string; data: string | undefined } | undefined
+let loaded: { archive: string; map: string; data: string | undefined; hota: string | undefined } | undefined
 let engineSeed: number | undefined
 
 function toBase64(bytes: Uint8Array): string {
@@ -95,6 +98,10 @@ window.__h3render = {
     }
     const e = engine
     e.resize(p.width, p.height, 1)
+    if (p.hotaArchiveUrl !== undefined && loaded?.hota !== p.hotaArchiveUrl) {
+      const r = await e.loadHotaArchive(await fetchBlob(p.hotaArchiveUrl), p.hotaArchiveName ?? 'HotA.lod')
+      if (!r.ok) return { ok: false, error: r.error }
+    }
     if (loaded?.archive !== p.archiveUrl) {
       const r = await e.loadArchive(await fetchBlob(p.archiveUrl), p.archiveName)
       if (!r.ok) return { ok: false, error: r.error }
@@ -107,7 +114,7 @@ window.__h3render = {
       const r = await e.loadDataArchive(await fetchBlob(p.dataArchiveUrl), p.dataArchiveName ?? 'h3bitmap.lod')
       if (!r.ok) return { ok: false, error: r.error }
     }
-    loaded = { archive: p.archiveUrl, map: p.mapUrl, data: p.dataArchiveUrl }
+    loaded = { archive: p.archiveUrl, map: p.mapUrl, data: p.dataArchiveUrl, hota: p.hotaArchiveUrl }
     e.setObjectsVisible(p.objects !== false)
     e.setMapping(p.level, p.originTile, p.originPixel, p.scale ?? 1)
     const anim =

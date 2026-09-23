@@ -4,7 +4,8 @@ import { join, relative, resolve } from 'node:path'
 import { cropForRegion, rangeContains } from '../analysis/geometry.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 import { log } from '../log.ts'
-import type { CaptureMatch, CaptureQuery, CaptureRecord, Kind, Source } from '../model/types.ts'
+import { recordBaseline } from '../data/baselines.ts'
+import type { Baseline, CaptureMatch, CaptureQuery, CaptureRecord, Kind, Source } from '../model/types.ts'
 import { resolveMap } from './capture-store.ts'
 import { validateRecord } from '../model/validate-record.ts'
 
@@ -53,6 +54,7 @@ export function findCaptures(capturesDir: string, q: CaptureQuery): CaptureMatch
       r.level === q.level &&
       (q.source === undefined || r.source === q.source) &&
       (q.kind === undefined || r.kind === q.kind) &&
+      (q.baseline === undefined || recordBaseline(r) === q.baseline) &&
       rangeContains(r.visible, q.region),
     )
     .sort(newestFirst)
@@ -74,6 +76,7 @@ export interface ListFilters {
   map?: string
   source?: Source
   kind?: Kind
+  baseline?: Baseline
   before?: string
 }
 
@@ -83,10 +86,11 @@ export function listCaptures(capturesDir: string, f: ListFilters): { id: string;
       (f.map === undefined || matchesMap(r, f.map)) &&
       (f.source === undefined || r.source === f.source) &&
       (f.kind === undefined || r.kind === f.kind) &&
+      (f.baseline === undefined || recordBaseline(r) === f.baseline) &&
       (f.before === undefined || r.createdAt < f.before),
     )
     .sort(newestFirst)
-    .map(({ dir, record }) => ({ id: record.id, dir, createdAt: record.createdAt, sizeBytes: dirSize(dir) }))
+    .map(({ dir, record }) => ({ id: record.id, dir, baseline: recordBaseline(record), createdAt: record.createdAt, sizeBytes: dirSize(dir) }))
 }
 
 /**

@@ -23,6 +23,7 @@ WallpaperItem {
             "settings": {
                 "spritearchive": c.spritearchive,
                 "dataarchive": c.dataarchive,
+                "hotaarchive": c.hotaarchive,
                 "mapfile": c.mapfile,
                 "level": c.level,
                 "viewmode": c.viewmode,

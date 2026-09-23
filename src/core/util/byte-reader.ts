@@ -122,6 +122,11 @@ export class ByteReader {
     return v
   }
 
+  i16(): number {
+    const v = this.u16()
+    return v >= 0x8000 ? v - 0x10000 : v
+  }
+
   i32(): number {
     this.need(4, 'i32')
     const v = this.view.getInt32(this.pos, true)

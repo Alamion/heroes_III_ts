@@ -19,11 +19,36 @@ export function readMonster(c: H3mContext): ObjectBody {
   const neverFlees = r.bool()
   const noGrowth = r.bool()
   r.zeros(2, 'monster padding')
+  if (c.f.hotaMonsterAggression) {
+    // HotA: joining behaviour and stack handling (names from VCMI, sizes measured).
+    r.scope('hotaAggression', () => {
+      r.i32()
+      r.u8()
+      r.i32()
+      r.i32()
+      r.i32()
+    })
+  }
+  if (c.f.hotaMonsterValue) {
+    // HotA: the stack size may be derived from a target value instead of being fixed.
+    r.scope('hotaValue', () => {
+      r.u8()
+      r.i32()
+    })
+  }
   return { kind: 'monster', identifier, count, disposition, message, resources, artifact, neverFlees, noGrowth }
 }
 
 export function readArtifact(c: H3mContext): ObjectBody {
-  return { kind: 'artifact', guard: readGuard(c) }
+  const guard = readGuard(c)
+  if (c.f.hotaArtifactPickup) {
+    // HotA: how the artifact may be picked up (names from VCMI, sizes measured).
+    c.r.scope('hotaPickup', () => {
+      c.r.u32()
+      c.r.u8()
+    })
+  }
+  return { kind: 'artifact', guard }
 }
 
 export function readSpellScroll(c: H3mContext): ObjectBody {

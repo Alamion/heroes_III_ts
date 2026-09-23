@@ -9,11 +9,12 @@ import { assertNoForbiddenDlls, parseLoadedDlls } from '../analysis/loaddll.ts'
 import { regionHash, waitUntilStable } from '../analysis/stability.ts'
 import { GAME_LAYOUT, GAME_SCREEN, GAME_VIEW } from '../data/game-layout.ts'
 import { CHEAT_INPUT, FIXED_START } from '../data/settings-profile.ts'
-import { GAME_EXE } from '../data/staging-whitelist.ts'
+import { baselineBundleDir, baselineProfile, type BaselineProfile } from '../data/baselines.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 import { log } from '../log.ts'
-import type { Level, Point, Rect, ReferenceConfig, StartMode, StartSetup, TileMapping, VisibleRange } from '../model/types.ts'
+import type { Baseline, Level, Point, Rect, ReferenceConfig, StartMode, StartSetup, TileMapping, VisibleRange } from '../model/types.ts'
 import { PROBES } from './calibration.ts'
+import { maskedHash, readProbeMask, stableLitPixels, stableMask, stablePixelCount, writeProbeMask } from './probe.ts'
 import { grabRaw, writePng, type RawFrame } from './grab.ts'
 import { createInput, type Input } from './input.ts'
 import { sleep } from './process.ts'
@@ -33,8 +34,9 @@ const SCENARIO_BUTTONS_RECT: Rect = { x: 410, y: 530, w: 340, h: 50 }
  */
 const SCENARIO_NAME_RECT: Rect = { x: 420, y: 48, w: 280, h: 22 }
 
-export function stagingRoot(stateDir: string): string {
-  return join(stateDir, 'game-root')
+/** Each baseline is staged into its own root, so neither build can see the other's files. */
+export function stagingRoot(stateDir: string, baseline: Baseline): string {
+  return join(stateDir, baselineProfile(baseline).stagingDirName)
 }
 
 export interface ViewState {
@@ -47,6 +49,7 @@ export interface ViewState {
 }
 
 export interface GameSession {
+  profile: BaselineProfile
   display: VirtualDisplay
   input: Input
   wine: WineContext
@@ -62,6 +65,7 @@ export interface GameSession {
 }
 
 export interface OpenOptions {
+  baseline: Baseline
   mapPath: string
   start: StartMode
   /** Probe hashes from calibration; when absent (during calibration) they are recorded instead. */
@@ -74,16 +78,26 @@ async function stable(session: { grab(rect?: Rect): Promise<RawFrame> }, step: s
   return waitUntilStable(() => session.grab(rect), { consecutive: 3, intervalMs: 300, timeoutMs, step })
 }
 
+/**
+ * The region a navigation step watches: the whole screen, or just `rect` on builds whose menu
+ * background animates (see BaselineProfile.animatedMenuBackground).
+ */
+function settleRect(session: GameSession, rect: Rect): Rect {
+  return session.profile.animatedMenuBackground ? rect : FULL_SCREEN
+}
+
 export async function openGame(config: ReferenceConfig, opts: OpenOptions): Promise<{ session: GameSession; recordedProbes: Record<string, string> }> {
   const recordedProbes: Record<string, string> = {}
-  const root = stagingRoot(config.stateDir)
-  applyStaging(planStaging(config.bundleDir, opts.mapPath), root)
+  const profile = baselineProfile(opts.baseline)
+  const root = stagingRoot(config.stateDir, opts.baseline)
+  applyStaging(planStaging(profile, baselineBundleDir(config, opts.baseline), opts.mapPath), root)
   const wine = wineContext(config.stateDir, config.wineBinary)
   await killAll(wine)
   const display = await startDisplay(GAME_SCREEN)
   const input = createInput(display.display)
   let app: LaunchedApp | undefined
   const session: GameSession = {
+    profile,
     display,
     input,
     wine,
@@ -102,10 +116,11 @@ export async function openGame(config: ReferenceConfig, opts: OpenOptions): Prom
     },
   }
   try {
-    app = launch(wine, GAME_EXE, { display: display.display, cwd: root, loadDllLog: true })
+    app = launch(wine, profile.gameExe, { display: display.display, cwd: root, loadDllLog: true })
     await sleep(GAME_LAYOUT.introSkipAfterMs)
     if (opts.probes === undefined) {
-      await skipIntro(session, opts.stepTimeoutMs * 4)
+      if (profile.animatedMenuBackground) await skipIntroAnimated(session, opts.stepTimeoutMs * 4)
+      else await skipIntro(session, opts.stepTimeoutMs * 4, FULL_SCREEN)
       await record(session, PROBES.mainMenu, MENU_BUTTONS_RECT, recordedProbes, opts.stepTimeoutMs)
     } else {
       // Keep clicking through the logos and intro until the main menu is recognised.
@@ -113,7 +128,7 @@ export async function openGame(config: ReferenceConfig, opts: OpenOptions): Prom
         session.input.click(GAME_LAYOUT.introSkip),
       )
     }
-    assertNoForbiddenDlls(session.loadedDlls(), { allowHdMod: false })
+    assertNoForbiddenDlls(session.loadedDlls(), profile)
 
     await menuStep(session, GAME_LAYOUT.mainNewGame, PROBES.newGameMenu, MENU_BUTTONS_RECT, opts, recordedProbes, 'main menu: new game')
     await menuStep(session, GAME_LAYOUT.newGameScenario, PROBES.scenarioScreen, SCENARIO_BUTTONS_RECT, opts, recordedProbes, 'new game: scenario')
@@ -133,7 +148,7 @@ export async function openGame(config: ReferenceConfig, opts: OpenOptions): Prom
     await saveFailureShot(config.stateDir, session, err)
     const crashed = await gameExited(session)
     await session.close()
-    throw crashed ? crashError(err) : err
+    throw crashed ? crashError(profile.gameExe, err) : err
   }
 }
 
@@ -145,17 +160,17 @@ export async function gameExited(session: GameSession): Promise<boolean> {
   return code !== undefined
 }
 
-export function crashError(cause: unknown): RefError {
-  return new RefError(ERROR_CODES.GAME_CRASHED, `Heroes3.exe exited unexpectedly (${cause instanceof Error ? cause.message : String(cause)})`, { cause })
+export function crashError(exe: string, cause: unknown): RefError {
+  return new RefError(ERROR_CODES.GAME_CRASHED, `${exe} exited unexpectedly (${cause instanceof Error ? cause.message : String(cause)})`, { cause })
 }
 
 /** Calibration only: without probes, the main menu is the first screen that stops changing. */
-async function skipIntro(session: GameSession, timeoutMs: number): Promise<void> {
+async function skipIntro(session: GameSession, timeoutMs: number, rect: Rect): Promise<void> {
   const deadline = Date.now() + timeoutMs
   let prev: Buffer | undefined
   let same = 0
   while (Date.now() < deadline) {
-    const frame = await session.grab()
+    const frame = await session.grab(rect)
     same = prev !== undefined && frame.rgb.equals(prev) ? same + 1 : 0
     prev = frame.rgb
     // ~4 s without a change: video frames can repeat for a moment, the menu does not change at all.
@@ -166,6 +181,40 @@ async function skipIntro(session: GameSession, timeoutMs: number): Promise<void>
   const exited = await Promise.race([session.app.proc.exited, sleep(10).then(() => undefined)])
   if (exited !== undefined) {
     throw new RefError(ERROR_CODES.LAUNCH_TIMEOUT, `Heroes3.exe exited with code ${exited} before the main menu`, {
+      step: 'intro',
+      details: { log: session.app.logPath },
+    })
+  }
+  throw new RefError(ERROR_CODES.INPUT_IGNORED, 'the main menu did not appear (intro not skipped)', { step: 'intro', details: { log: session.app.logPath } })
+}
+
+/**
+ * Calibration on a build whose menus animate: the main menu is the first screen with a large set
+ * of lit pixels that hold still. Measured on HotA 1.8.1 (2026-09-23): 0–3 such pixels while the
+ * logos and the intro movie play, 90 000–146 000 once the menu is drawn.
+ */
+const MENU_LIT_PIXELS = 20_000
+const INTRO_WINDOW = 8
+const INTRO_INTERVAL_MS = 350
+
+async function skipIntroAnimated(session: GameSession, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  const window: RawFrame[] = []
+  let sinceClick = 0
+  while (Date.now() < deadline) {
+    window.push(await session.grab())
+    if (window.length > INTRO_WINDOW) window.shift()
+    if (window.length === INTRO_WINDOW) {
+      const lit = stableLitPixels(window, GAME_SCREEN.width * GAME_SCREEN.height)
+      log.debug('intro probe', { lit })
+      if (lit >= MENU_LIT_PIXELS) return
+    }
+    if (sinceClick++ % 4 === 0) await session.input.click(GAME_LAYOUT.introSkip)
+    await sleep(INTRO_INTERVAL_MS)
+  }
+  const exited = await Promise.race([session.app.proc.exited, sleep(10).then(() => undefined)])
+  if (exited !== undefined) {
+    throw new RefError(ERROR_CODES.LAUNCH_TIMEOUT, `${session.profile.gameExe} exited with code ${exited} before the main menu`, {
       step: 'intro',
       details: { log: session.app.logPath },
     })
@@ -195,10 +244,49 @@ async function assertScenarioListed(session: GameSession): Promise<void> {
 /** Neutral cursor spot in menus: no button under it, so no hover highlight in probe regions. */
 const MENU_NEUTRAL: Point = GAME_LAYOUT.introSkip
 
+/** Frames of a probe region used to find its stable pixels. */
+const MASK_FRAMES = 8
+const MASK_INTERVAL_MS = 350
+/** Below this, a screen is not identified reliably enough to navigate by. */
+const MIN_STABLE_PIXELS = 2000
+
 async function record(session: GameSession, id: string, rect: Rect, recorded: Record<string, string>, timeoutMs: number): Promise<void> {
   await session.input.move(MENU_NEUTRAL)
-  const f = await waitUntilStable(() => session.grab(), { consecutive: 5, intervalMs: 400, timeoutMs, step: `record ${id}` })
-  recorded[id] = regionHash(f.rgb, f.width, rect)
+  if (!session.profile.animatedMenuBackground) {
+    const f = await waitUntilStable(() => session.grab(), { consecutive: 5, intervalMs: 400, timeoutMs, step: `record ${id}` })
+    recorded[id] = regionHash(f.rgb, f.width, rect)
+    return
+  }
+  // Animated menus never settle: record which pixels hold still and hash only those.
+  const frames: RawFrame[] = []
+  for (let i = 0; i < MASK_FRAMES; i++) {
+    frames.push(await session.grab(rect))
+    await sleep(MASK_INTERVAL_MS)
+  }
+  const mask = stableMask(frames, rect)
+  const stable = stablePixelCount(mask)
+  if (stable < MIN_STABLE_PIXELS) {
+    throw new RefError(ERROR_CODES.NAVIGATION_TIMEOUT, `screen "${id}" has only ${stable} stable pixels; it cannot be recognised reliably`, {
+      step: `record ${id}`,
+      details: { id, rect, stable },
+    })
+  }
+  writeProbeMask(session.stateDir, session.profile.id, id, mask, rect)
+  recorded[id] = maskedHash(frames[0] as RawFrame, mask)
+  log.debug('probe recorded', { id, stable, of: rect.w * rect.h })
+}
+
+/** The recorded look of a probe region in the current frame, masked when the build needs it. */
+async function probeHash(session: GameSession, id: string, rect: Rect): Promise<string> {
+  if (!session.profile.animatedMenuBackground) {
+    const f = await session.grab()
+    return regionHash(f.rgb, f.width, rect)
+  }
+  const mask = readProbeMask(session.stateDir, session.profile.id, id)
+  if (mask === undefined) {
+    throw new RefError(ERROR_CODES.CALIBRATION_MISSING, `no probe mask for "${id}": run \`yarn ref calibrate --baseline ${session.profile.id}\``)
+  }
+  return maskedHash(await session.grab(rect), mask)
 }
 
 async function awaitScreen(
@@ -213,12 +301,11 @@ async function awaitScreen(
   const known = opts.probes?.[id] as string
   const deadline = Date.now() + timeoutMs
   for (;;) {
-    const f = await session.grab()
-    if (regionHash(f.rgb, f.width, rect) === known) return
+    if ((await probeHash(session, id, rect)) === known) return
     if (Date.now() > deadline) {
       const exited = await Promise.race([session.app.proc.exited, sleep(10).then(() => undefined)])
       if (exited !== undefined) {
-        throw new RefError(ERROR_CODES.LAUNCH_TIMEOUT, `Heroes3.exe exited with code ${exited} during "${step}"`, { step, details: { log: session.app.logPath } })
+        throw new RefError(ERROR_CODES.LAUNCH_TIMEOUT, `${session.profile.gameExe} exited with code ${exited} during "${step}"`, { step, details: { log: session.app.logPath } })
       }
       throw new RefError(ERROR_CODES.NAVIGATION_TIMEOUT, `screen "${step}" was not reached`, { step })
     }
@@ -238,7 +325,7 @@ async function menuStep(
   step: string,
 ): Promise<void> {
   if (opts.probes === undefined) {
-    await clickAndSettle(session, click, step, opts.stepTimeoutMs)
+    await clickAndSettle(session, click, step, opts.stepTimeoutMs, settleRect(session, rect))
     await record(session, id, rect, recorded, opts.stepTimeoutMs)
     return
   }
@@ -247,22 +334,23 @@ async function menuStep(
   await awaitScreen(session, id, rect, opts, step, opts.stepTimeoutMs)
 }
 
-async function clickAndSettle(session: GameSession, p: Point, step: string, timeoutMs: number): Promise<RawFrame> {
-  const before = await session.grab()
+async function clickAndSettle(session: GameSession, p: Point, step: string, timeoutMs: number, rect: Rect = FULL_SCREEN): Promise<RawFrame> {
+  const before = await session.grab(rect)
   await session.input.click(p)
-  // Wait for the screen to change (the game may redraw late), then for it to settle.
+  // Wait for the watched region to change (the game may redraw late), then for it to settle.
   const deadline = Date.now() + timeoutMs
   for (;;) {
     await sleep(300)
-    const now = await session.grab()
+    const now = await session.grab(rect)
     if (!now.rgb.equals(before.rgb)) break
     if (Date.now() > deadline) throw new RefError(ERROR_CODES.INPUT_IGNORED, `screen did not change after "${step}"`, { step })
   }
-  return stable(session, step, Math.max(1000, deadline - Date.now()))
+  return stable(session, step, Math.max(1000, deadline - Date.now()), rect)
 }
 
 async function applyFixedStart(session: GameSession, timeoutMs: number): Promise<void> {
-  await clickAndSettle(session, GAME_LAYOUT.scenarioAdvancedOptions, 'scenario: advanced options', timeoutMs)
+  const rect = settleRect(session, SCENARIO_BUTTONS_RECT)
+  await clickAndSettle(session, GAME_LAYOUT.scenarioAdvancedOptions, 'scenario: advanced options', timeoutMs, rect)
   for (const y of GAME_LAYOUT.advancedRowsY) {
     const clicks: [number, number][] = [
       [GAME_LAYOUT.advancedTownNextX, FIXED_START.townClicks],
@@ -277,7 +365,7 @@ async function applyFixedStart(session: GameSession, timeoutMs: number): Promise
     }
   }
   await session.input.move(GAME_LAYOUT.cursorPark)
-  await stable(session, 'scenario: fixed start applied', timeoutMs)
+  await stable(session, 'scenario: fixed start applied', timeoutMs, rect)
 }
 
 async function dismissIntroMessage(session: GameSession, opts: OpenOptions, recorded: Record<string, string>): Promise<void> {
@@ -384,11 +472,13 @@ export async function readView(session: GameSession, level: Level, mapSize: numb
   const rect = findViewRect(f, GAME_LAYOUT.minimap, GAME_LAYOUT.viewRectColor)
   if (rect === undefined) throw new RefError(ERROR_CODES.POSITION_MISMATCH, 'view rectangle not found on the minimap')
   const edges = drawnEdges(f, rect, GAME_LAYOUT.viewRectColor)
-  const problem = viewRectProblem(rect, GAME_LAYOUT.minimap, mapSize, GAME_VIEW.viewTiles, edges)
+  // The rectangle's own size differs per build; the view it stands for does not (see the profile).
+  const rectTiles = session.profile.viewRectTiles
+  const problem = viewRectProblem(rect, GAME_LAYOUT.minimap, mapSize, rectTiles, edges)
   if (problem !== null) {
     throw new RefError(ERROR_CODES.POSITION_MISMATCH, `implausible view rectangle on the minimap (${problem})`, { details: { rect, edges } })
   }
-  const view = rectToViewOrigin(rect, GAME_LAYOUT.minimap, mapSize, GAME_VIEW.viewTiles, edges)
+  const view = rectToViewOrigin(rect, GAME_LAYOUT.minimap, mapSize, rectTiles, edges)
   const origin = { x: view.originX, y: view.originY }
   const { visible, mapping } = viewMapping(origin, GAME_VIEW.originTilePixel, GAME_VIEW.viewport, mapSize)
   return { level, origin, visible, mapping, minimapRect: rect, drawnEdges: edges }

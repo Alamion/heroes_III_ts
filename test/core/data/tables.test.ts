@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { HIDDEN_CLASSES, OBJECT_CLASS, TOWN_SPRITES, FACTION_COUNT } from '../../../src/core/data/object-classes.ts'
+import { HIDDEN_CLASSES, HOTA_FACTION_COUNT, OBJECT_CLASS, TOWN_SPRITES, FACTION_COUNT } from '../../../src/core/data/object-classes.ts'
 import { HERO_CLASS_COUNT, HERO_TYPE_COUNT, heroClassOfType } from '../../../src/core/data/heroes.ts'
 import { MAX_CREATURE_ID, creatureInfo, creaturesOfLevel } from '../../../src/core/data/creatures.ts'
 import { NEUTRAL_SLOT, PLAYER_FLAG_SHADES, flagColors } from '../../../src/core/data/players.ts'
@@ -14,11 +14,15 @@ describe('object tables', () => {
     expect([...HIDDEN_CLASSES].sort()).toEqual([OBJECT_CLASS.EVENT, OBJECT_CLASS.GRAIL].sort())
   })
 
-  it('has three distinct town sprites per faction', () => {
-    expect(TOWN_SPRITES).toHaveLength(FACTION_COUNT)
+  it('has five distinct town sprites per faction, including the HotA factions', () => {
+    // Base-game factions plus HotA's Cove and Factory (spec 005 FR-013).
+    expect(TOWN_SPRITES).toHaveLength(HOTA_FACTION_COUNT)
+    expect(HOTA_FACTION_COUNT).toBe(FACTION_COUNT + 2)
     for (const t of TOWN_SPRITES) {
-      expect(new Set([t.village, t.fort, t.capitol]).size).toBe(3)
-      for (const d of [t.village, t.fort, t.capitol]) expect(d).toBe(d.toLowerCase())
+      const forms = [t.village, t.fort, t.citadel, t.castle, t.capitol].filter((d): d is string => d !== null)
+      expect(forms).toHaveLength(5)
+      expect(new Set(forms).size).toBe(5)
+      for (const d of forms) expect(d).toBe(d.toLowerCase())
     }
   })
 })

@@ -4,7 +4,8 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { findCaptures, scanRecords } from '../../reference-env/store/lookup.ts'
-import type { CaptureRecord, FrameTimeline } from '../../reference-env/model/types.ts'
+import { recordBaseline } from '../../reference-env/data/baselines.ts'
+import type { Baseline, CaptureRecord, FrameTimeline } from '../../reference-env/model/types.ts'
 import { decodePng } from '../../shared/png.ts'
 import type { PngImage } from '../../shared/png.ts'
 import type { Region } from '../../shared/cli-runner.ts'
@@ -132,4 +133,15 @@ export function selectCaptures<T extends { record: CaptureRecord }>(candidates: 
 /** Whether a failing capture may be probed for a one-tile misregistration (records without verification). */
 export function mayBeMisaligned(record: CaptureRecord): boolean {
   return record.verification === undefined
+}
+
+/**
+ * Splits candidates by baseline (constitution II): a view is compared only against captures of
+ * its own game build, and captures of the other build are reported, never silently used.
+ */
+export function splitByBaseline<T extends { record: CaptureRecord }>(candidates: T[], baseline: Baseline): { matching: T[]; otherBaseline: T[] } {
+  return {
+    matching: candidates.filter((c) => recordBaseline(c.record) === baseline),
+    otherBaseline: candidates.filter((c) => recordBaseline(c.record) !== baseline),
+  }
 }

@@ -2,7 +2,7 @@
 import type { ParsedArgs } from '../cli.ts'
 import { GAME_LAYOUT, GAME_SCREEN } from '../data/game-layout.ts'
 import { SETTINGS_PROFILE } from '../data/settings-profile.ts'
-import { GAME_EXE } from '../data/staging-whitelist.ts'
+import { baselineProfile } from '../data/baselines.ts'
 import { requireCalibration } from '../env/calibration.ts'
 import { acquireLock } from '../env/lock.ts'
 import { crashError, gameExited, openGame, positionView, revealMap, saveFailureShot, showLevel, waitForMessageClear, type GameSession, type ViewState } from '../env/session.ts'
@@ -10,15 +10,19 @@ import type { LevelDetection } from '../analysis/level-detect.ts'
 import { buildMapContext } from '../../checks/fidelity/masks.ts'
 import { verifyMapping } from '../analysis/mapping-verify.ts'
 import { mappingCheckInput } from '../analysis/mapping-verify-terrain.ts'
-import { resolveGameFile } from '../../shared/game-files.ts'
+import { hotaArchivePath, resolveGameFile } from '../../shared/game-files.ts'
 import { toolVersions } from '../env/tooling.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 import { log } from '../log.ts'
-import type { CaptureRecord, CaptureVerification, FileHash, Kind, ReferenceConfig, StartMode, TileMapping } from '../model/types.ts'
+import type { Baseline, CaptureRecord, CaptureVerification, FileHash, Kind, ReferenceConfig, StartMode, TileMapping } from '../model/types.ts'
+import { requireAmendment } from '../env/amendment.ts'
 import { requirePrereqs } from './doctor.ts'
-import { flag, levelTerrains, opt, stagedHashes, startMode, targetContext, type TargetContext } from './common.ts'
+import { assertMapFitsBaseline, baselineOf, flag, levelTerrains, opt, stagedHashes, startMode, targetContext, type TargetContext } from './common.ts'
 
 export interface CaptureState {
+  baseline: Baseline
+  /** The HotA archive this map needs, for renders the verification compares against. */
+  hotaArchive: string | undefined
   ctx: TargetContext
   session: GameSession
   view: ViewState
@@ -46,15 +50,18 @@ export async function runGameCapture<T>(
   timeoutMs: number,
   grab: (state: CaptureState) => Promise<T>,
 ): Promise<T> {
-  await requirePrereqs(cfg, ['bundle-found', 'wine', 'xvfb', 'xdotool', 'ffmpeg', 'prefix', 'captures-gitignored'])
+  const baseline = baselineOf(args)
+  requireAmendment(cfg.repoRoot, baseline)
+  await requirePrereqs(cfg, baseline, ['bundle-found', 'wine', 'xvfb', 'xdotool', 'ffmpeg', 'prefix', 'captures-gitignored'])
   const ctx = await targetContext(cfg, args)
+  assertMapFitsBaseline(ctx.map, baseline)
   const start = startMode(opt(args, 'start'))
   const lock = await acquireLock(cfg.stateDir, cfg.timeouts.lockWait, `${kind} ${ctx.map.name}`)
   try {
     // The original game occasionally crashes under Wine while loading a map; retry once.
     for (let attempt = 1; ; attempt++) {
       try {
-        return await captureAttempt(cfg, ctx, start, kind, timeoutMs, grab, flag(args, 'debug-steps'))
+        return await captureAttempt(cfg, baseline, ctx, start, kind, timeoutMs, grab, flag(args, 'debug-steps'))
       } catch (err) {
         if (attempt >= 2 || !(err instanceof RefError) || err.code !== ERROR_CODES.GAME_CRASHED) throw err
         log.warn(`game crashed (${err.message}); retrying the capture once`)
@@ -65,8 +72,17 @@ export async function runGameCapture<T>(
   }
 }
 
+function hotaArchive(): string {
+  const path = hotaArchivePath()
+  if (path === undefined) {
+    throw new RefError(ERROR_CODES.PREREQ_MISSING, 'the HotA archive was not found: set hotaBundleDir in reference-env.config.json')
+  }
+  return path
+}
+
 async function captureAttempt<T>(
   cfg: ReferenceConfig,
+  baseline: Baseline,
   ctx: TargetContext,
   start: StartMode,
   kind: Kind,
@@ -77,17 +93,17 @@ async function captureAttempt<T>(
   let session: GameSession | undefined
   try {
     const work = (async () => {
-      const hashes = await stagedHashes(cfg)
-      const cal = requireCalibration(cfg.stateDir, hashes.game)
+      const hashes = await stagedHashes(cfg, baseline)
+      const cal = requireCalibration(cfg.stateDir, baseline, hashes.game)
       const terrain = await levelTerrains(ctx.mapPath)
-      const opened = await openGame(cfg, { mapPath: ctx.mapPath, start, probes: cal.probes, stepTimeoutMs: cfg.timeouts.step, debugSteps })
+      const opened = await openGame(cfg, { baseline, mapPath: ctx.mapPath, start, probes: cal.probes, stepTimeoutMs: cfg.timeouts.step, debugSteps })
       session = opened.session
       const revealed = await revealMap(session)
       const level = await showLevel(session, ctx.level, ctx.map.sizeTiles, terrain)
       const view = await positionView(session, ctx.level, ctx.target, ctx.map.sizeTiles)
       log.info('view positioned', { origin: view.origin, visible: view.visible, level })
       await waitForMessageClear(revealed)
-      return grab({ ctx, session, view, level, revealCode: revealed.code, hashes })
+      return grab({ baseline, hotaArchive: baseline === 'hota' ? hotaArchive() : undefined, ctx, session, view, level, revealCode: revealed.code, hashes })
     })()
     // If the timeout wins, `work` still settles later; swallow that late result (already reported).
     work.catch(() => undefined)
@@ -97,7 +113,7 @@ async function captureAttempt<T>(
     const s = session as GameSession | undefined
     if (s !== undefined) {
       await saveFailureShot(cfg.stateDir, s, err)
-      if (!(err instanceof RefError && err.code === ERROR_CODES.GAME_CRASHED) && (await gameExited(s))) throw crashError(err)
+      if (!(err instanceof RefError && err.code === ERROR_CODES.GAME_CRASHED) && (await gameExited(s))) throw crashError(s.profile.gameExe, err)
     }
     throw err
   } finally {
@@ -111,7 +127,7 @@ async function captureAttempt<T>(
  * MAPPING_UNVERIFIED when a one-tile shift explains the pixels clearly better.
  */
 export async function verifyGrabMapping(s: CaptureState, mapping: TileMapping, screen: { width: number; rgb: Uint8Array }): Promise<NonNullable<CaptureVerification['mapping']>> {
-  const ctx = await buildMapContext(s.ctx.mapPath, resolveGameFile('h3sprite.lod'))
+  const ctx = await buildMapContext(s.ctx.mapPath, resolveGameFile('h3sprite.lod'), undefined, s.hotaArchive)
   const r = verifyMapping(mappingCheckInput(ctx, s.ctx.level, mapping, screen))
   log.info('mapping verification', { ...r })
   const result = { method: 'terrain-render' as const, compared: r.comparedRecorded, differingRecorded: r.differingRecorded, bestShift: r.bestShift, bestDiffering: r.bestDiffering }
@@ -142,6 +158,7 @@ export async function gameRecordBase(
     schemaVersion: 1,
     id,
     createdAt: createdAt.toISOString(),
+    baseline: s.baseline,
     source: 'game',
     kind,
     map: s.ctx.map,
@@ -154,7 +171,7 @@ export async function gameRecordBase(
     startSetup: s.session.startSetup,
     visibility: { method: 'cheat', code: s.revealCode, verified: true },
     cursor: { drawnByX: false, parkedAt: GAME_LAYOUT.cursorPark },
-    executable: { file: GAME_EXE, sha256: s.hashes.game, label: 'Heroes3.exe (original)' },
+    executable: { file: s.session.profile.gameExe, sha256: s.hashes.game, label: baselineProfile(s.baseline).gameLabel },
     archives: s.hashes.archives,
     settings: { profileId: SETTINGS_PROFILE.profileId, values: Object.fromEntries(SETTINGS_PROFILE.overrides.map((o) => [o.name, o.value])) },
     display: { ...GAME_SCREEN },

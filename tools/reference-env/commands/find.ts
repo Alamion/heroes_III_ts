@@ -2,7 +2,7 @@ import type { Command } from '../cli.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 import type { Kind, Level, Source } from '../model/types.ts'
 import { findCaptures, mapHashChecker } from '../store/lookup.ts'
-import { config, intOpt, opt, required } from './common.ts'
+import { baselineOf, config, intOpt, opt, required } from './common.ts'
 
 export function parseRegion(value: string): { x0: number; y0: number; x1: number; y1: number } {
   const parts = value.split(',').map(Number)
@@ -35,6 +35,7 @@ export const findCommand: Command = async (args) => {
     map: required(args, 'map'),
     level: level as Level,
     region: parseRegion(required(args, 'region')),
+    ...(args.flags.has('baseline') ? { baseline: baselineOf(args) } : {}),
     ...(source !== undefined ? { source } : {}),
     ...(kind !== undefined ? { kind } : {}),
     ...(limit !== undefined ? { limit: intOpt(args, 'limit') } : {}),

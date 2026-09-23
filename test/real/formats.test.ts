@@ -61,9 +61,13 @@ describe.skipIf(arrogance === null)('Arrogance.h3m (SC-002)', () => {
   })
 })
 
-describe.skipIf(hotaMap === null)('HotA map rejection', () => {
-  it('fails with UNSUPPORTED_VERSION', async () => {
-    await expect(parseH3mFile(new Uint8Array(await readFile(hotaMap as string)), 'По праву силы.h3m')).rejects.toMatchObject({ code: 'UNSUPPORTED_VERSION', version: '0x20' })
+describe.skipIf(hotaMap === null)('HotA map with an active event system', () => {
+  it('parses, including the event-system block (spec 005 FR-006, FR-007)', async () => {
+    const map = await parseH3mFile(new Uint8Array(await readFile(hotaMap as string)), 'По праву силы.h3m')
+    expect(map.version).toBe('HotA')
+    expect(map.subVersion).toBe(9)
+    // The block has no length prefix; 3574 bytes is what walking it consumes (research M5).
+    expect(map.hota?.scriptBytes).toBe(3574)
   })
 })
 

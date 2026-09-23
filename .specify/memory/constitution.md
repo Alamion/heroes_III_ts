@@ -1,22 +1,32 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.1.0 → 1.2.0
-Bump rationale: MINOR — Principle I gains a narrow, bounded exception: a few screenshots rendered
-by this project MAY be committed under docs/img/ to illustrate the documentation. The ban on game
-content in packages, build output and CI artifacts is unchanged.
+Version change: 1.3.0 → 1.3.1
+Bump rationale (1.3.1, PATCH): the HotA budget numbers reserved by 1.3.0 are filled in from the
+measurement of spec 005 T075. No rule changes.
+
+Bump rationale (1.3.0, MINOR): Principle II gains a second, clearly separated reference baseline for
+HotA content and its scope order is corrected to the owner's decision; "Technical Constraints &
+Budgets" gains the HotA case. The Complete edition remains the only baseline for base-game content,
+so no existing rule is weakened.
 
 Modified principles:
-  I. User-Supplied Assets Only — documentation screenshots exception (docs/img/, size limits,
-     never raw extracted sprites/atlases/palettes or captures of the original game, never shipped).
+  II. Fidelity to the Complete Edition — HotA content gets its own baseline, captured from the HotA
+      build in a separate install, with its own calibration and its own capture namespace; a view is
+      compared only against captures of its own baseline. HotA now precedes Complete-edition save
+      files in the scope order (owner decision, 2026-09-22), and the gate "HotA work must not start
+      until base-game map rendering passes its fidelity checks" is unchanged and satisfied.
 
-Added/removed sections: none
+Added/removed sections: none. "Technical Constraints & Budgets" gains the HotA case and moves HotA
+formats from "Later" to "in scope now" (spec 005).
 
 Templates / dependent files:
   ✅ .specify/templates/*.md — no constitution-specific slots; no edit needed
-  ✅ AGENTS.md — "Local-Only Folders" rule updated in the same change
-  ✅ test/tools/hygiene.test.ts — allows images only under docs/img/, within the limits
+  ✅ AGENTS.md — updated with the HotA facts and commands in the same feature
+  ✅ specs/005-hota-support/ — plan Constitution Check and research R13/R16 already assume this
+  ✅ HotA budget numbers measured (spec 005 T075) and recorded below.
 
+Previous amendment (1.1.0 → 1.2.0, 2026-09-17): documentation screenshots exception under docs/img/.
 Previous amendment (1.0.0 → 1.1.0, 2026-09-13): baseline run under plain Wine from a local install
 instead of GOG + Heroic/Proton; HotA map editor allowed for placement-only captures.
 
@@ -67,13 +77,23 @@ of the game and supplies it.
 - Exception: when the original map editor (`h3maped.exe`) is unavailable, the HotA map editor
   MAY be used for object *placement* reference captures only; such captures MUST be labeled as
   coming from the HotA editor and MUST NOT serve as a pixel baseline.
+- **HotA content has its own baseline.** Content that exists only in Horn of the Abyss (its
+  terrains, factions, objects, heroes and sprite conventions) MUST be verified against the HotA
+  build itself — `h3hota.exe` from a separate HotA installation — because the Complete edition
+  cannot display it. That baseline MUST be kept apart from the Complete one: its own game root,
+  its own calibration probes and its own capture namespace, and every capture MUST record which
+  baseline produced it. A rendered view MUST be compared only against captures of its own
+  baseline; comparing across baselines MUST be an error, not a silent fallback. Base-game content
+  keeps the Complete edition as its only baseline, and a HotA capture MUST NOT be used to justify
+  a base-game behaviour.
 - Tile selection, mirroring, palette rotation ranges, animation frame order, animation speed,
   object placement, draw order, and player colors MUST match the baseline. Any intentional
   deviation (e.g. optional scaling, extra interactive features) MUST be documented in the
   feature spec and be switchable off where it affects the classic look.
-- Scope order: (1) RoE/AB/SoD map files, (2) save files of the Complete edition, (3) HotA maps,
-  saves, and assets. HotA work MUST NOT start until base-game map rendering passes its fidelity
-  checks.
+- Scope order (owner decision, 2026-09-22): (1) RoE/AB/SoD map files, (2) HotA maps and assets,
+  (3) save files of the Complete edition, (4) HotA saves. HotA moved ahead of save files because it
+  is what the audience runs. HotA work MUST NOT start until base-game map rendering passes its
+  fidelity checks — that gate was met by spec 003 before spec 005 began.
 - Default presentation is native 32px tiles; scaled presentation is a user setting.
 
 **Rationale:** "looks like the real game" is the product; a fixed, reproducible baseline makes
@@ -194,8 +214,21 @@ make saves, HotA, and interactivity additive instead of rewrites.
   - While hidden/paused: 0 rendered frames, no animation timers running.
   - While visible and idle (only ambient animation): frame production limited to the original
     game's animation cadence.
-- **Formats in scope now:** LOD (base game), DEF, PCX, H3M RoE/AB/SoD. **Next:** Complete edition
-  save files. **Later:** HotA LOD (incl. 1.8+ encrypted), HotA H3M, HotA saves.
+- **HotA case** (spec 005): the same budgets, measured separately with a HotA archive set (a
+  ~111 MB obfuscated archive on top of the base archives) and `test_map_hota.h3m`. Measured on
+  2026-09-23 at 1920×1080, DPR 1, under 4× CPU throttling: cold start 6.1 s, warm start 2.0 s,
+  memory 63 MB, object atlas 8.4 MB. The enforced numbers are therefore:
+  - Cold start ≤ 12 s and warm start ≤ 3 s — headroom over the base budgets, because the archive
+    is about twice the size of the base pair and its index is obfuscated.
+  - Total memory ≤ 300 MB: the base limit, unchanged.
+  - Object atlas ≤ 128 MB: the structural limit of six pages at the largest page size a GPU of the
+    minimum profile allows.
+  The base-game budgets above are unchanged and keep gating the base-game case, and the structural
+  rules (GPU surface, zero frames while hidden, idle cadence) apply to both cases unchanged. A HotA
+  measurement outside these numbers MUST fail the check, not be noted.
+- **Formats in scope now:** LOD (base game and HotA 1.8+, whose index is obfuscated), DEF, PCX,
+  H3M RoE/AB/SoD and HotA (`0x20`). **Next:** Complete edition save files. **Later:** HotA saves,
+  HotA truecolour sprites (D32/P32, interface art only — not needed for the adventure map).
 
 ## Development Workflow & Quality Gates
 
@@ -227,4 +260,4 @@ make saves, HotA, and interactivity additive instead of rewrites.
 - **Compliance review:** at the end of each feature (before merge), re-check the Constitution
   Check in its plan against the actual implementation; record any accepted deviations there.
 
-**Version**: 1.2.0 | **Ratified**: 2026-09-13 | **Last Amended**: 2026-09-17
+**Version**: 1.3.1 | **Ratified**: 2026-09-13 | **Last Amended**: 2026-09-23

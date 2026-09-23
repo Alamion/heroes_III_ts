@@ -32,15 +32,13 @@ describe('LOD', () => {
     expect(lod.warnings).toHaveLength(1)
   })
 
-  it('rejects bad magic, truncated index, out-of-file entries and HotA 1.8 archives', async () => {
+  it('rejects bad magic, truncated index and out-of-file entries', async () => {
     const bad = lodBytes.slice()
     bad[0] = 0x58
     await expect(LodArchive.open(new MemorySource('bad.lod', bad))).rejects.toMatchObject({ code: 'BAD_MAGIC' })
     await expect(LodArchive.open(new MemorySource('short.lod', lodBytes.slice(0, 100)))).rejects.toMatchObject({ code: 'TRUNCATED', offset: 92 })
     const cut = lodBytes.slice(0, lodBytes.length - 10)
     await expect(LodArchive.open(new MemorySource('cut.lod', cut))).rejects.toMatchObject({ code: 'TRUNCATED', structure: expect.stringContaining('entries[') })
-    const hota = writeLod([{ name: 'x', data: a }], { hota18Marker: true })
-    await expect(LodArchive.open(new MemorySource('hota.lod', hota))).rejects.toMatchObject({ code: 'UNSUPPORTED_VERSION' })
   })
 
   it('reports missing entries and corrupt compressed data', async () => {

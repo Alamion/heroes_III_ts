@@ -5,6 +5,8 @@ import { gzipSync } from 'node:zlib'
 import { afterEach, describe, expect, it } from 'vitest'
 import { readH3mHeader } from '../../tools/reference-env/analysis/h3m-header.ts'
 import { forbiddenDlls, parseLoadedDlls } from '../../tools/reference-env/analysis/loaddll.ts'
+import { baselineProfile } from '../../tools/reference-env/data/baselines.ts'
+import { AUDIO_DRIVERS, wineContext, wineEnv } from '../../tools/reference-env/env/wine.ts'
 import { regionHash, waitUntilStable } from '../../tools/reference-env/analysis/stability.ts'
 import { exitCodeFor, parseArgs } from '../../tools/reference-env/cli.ts'
 import { loadConfig } from '../../tools/reference-env/config.ts'
@@ -113,7 +115,7 @@ describe('readH3mHeader', () => {
   it('reads raw RoE single level', () => {
     expect(readH3mHeader(header(0x0e, 72, 0), 't.h3m')).toEqual({ formatVersion: 'RoE', sizeTiles: 72, hasUnderground: false })
   })
-  it('rejects HotA versions', () => {
+  it('rejects HotA versions: the base-game reader has no layout for them', () => {
     expectCode(() => readH3mHeader(header(0x20, 36, 0), 'hota.h3m'), ERROR_CODES.MAP_UNSUPPORTED)
   })
   it('reports truncation with offset', () => {
@@ -164,8 +166,9 @@ describe('loaddll', () => {
   it('parses base names and flags forbidden modules', () => {
     const names = parseLoadedDlls(logText)
     expect(names).toEqual(['_hd3_.dll', 'ddraw.dll', 'hota.dll', 'zdraw.dll'])
-    expect(forbiddenDlls(names, { allowHdMod: false })).toEqual(['_hd3_.dll', 'hota.dll'])
-    expect(forbiddenDlls(names, { allowHdMod: true })).toEqual(['hota.dll'])
+    // The Complete baseline forbids both HotA and HD Mod modules; the HotA baseline forbids HD Mod.
+    expect(forbiddenDlls(names, baselineProfile('complete'))).toEqual(['_hd3_.dll', 'hota.dll'])
+    expect(forbiddenDlls(names, baselineProfile('hota'))).toEqual(['_hd3_.dll'])
   })
 })
 
@@ -207,5 +210,31 @@ describe('cli', () => {
     expect(exitCodeFor(new RefError(ERROR_CODES.USAGE, ''))).toBe(2)
     expect(exitCodeFor(new RefError(ERROR_CODES.PREREQ_MISSING, ''))).toBe(3)
     expect(exitCodeFor(new RefError(ERROR_CODES.LOCKED, ''))).toBe(1)
+  })
+})
+
+describe('captures stay silent', () => {
+  it('disables every Wine audio driver for the capture prefix', () => {
+    const env = wineEnv(wineContext('/tmp/state', 'wine'))
+    const overrides = (env.WINEDLLOVERRIDES as string).split(';')
+    for (const driver of AUDIO_DRIVERS) expect(overrides).toContain(`${driver}=d`)
+  })
+
+  it('turns the game’s own background sounds off in the staged HotA settings', () => {
+    const entry = baselineProfile('hota').whitelist.find((e) => e.path === 'HotA_settings.ini')
+    expect(entry?.mode).toBe('text') // copied, so a write can never reach the original install
+    const rewritten = (entry?.rewrite as (t: string) => string)('[Game Settings]\n\nEnable Bckgr Sounds=true\nBattle Speed=2\n')
+    expect(rewritten).toContain('Enable Bckgr Sounds=false')
+    expect(rewritten).not.toContain('Enable Bckgr Sounds=true')
+    // A file that does not mention the setting still gets it.
+    expect((entry?.rewrite as (t: string) => string)('[Global Settings]\n')).toContain('Enable Bckgr Sounds=false')
+  })
+
+  it('never staged an audio setting file as a symlink into the install', () => {
+    for (const profile of ['complete', 'hota'] as const) {
+      for (const entry of baselineProfile(profile).whitelist) {
+        if (entry.path.endsWith('.ini')) expect(entry.mode).toBe('text')
+      }
+    }
   })
 })

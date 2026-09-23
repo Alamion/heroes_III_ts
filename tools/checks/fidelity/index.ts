@@ -4,17 +4,19 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join, resolve } from 'node:path'
 import { loadConfig } from '../../reference-env/config.ts'
-import type { CaptureRecord } from '../../reference-env/model/types.ts'
+import type { Baseline, CaptureRecord } from '../../reference-env/model/types.ts'
+import { baselineForMapVersion, isBaseline } from '../../reference-env/data/baselines.ts'
+import { readMapHeader } from '../../reference-env/analysis/h3m-header.ts'
 import { CHECK_THRESHOLDS } from '../../../src/core/data/thresholds.ts'
 import type { CommandResult, ParsedArgs, Region } from '../../shared/cli-runner.ts'
 import { flag, opt, parseRegion, required } from '../../shared/cli-runner.ts'
 import { hasChromium } from '../../shared/browser.ts'
 import { usage } from '../../shared/errors.ts'
-import { gameDirs, requireGameFile } from '../../shared/game-files.ts'
+import { gameDirs, hotaArchivePath, requireGameFile } from '../../shared/game-files.ts'
 import { validateJson } from '../../shared/json-schema.ts'
 import { encodePng } from '../../shared/png.ts'
 import { HeadlessRenderer } from '../../shared/render-page.ts'
-import { allGameCaptures, findFor, loadCapture, mayBeMisaligned, selectCaptures, uiCornerMask } from './captures.ts'
+import { allGameCaptures, findFor, loadCapture, mayBeMisaligned, selectCaptures, splitByBaseline, uiCornerMask } from './captures.ts'
 import { buildMapContext, buildObjectContext } from './masks.ts'
 import type { MapContext, ObjectContext } from './masks.ts'
 import { runFidelity } from './run.ts'
@@ -75,6 +77,20 @@ export async function fidelityCommand(args: ParsedArgs): Promise<CommandResult> 
   if (mapPath === null || archivePath === null || gameDirs().bundleDir === undefined) return skip('no-game-files', 'map, sprite archive or game install (for object sprites) not found')
   if (!hasChromium()) return skip('no-chromium', 'headless Chromium not found (set H3_CHROMIUM)')
 
+  // Which game build this map belongs to; `--baseline` may state it, but never contradict the map.
+  const header = await readMapHeader(new Uint8Array(readFileSync(mapPath)), mapArg)
+  const baseline: Baseline = baselineForMapVersion(header.formatVersion)
+  const baselineArg = opt(args, 'baseline')
+  if (baselineArg !== undefined) {
+    if (!isBaseline(baselineArg)) throw usage('--baseline must be complete or hota')
+    if (baselineArg !== baseline) throw usage(`${mapArg} is a ${header.formatVersion} map: it belongs to the ${baseline} baseline, not ${baselineArg}`)
+  }
+  // A HotA map is rendered with the HotA archive in front of the base ones, as the game does.
+  const hotaArg = opt(args, 'hota')
+  // Both installs may ship a file called HotA.lod, so the HotA install's copy is named explicitly.
+  const hotaArchive = baseline === 'hota' ? (hotaArg !== undefined ? requireGameFile(hotaArg) : (hotaArchivePath() ?? null)) : null
+  if (baseline === 'hota' && hotaArchive === null) return skip('no-game-files', 'HotA map: the HotA archive was not found (pass --hota PATH)')
+
   const dir = capturesDir()
   let targets: { dir: string; record: CaptureRecord }[]
   const captureId = opt(args, 'capture')
@@ -83,11 +99,25 @@ export async function fidelityCommand(args: ParsedArgs): Promise<CommandResult> 
   else targets = findFor(dir, mapArg, Number(levelArg) as 0 | 1, region as Region, kindArg as 'still' | 'clip' | undefined)
   // Only captures of the current map file count (spec 003 T031); older versions are reported once.
   const mapSha = createHash('sha256').update(readFileSync(mapPath)).digest('hex')
+  // Captures of the other build never stand in for this view (constitution II, spec 005 FR-022).
+  const split = splitByBaseline(targets, baseline)
+  targets = split.matching
   const selected = selectCaptures(targets, mapSha, allRegions)
   const stale = selected.stale
   targets = allRegions || captureId !== undefined ? selected.current : selected.current.slice(0, 1)
   const excludeObjects = flag(args, 'exclude-objects')
   if (targets.length === 0) {
+    if (split.otherBaseline.length > 0) {
+      // Not a skip: a capture exists but belongs to the wrong build, which is an error to surface.
+      return {
+        ok: false,
+        exitCode: 1,
+        outcome: 'fail',
+        error: 'baseline-mismatch',
+        detail: `${split.otherBaseline.length} captures of ${mapArg} belong to another baseline than ${baseline}; capture it with \`yarn ref still --baseline ${baseline}\``,
+        captures: split.otherBaseline.map((t) => t.record.id),
+      }
+    }
     if (stale.length > 0) return skip('map-changed', `${stale.length} captures of ${mapArg} were taken from a different version of the map file`)
     return skip('no-capture', `no game capture of ${mapArg} matches`)
   }
@@ -108,7 +138,7 @@ export async function fidelityCommand(args: ParsedArgs): Promise<CommandResult> 
   if (stale.length > 0) results.push({ outcome: 'skip', skipReason: 'map-changed', captures: stale.map((t) => t.record.id), detail: 'captures taken from a different version of the map file (sha256 differs)' })
   try {
     for (const t of targets) {
-      ctx ??= await buildMapContext(mapPath, archivePath)
+      ctx ??= await buildMapContext(mapPath, archivePath, undefined, hotaArchive ?? undefined)
       if (dataArchive !== null && objects === undefined) objects = await buildObjectContext(ctx, { dataArchive, ...(seed !== undefined ? { seed } : {}) })
       const capture = loadCapture(t.dir, t.record)
       // Without the data archive objects cannot be drawn: fall back to excluding them.
@@ -164,5 +194,5 @@ export async function fidelityCommand(args: ParsedArgs): Promise<CommandResult> 
   }
   const failed = results.filter((r) => r.outcome === 'fail').length
   const outcome = failed > 0 ? 'fail' : results.every((r) => r.outcome === 'not-checkable') ? 'not-checkable' : results.every((r) => r.outcome === 'skip') ? 'skip' : 'pass'
-  return { ok: failed === 0, exitCode: failed > 0 ? 1 : outcome === 'skip' ? (requireRun ? 3 : 4) : 0, outcome, reports: outDir, results }
+  return { ok: failed === 0, exitCode: failed > 0 ? 1 : outcome === 'skip' ? (requireRun ? 3 : 4) : 0, outcome, baseline, reports: outDir, results }
 }

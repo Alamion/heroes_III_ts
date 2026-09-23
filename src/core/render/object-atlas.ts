@@ -3,11 +3,26 @@
 // memory depends on the distinct sprites of the map, not on the number of objects.
 
 import { FLAG_INDEX, SHADOW_KINDS, SHADOW_MARKER_ALPHA } from '../data/animation.ts'
+import { HOTA_FLAG_AT_255 } from '../data/hota-def-conventions.ts'
 import { decodeFrame } from '../formats/def/def.ts'
 import type { DefSprite } from '../formats/def/def.ts'
 import { toDisplayColor } from './atlas.ts'
 
+/** Page size WebGL 1.0 guarantees everywhere. */
 export const OBJECT_PAGE_SIZE = 2048
+
+/**
+ * Upper bound for the page size on GPUs that allow more. 4096 quadruples the sprite area a page
+ * holds, which is what a HotA map needs (spec 005): its object sprites do not fit into six 2048²
+ * pages. Larger pages are not used: the gain stops mattering and very large textures are slow to
+ * upload on the minimum hardware profile.
+ */
+export const MAX_OBJECT_PAGE_SIZE = 4096
+
+/** Page size for a context whose largest texture is `maxTextureSize`. */
+export function objectPageSize(maxTextureSize: number): number {
+  return Math.max(OBJECT_PAGE_SIZE, Math.min(MAX_OBJECT_PAGE_SIZE, 2 ** Math.floor(Math.log2(maxTextureSize))))
+}
 /**
  * Pages are bound to texture units 0–5 of one draw call (the palette uses unit 6); WebGL 1.0
  * guarantees 8 fragment texture units.
@@ -67,13 +82,21 @@ export function buildObjectAtlas(defs: readonly DefSprite[], pageSize = OBJECT_P
   const refsBySprite: { offsets: number[][]; def: DefSprite }[] = []
   sorted.forEach((def, sprite) => {
     const seen = new Map<number, number>()
+    // A few HotA sprites carry the player-flag colour at palette index 255 instead of 5 (spec 005
+    // R10). Moving those pixels to the flag slot here keeps one flag rule in the renderer; the
+    // game merges them the same way, and the sprites concerned use both indices for the flag.
+    const flagAt255 = HOTA_FLAG_AT_255.has(def.name.toLowerCase())
     const offsets = def.groups.map((g) =>
       g.frames.map((ref) => {
         const key = ref.header.offset
         if (!seen.has(key)) {
           const frame = decodeFrame(def, ref)
+          const pixels = frame.pixels
+          if (flagAt255) {
+            for (let i = 0; i < pixels.length; i++) if (pixels[i] === 255) pixels[i] = FLAG_INDEX
+          }
           seen.set(key, pending.length)
-          pending.push({ sprite, key, width: frame.width, height: frame.height, pixels: frame.pixels, x: frame.x, y: frame.y })
+          pending.push({ sprite, key, width: frame.width, height: frame.height, pixels, x: frame.x, y: frame.y })
         }
         return seen.get(key) as number
       }),

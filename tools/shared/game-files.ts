@@ -1,5 +1,6 @@
 // Locates game files: public/dev-assets/ first, then the local install configured for item 1
-// (`bundleDir`: Maps/ and Data/). Nothing found here is ever copied into the repository.
+// (`bundleDir`: Maps/ and Data/), then the optional HotA install (`hotaBundleDir`, spec 005).
+// Nothing found here is ever copied into the repository.
 
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
@@ -15,6 +16,10 @@ export interface GameDirs {
   bundleDir: string | undefined
   mapsDir: string | undefined
   dataDir: string | undefined
+  /** Optional HotA install (spec 005); undefined when it is not configured. */
+  hotaBundleDir: string | undefined
+  hotaMapsDir: string | undefined
+  hotaDataDir: string | undefined
 }
 
 let cached: GameDirs | undefined
@@ -22,8 +27,11 @@ let cached: GameDirs | undefined
 export function gameDirs(env: Record<string, string | undefined> = process.env, repoRoot = process.cwd()): GameDirs {
   if (cached !== undefined && cached.repoRoot === resolve(repoRoot)) return cached
   let bundleDir: string | undefined
+  let hotaBundleDir: string | undefined
   try {
-    bundleDir = loadConfig(env, repoRoot).bundleDir
+    const config = loadConfig(env, repoRoot)
+    bundleDir = config.bundleDir
+    hotaBundleDir = config.hotaBundleDir
   } catch (err) {
     if (err instanceof RefError && err.code === ERROR_CODES.CONFIG_INVALID) {
       log.debug(`no game install configured, using public/dev-assets only: ${err.message}`)
@@ -43,6 +51,9 @@ export function gameDirs(env: Record<string, string | undefined> = process.env, 
     bundleDir,
     mapsDir: findDir(bundleDir, 'Maps'),
     dataDir: findDir(bundleDir, 'Data'),
+    hotaBundleDir,
+    hotaMapsDir: findDir(hotaBundleDir, 'Maps'),
+    hotaDataDir: findDir(hotaBundleDir, 'Data'),
   }
   return cached
 }
@@ -54,18 +65,30 @@ function findIn(dir: string | undefined, name: string): string | undefined {
   return hit === undefined ? undefined : join(dir, hit)
 }
 
+/** Folders searched for a bare file name, in order: dev assets, base install, HotA install. */
+function searchDirs(dirs: GameDirs): string[] {
+  return [dirs.devAssets, dirs.mapsDir, dirs.dataDir, dirs.hotaMapsDir, dirs.hotaDataDir].filter(
+    (d): d is string => d !== undefined,
+  )
+}
+
 /** Resolves a file argument: an existing path, or a bare name searched in the game dirs. */
 export function resolveGameFile(arg: string, dirs: GameDirs = gameDirs()): string {
   const direct = resolve(arg)
   if (existsSync(direct) && statSync(direct).isFile()) return direct
   if (!arg.includes('/')) {
-    for (const dir of [dirs.devAssets, dirs.mapsDir, dirs.dataDir]) {
-      const hit = findIn(dir, arg)
-      if (hit !== undefined) return hit
+    const hits = searchDirs(dirs)
+      .map((dir) => findIn(dir, arg))
+      .filter((hit): hit is string => hit !== undefined)
+    if (hits.length > 1) {
+      // Both installs ship a HotA.lod (1.7.x plain, 1.8.x obfuscated) and the base archives exist
+      // twice as well, so say which copy won instead of letting the caller guess.
+      log.warn(`"${arg}" exists in several game folders; using ${hits[0] as string} (others: ${hits.slice(1).join(', ')})`)
     }
+    if (hits.length > 0) return hits[0] as string
   }
   throw new ToolError(TOOL_ERROR_CODES.PREREQ_MISSING, `game file not found: ${arg}`, {
-    details: { searched: [dirs.devAssets, dirs.mapsDir, dirs.dataDir].filter((d) => d !== undefined) },
+    details: { searched: searchDirs(dirs) },
   })
 }
 
@@ -96,6 +119,26 @@ export function installMaps(dirs: GameDirs = gameDirs()): string[] {
     .filter((f) => f.toLowerCase().endsWith('.h3m'))
     .sort()
     .map((f) => join(dirs.mapsDir as string, f))
+}
+
+/** All `.h3m` files in the HotA install's Maps folder (empty when it is not configured). */
+/**
+ * The HotA archive of the configured HotA install. Both installs may ship a file of that name, so
+ * callers that know they want HotA's take this rather than a bare-name lookup (spec 005).
+ */
+export function hotaArchivePath(dirs: GameDirs = gameDirs()): string | undefined {
+  if (dirs.hotaDataDir === undefined) return undefined
+  const hit = readdirSync(dirs.hotaDataDir).find((n) => n.toLowerCase() === 'hota.lod')
+  return hit === undefined ? undefined : join(dirs.hotaDataDir, hit)
+}
+
+export function hotaInstallMaps(dirs: GameDirs = gameDirs()): string[] {
+  const dir = dirs.hotaMapsDir
+  if (dir === undefined) return []
+  return readdirSync(dir)
+    .filter((f) => f.toLowerCase().endsWith('.h3m'))
+    .sort()
+    .map((f) => join(dir, f))
 }
 
 /** sha256 of the primary check map `test_map.h3m` (specs/003-map-objects/spec.md Context). */

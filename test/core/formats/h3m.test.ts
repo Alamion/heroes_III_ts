@@ -58,12 +58,18 @@ describe('H3M synthetic round trip', () => {
 })
 
 describe('H3M errors', () => {
-  it('rejects HotA and unknown versions with UNSUPPORTED_VERSION', () => {
-    const hota = new ByteWriter().u32(0x20).zeros(40).toBytes()
-    const err = catchFormatError(() => parseH3m(hota, 'hota.h3m'))
+  it('rejects unknown versions and unknown HotA sub-versions with UNSUPPORTED_VERSION', () => {
+    // HotA (0x20) is supported now; a sub-version this reader does not know is not.
+    const newerHota = new ByteWriter().u32(0x20).u32(99).zeros(40).toBytes()
+    const hotaErr = catchFormatError(() => parseH3m(newerHota, 'hota.h3m'))
+    expect(hotaErr.code).toBe('UNSUPPORTED_VERSION')
+    expect(hotaErr.version).toBe('HotA sub 99')
+
+    const hota = new ByteWriter().u32(0x33).zeros(40).toBytes()
+    const err = catchFormatError(() => parseH3m(hota, 'wog.h3m'))
     expect(err.code).toBe('UNSUPPORTED_VERSION')
-    expect(err.version).toBe('0x20')
-    expect(err.detail).toContain('HotA')
+    expect(err.version).toBe('0x33')
+    expect(err.detail).toContain('WoG')
   })
 
   it('reports truncation at several offsets with a structure path', () => {

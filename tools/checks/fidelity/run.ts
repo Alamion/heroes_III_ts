@@ -120,6 +120,7 @@ export async function runFidelity(opts: {
   const gpuMatches = async (step: number, frames: ReadonlyMap<number, number> | undefined, reference: Uint8Array): Promise<boolean> => {
     const frame = await renderer.render({
       archive: ctx.archivePath,
+      ...(ctx.hotaArchive !== undefined ? { hotaArchive: ctx.hotaArchive } : {}),
       map: ctx.mapPath,
       width: vp.w,
       height: vp.h,
@@ -307,7 +308,11 @@ export async function runFidelity(opts: {
   }
   const clipEval = evaluateClipSteps(steps, states, capture.timeline.grabFps, PALETTE_STEP_MS)
   const objectEval = objectSteps.length === 0 ? undefined : evaluateClipSteps(objectSteps.map((s) => ({ tStartMs: steps[s.frame]?.tStartMs ?? 0, paletteStep: s.tick })), Number.MAX_SAFE_INTEGER, capture.timeline.grabFps, OBJECT_FRAME_MS)
-  const clipPass = (ex.counts.comparedAnimated === 0 || clipEval.pass) && (objectEval === undefined || objectEval.pass) && totalDiff === 0
+  // Object timing can only be judged when the objects in view actually change frame during the
+  // clip. In a view whose animated objects never move (e.g. open water), there is nothing to
+  // measure: the report says so with a null interval instead of calling the view wrong.
+  const objectTimingMeasured = objectEval !== undefined && Number.isFinite(objectEval.stepMsMeasured)
+  const clipPass = (ex.counts.comparedAnimated === 0 || clipEval.pass) && (!objectTimingMeasured || (objectEval as { pass: boolean }).pass) && totalDiff === 0
   const gpuOk = opts.verifyGpu === false || firstReference === undefined ? true : await gpuMatches(firstReference.step, firstReference.frames, firstReference.image)
   const outcomeBase = decideOutcome(totalDiff, ex.counts.comparedInMap, ex.counts.inMap)
   return {

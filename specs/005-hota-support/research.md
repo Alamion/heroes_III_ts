@@ -86,8 +86,9 @@ any other width, so it fails on every HotA row today.
 
 ### M4 — HotA map format (`0x20`), measured over 72 maps
 
-A from-scratch walker parsed **72/72 HotA maps to the exact last byte** of the decompressed stream
-(70 sub-version 10, 2 sub-version 9), plus 159/159 RoE/AB/SoD maps in the same folder as a control.
+A from-scratch walker parsed **72/72 HotA maps to the exact last byte** of the decompressed stream —
+69 in the HotA install's `Maps` folder (all sub-version 10) and 3 in `public/dev-assets/` (1 sub-10,
+2 sub-9) — plus 159/159 RoE/AB/SoD maps of the same install folder as a control.
 
 Header of `0x20` (gunzipped offsets, little-endian):
 
@@ -124,6 +125,39 @@ location, no radius field).
 
 Corpus scale: largest map 252×252 two levels (127 008 tiles); most objects 53 576
 (`[HotA] Noble Nemesis.h3m`); most templates 1666.
+
+### M4a — implementation sweep (2026-09-23, during T019–T029)
+
+Implementing the reader widened the corpus: the **base install's** `Maps` folder also holds HotA
+maps, including sub-versions this project had not seen before. Over all three folders
+(`public/dev-assets/`, the HotA install's `Maps`, the base install's `Maps`) the implemented reader
+parses **449 of 453 maps to the exact last byte**:
+
+| format | maps |
+| --- | --- |
+| RoE `0x0e` | 95 |
+| AB `0x15` | 109 |
+| SoD `0x1c` | 119 |
+| HotA `0x20` sub 6 | 7 |
+| HotA `0x20` sub 7 | 51 |
+| HotA `0x20` sub 9 | 2 |
+| HotA `0x20` sub 10 | 67 |
+
+The four failures are exactly the maps with an active event-system block (M5), which fail with a
+typed error until that walker exists.
+
+Two layout facts were corrected against the file bytes during implementation:
+
+- **Town.** Between the two 9-byte spell masks and the town-event count sit **53 bytes**, not the 2
+  a first reading suggested: `u8 allowSpellResearch`, then `u32 specialBuildingsCount` (48 in the
+  measured maps) and that many bytes. A town event then carries `i32 creatureGrowth8, i32 amount,
+  i32 specialA, i16 specialB` (sub ≥ 5) and `u8 neutralAffected` (sub ≥ 7).
+- **Global events before sub 7.** Sub 6 ends a global event with the same 14-byte block a town
+  event carries; sub 7 replaced it with the `i32` difficulty mask. Measured on the seven sub-6
+  maps and on sub-7 maps that carry events.
+
+Sub-versions 6 and 7 are therefore no longer "best-effort with no local evidence": 58 maps exercise
+them. Sub-versions 0–5 and 8 remain unexercised.
 
 ### M5 — the script section (sub ≥ 9)
 
@@ -183,9 +217,17 @@ while the copy in the install's `Maps` folder is sub-version 10.
   in palette indices 2 and 3 (index 3 behaving like base index 1, index 2 like base index 4) and 11
   DEFs whose player-flag colour sits at index 255 instead of 5, plus one DEF whose index 5 must not
   be made transparent. The tool keys these by **file name**, not by archive or heuristic.
-- **D32/P32**: the archive holds 49 `.d32` and 2 `.p32` entries and every one is interface or
-  tutorial art (`tut*`, campaign screens, `spelsphr`, `fr32_67.p32`, `spellbe.p32`) — no `av*`,
-  `ah*`, terrain or town entry. They are not used on the adventure map.
+- **D32/P32**: corrected while implementing (2026-09-23). Counting by *extension* undercounts
+  them: by content magic the archive holds **74 `D32F` and 269 `P32F`** entries, many stored under
+  a `.def` or `.pcx` name (`artifact.def`, `couatl.def`, `hpl*.pcx`, `bobu*.pcx`, `cmbk*.pcx`, …).
+  The conclusion is unchanged and now rests on a full sweep: **none of them has an adventure-map
+  name** (`av*`/`ah*`), so the map renderer needs no truecolour decoder. Both parsers now report
+  the magic with a typed "interface art only" error instead of a confusing layout failure.
+- **DEF packer quirk**: 30 of the archive's 1838 `.def` entries — including adventure-map sprites
+  such as `avlhpn07`–`avlhpn11` (Highlands pines) and `ahplace.def` — declare a last-frame size
+  that counts the 32-byte frame header, so the frame appears to overrun the file by exactly 32
+  bytes. Accepting that one alternative reading (and only when it fits the file exactly) makes all
+  **1813 palette DEFs decode**; anything else still fails as truncated.
 - **`HotA.dat`**: an `HDAT` container of name/description/localisation strings used by the editor;
   it holds no sprites and no map data.
 
@@ -272,6 +314,20 @@ one. A parse is accepted only when the file ends exactly at EOF after the 124 tr
 if the walker cannot complete, the map fails with a typed `UNSUPPORTED_*` error naming the section
 and offset. No length guessing, no trial-and-error skipping.
 
+**Done (2026-09-23, T051/T052).** The grammar was derived for this project and the walker consumes
+exactly the measured body of every map that has one — 3574, 10 630, 3371 and 4051 bytes — with no
+length hint, after which each map still ends at its 124-byte trailer. Shape: four event lists
+(hero, player, town, quest), five next-id counters, a variable table and five id tables; an event
+holds an id, an action block and a name; an action block is a marker, a reserved byte, a count and
+that many actions; actions, conditions and expressions are typed trees with embedded Pascal
+strings. Six values that are constant in every measured block are asserted, because nothing here is
+length-prefixed and a wrong opcode would otherwise desynchronise silently. Opcodes the four maps do
+not exercise are implemented from the same understanding and marked in the source; an unknown code
+raises `UNSUPPORTED_OBJECT` rather than guessing.
+
+**Corpus effect**: all 453 local maps now parse to the exact last byte — 95 RoE, 109 AB, 119 SoD
+and 130 HotA across sub-versions 6, 7, 9 and 10.
+
 **Rationale**: `По праву силы.h3m` is named in an acceptance scenario (US2.3) and carries an active
 script block, so skipping it is not optional. The exact-EOF rule is a strong, cheap invariant that
 already holds for all 231 maps parsed in M4.
@@ -327,16 +383,37 @@ those whose flag colour sits at index 255, seeded from `mmarchive-cli` (MIT, att
 **Rationale**: measured convention and measured detection method (M7); a heuristic would silently
 mis-shade base-game sprites, which US3 forbids.
 
-**Open point for the sweep**: `defConfig.json` lists several entries as stems (`avgflh`, `avlhpn`, …)
-and it is not established whether numbered members of those families are covered. The sweep decides
-it; whatever it finds becomes the committed table.
+**Sweep result (2026-09-23, T041)** — the survey's framing was wrong, and the measurement replaced
+it:
+
+- **Shadows at 2/3 are not an exception, they are how HotA draws.** Decoding every adventure sprite
+  of both archives found indices 2 or 3 in **699 of 1072** HotA sprites and in **2 of 1369**
+  base-game ones, where they cover 1 and 25 pixels in total. So no name list is needed: the index
+  itself is the signal, and `SHADOW_KINDS` covers every sprite. The mapping was corrected at the
+  same time — index 3 behaves like base index 1 (light) and index 2 like base index 4 (dark), the
+  opposite of what the table assumed before.
+- **The flag colour at index 255 cannot be measured.** Index 255 is an ordinary colour elsewhere
+  (1052 of 1369 base-game adventure sprites use it), and the sprites that follow the rule use index
+  5 as well, so nothing in the pixels separates them. That list stays a short, ported,
+  **unverified** table in `src/core/data/hota-def-conventions.ts`, and its risk is recorded there:
+  a wrong entry would tint a sprite's index-255 pixels with the owner's colour.
 
 ### R11 — Palettes and player colours
 
 **Decision**: nothing special. `game.pal` resolves through the archive set (R3), so the HotA palette
 — including the two changed flag colours at indices 65 and 67 — wins automatically when the HotA
-archive is loaded, and the base palette is used when it is not. The palette rotation ranges are
-re-checked against the HotA palette during implementation.
+archive is loaded, and the base palette is used when it is not.
+
+**Verified (2026-09-23, T037)**: the two palettes differ in exactly those two entries, neither of
+which lies in a rotation range, and the rotating sprites HotA overrides keep their palettes
+byte-for-byte (`watrtl.def` and `clrrvr.def`: no differing entry). The measured rotation ranges
+therefore hold unchanged under HotA.
+
+The same comparison turned up a fact that matters for rendering: HotA's `watrtl.def` has **80
+frames where the base game has 33**, and its `icyrvr.def` is a full repaint (250 palette entries
+differ). Both resolve through the archive set, so a HotA map may legitimately use a water view
+index far above the base game's maximum — which is only available when the HotA archive is
+loaded.
 
 ### R12 — Explicitly out of scope, with evidence
 
@@ -347,6 +424,27 @@ re-checked against the HotA palette during implementation.
 - **`EdObjts.txt`**: an editor-only table in a different, undocumented shape (no count line, mixed
   field counts, comments) with no established rendering role (M1).
 - **HotA saves, random-map templates and campaigns**: later roadmap items.
+
+### R12a — Object atlas page size (added 2026-09-23)
+
+**Decision**: the object atlas page size is chosen from the GPU's `MAX_TEXTURE_SIZE`, clamped to
+2048–4096, instead of being fixed at the 2048 that WebGL 1.0 guarantees. The size is part of the
+decode-cache identity.
+
+**Rationale**: measured — `test_map_hota.h3m` needs 4610 object frames and 29.3 M sprite pixels,
+while six 2048² pages hold 25.2 M, so the object layer failed outright with `OBJECT_ATLAS_OVERFLOW`.
+Six 4096² pages hold 100 M and leave headroom for the 252×252 HotA map. The page count stays 6
+because WebGL 1.0 guarantees only 8 texture units (6 pages + palette + terrain).
+
+**Alternatives considered**: raising the page count to 7 (rejected: it would use the last guaranteed
+texture unit and still only just fits this one map); dropping sprites that do not fit and reporting
+them as unresolved (rejected as the primary answer: it would fail the spec's "zero unresolved
+objects" bar for the owner's own check map, though it remains the fallback if a map ever exceeds
+even the larger pages); scoping the atlas to the visible region (the proper long-term fix for
+constitution IV, but a renderer change well beyond this feature — recorded as a follow-up).
+
+**Follow-up**: a region-scoped object atlas is the only thing that makes object GPU memory
+independent of map size; until then the budget check must measure the HotA case (FR-027).
 
 ### R13 — Fidelity reference for HotA
 
@@ -391,7 +489,156 @@ Note for the implementation: `archiveIdentity` already hashes only the header an
 size does not affect identity cost; the decode cache and the 248 new terrain tiles are the parts to
 watch.
 
+**Measured (2026-09-23, T075)** at 1920×1080, DPR 1, under 4× CPU throttling, with the HotA archive
+set and `test_map_hota.h3m`:
+
+| | measured | enforced | base-game budget |
+| --- | --- | --- | --- |
+| cold start | 6.1 s | 12 s | 10 s |
+| warm start | 2.0 s | 3 s | 2 s |
+| memory (JS heap + GPU) | 63 MB | 300 MB | 300 MB |
+| object atlas | 8.4 MB | 128 MB | 64 MB |
+| hidden frames / timers | 0 / 0 | 0 / 0 | same |
+| idle cadence | 28 frames / 5020 ms | 29 | same |
+
+The case turned out far cheaper than feared: only the two start-up numbers need headroom, because the
+archive is about twice the size of the base pair and its index is obfuscated. Memory keeps the base
+limit. The atlas limit is structural — six pages at the largest page size the GPU allows — and the
+8.4 MB measured is with 4096² pages (R12a). Recorded in constitution 1.3.1.
+
 ---
+
+## US3 verification (2026-09-23, T061–T064)
+
+Evidence that HotA support is additive:
+
+- **Renders**: the six base-game regions captured before any source change (both levels, three
+  palette times, fixed seed) reproduce **byte for byte** after the whole feature —
+  `test/real/base-render-unchanged.test.ts` compares the committed SHA-256 digests. An earlier
+  mismatch in that test was the test's own viewport, not the renderer: rendering through the CLI,
+  exactly as the baseline was taken, matched the stored digest immediately.
+- **Fidelity**: `yarn verify fidelity --map test_map.h3m --all-regions` was run twice — once on the
+  feature branch and once in a temporary worktree of the commit before the first source change.
+  Both report **7 fail / 5 pass over the same 12 captures, and the seven failing captures are the
+  same seven**, i.e. the accepted deviations of spec 003 (draw order in dense mountain clusters,
+  reef frames and shadows) and nothing new.
+- **Determinism and layers**: both pass.
+- **Budgets**: the base-game warm start sits on its 2 s limit and crosses it on some runs — a
+  pre-existing marginality the housekeeping note in `TODO.md` already records. Measured on the same
+  machine: the feature branch had one marginal failure (Arrogance 2093 ms), a worktree of the
+  pre-feature commit had three (test_map cold 18 750 ms, test_map warm 2866 ms, Pandora 2073 ms).
+  The feature is therefore not the cause, and it did not make it worse.
+- **Without game files**: in a worktree with no `public/dev-assets` and no reference-env config the
+  suite is 48 files passed, 8 skipped, 290 tests passed, 29 skipped — every real-file suite skips
+  with a named reason and nothing fails.
+
+## US4 — the HotA reference baseline (2026-09-23, T066–T071)
+
+The second baseline runs `h3hota.exe` under Wine on a virtual display, exactly as the Complete
+edition baseline runs `Heroes3.exe`, with its own game root, its own calibration and its own
+capture namespace (`reference-captures/hota/…`). Everything below was measured on the owner's
+HotA 1.8.1 install.
+
+### What HotA needs to start from a staged root
+
+`h3hota.exe` exits with code 5, silently, unless `patcher_x86.dll` is present, and then stops with
+a "binkw32new.dll is not found" box until that file is staged too. Both ship with HotA (the first
+is on the Complete baseline's forbidden list because there it would come from HD Mod). With
+`HotA.dll`, `HotA.dat`, `HotA_Data/`, the vanilla runtime DLLs and `Data/HotA*.lod` plus the base
+archives, the game reaches its main menu, loads `test_map_hota.h3m` and reveals it with
+`nwcwhatisthematrix` — the same cheat as the base game. HD Mod files (`HD_*`, `_HD3_*`, `HW_*`,
+`h3hota HD.exe`) are never staged, and `yarn ref doctor --baseline hota` verifies that both from
+the staged folder and from the modules the running game loaded.
+
+`HotA_Setup.ini` is staged as a **copy** with `AutoUpdate=false`, so a capture run neither goes
+online nor writes to the install. The same rule now covers every `.ini` of both baselines: a
+symlinked ini would let the game write into the owner's game folder, which is exactly what
+`yarn ref` must never do. A test asserts it (`test/reference-env/foundation.test.ts`).
+
+### Silence
+
+Captures run on the developer's machine, so a capture must never make a sound. Wine's audio
+drivers (`winepulse`, `winealsa`, `wineoss`, `winecoreaudio`) are disabled for the whole prefix,
+and HotA's own `Enable Bckgr Sounds` is set to false in the staged settings. Both are asserted by
+tests. (The one time sound was heard in this session, it came from a hand-run `wine` command that
+bypassed the tooling's environment, not from `yarn ref`.)
+
+### Recognising HotA's screens: nothing on them holds still
+
+The Complete edition draws its menus as still images, so a hash of a screen region identifies a
+screen. HotA animates the main menu behind the buttons: over eight frames, **41 942 of the button
+column's 124 200 pixels change**, and no sub-region of the menu is still. Two consequences:
+
+- *Finding the menu during calibration* (no probes recorded yet) cannot use "the screen stopped
+  changing". What separates a playing video from a drawn menu is **lit pixels that hold still**: a
+  video's only constant areas are black letterbox. Measured over a launch: 0–3 such pixels while
+  the logos and the intro movie play, then 90 000–146 000 from the frame the menu appears. The
+  threshold is 20 000, roughly a factor of five from either side.
+- *Recognising a screen later* uses a **stable-pixel mask** recorded during calibration: eight
+  frames 350 ms apart, the pixels identical in all of them, hashed in that order. The masks are
+  derived from game output, so they live in `~/.local/state/h3-reference/probes-hota/` and are
+  never committed. A screen with fewer than 2000 stable pixels is refused as unrecognisable.
+
+### Geometry: same pixels, different rectangle
+
+HotA's adventure map at 800×600 uses **the same pixel mapping as the Complete edition**. Measured
+by rendering our own terrain at every candidate offset against a revealed HotA screenshot: the
+match is at camera offset (3432, 64) with **0.21 % of 228 226 compared pixels differing**, and the
+next-best candidate differs on 92 %. That offset is exactly `originTile (107, 2)` with the vanilla
+viewport `{8, 8, 592, 544}` and origin pixel `{0, 8}`.
+
+What does differ is the view rectangle HotA draws on the minimap: **19×18 tiles instead of 19×17**,
+while the view it stands for is still 17 rows tall (centring a view puts the target 9 columns and
+8 rows in, as in the base game). The two uses were therefore separated: the rectangle's size is a
+per-baseline profile value used to read the origin back, and the view's size stays shared. Without
+that split, positioning is off by one row at a clipped map edge and by nothing elsewhere — which is
+how the difference first showed up.
+
+### Captures and fidelity
+
+Seven stills and one clip of `test_map_hota.h3m` were taken, covering the Highlands and Wasteland
+terrains at full-view density, three HotA factions across all five town forms, the base-game town
+block, the novelty zone in the lower-left of the underground, and HotA's 80-frame water. Every one
+passed the tooling's own mapping verification at zero shift (0.4 %–1.6 % of terrain pixels
+differing, the rest exact).
+
+`yarn verify fidelity --map test_map_hota.h3m --all-regions` then gives:
+
+| View | Level | Outcome | Differing of 319 947 compared |
+| --- | --- | --- | --- |
+| water clip, 17 frames | 0 | **pass** | 0 (0.00 %) |
+| Cove/Bulwark towns near the novelty zone | 1 | fail | 1 348 (0.42 %) |
+| base-game town block | 0 | fail | 3 930 (1.23 %) |
+| Wasteland | 1 | fail | 8 402 (2.63 %) |
+| Cove/Castle town forms | 1 | fail | 13 745 (4.30 %) |
+| Highlands | 1 | fail | 17 520 (5.48 %) |
+| novelty zone | 1 | fail | 27 438 (8.58 %) |
+| Factory/Cove/Bulwark town forms | 1 | fail | 44 918 (14.04 %) |
+
+The clip result is the strongest single piece of evidence in this feature: across 17 frames of
+HotA's own 80-frame water, **every pixel matches**, and the palette step advances by exactly one
+per change at a measured 183.3 ms against the expected 180 ms (one 60 fps grab quantum).
+
+The clip also exposed a real flaw in the checker, now fixed: a view whose animated objects never
+change frame produced "object timing could not be measured", which was reported as a failure. It is
+now reported as not measured, with a null interval, and only a measured-and-wrong interval fails.
+
+### The open difference
+
+The seven failing stills differ only on **object pixels** — flat terrain matches, and the terrain
+views' failures sit on object silhouettes, their shadows and vegetation. Two obvious explanations
+were tested and ruled out:
+
+- **Not the shadow-index mapping.** Swapping HotA's indices 2 and 3 changes the Wasteland view's
+  differing count by exactly zero, so those pixels are not drawn through index 2 or 3.
+- **Not RGB565 quantisation.** Of 10 503 differing pixels, zero are explained by quantising either
+  side to the other; only half are within one quantisation step.
+
+The differences are small and systematic (our pixels are usually one or two steps brighter) and
+concentrated where objects meet terrain. The likely remaining causes, in order: a HotA-specific
+frame choice for objects the checker does not know animate, and a shadow rule that differs from the
+base game's for HotA sprites. This is recorded as an open question, not an accepted deviation: it
+needs owner review with the diff images in `check-reports/fidelity/` before it can be called one.
 
 ## Risks and open questions
 
@@ -404,4 +651,4 @@ watch.
 | 5 | An unseen HotA build may use LZMA or a different key | Typed "unsupported compression" error; the key is read per file, never assumed constant |
 | 6 | A third-party vanilla LOD could carry junk at bytes 12–15 other than `0`/`0x7E0213` | Only two junk values observed across 16 archives; the de-XOR sanity asserts catch a wrong key and produce a typed error instead of garbage |
 | 7 | HotA hero gender source not found | Default to the non-suffixed body; documented (R9) |
-| 8 | HotA fidelity may expose base-game rules that were only ever verified on base sprites | Fidelity check compares against HotA captures; differences become accepted deviations with owner review, as in spec 003 |
+| 8 | HotA fidelity may expose base-game rules that were only ever verified on base sprites | Measured: it does. Seven of eight HotA views differ on object pixels by 0.4 %–14 %, terrain and water are exact (US4 above). Cause not yet identified; awaiting owner review, not accepted silently |

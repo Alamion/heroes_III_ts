@@ -117,6 +117,16 @@ export class TerrainRenderer {
     this.now = now
   }
 
+  /**
+   * Largest texture this context supports. WebGL 1.0 guarantees 2048; real GPUs of the minimum
+   * hardware profile allow more, which decides how many object sprites fit into the page budget
+   * (spec 005: a HotA map needs several times the sprite area of a base-game map).
+   */
+  maxTextureSize(): number {
+    const v: unknown = this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE)
+    return typeof v === 'number' && Number.isFinite(v) && v >= 2048 ? v : 2048
+  }
+
   /** Sets the atlas (from the archive); keeps CPU copies so a lost context can be restored. */
   setAtlas(atlas: Atlas): void {
     this.atlas = atlas

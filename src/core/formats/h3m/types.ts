@@ -3,9 +3,9 @@
 
 import type { H3String } from '../../util/byte-reader.ts'
 
-export type H3mVersion = 'RoE' | 'AB' | 'SoD'
+export type H3mVersion = 'RoE' | 'AB' | 'SoD' | 'HotA'
 
-export const H3M_VERSION_CODES: Record<H3mVersion, number> = { RoE: 0x0e, AB: 0x15, SoD: 0x1c }
+export const H3M_VERSION_CODES: Record<H3mVersion, number> = { RoE: 0x0e, AB: 0x15, SoD: 0x1c, HotA: 0x20 }
 
 export interface Pos {
   x: number
@@ -75,6 +75,10 @@ export type VictoryCondition =
       | { kind: 'flagDwellings' }
       | { kind: 'flagMines' }
       | { kind: 'transportArtifact'; artifact: number; pos: Pos }
+      /** HotA only. */
+      | { kind: 'defeatAllMonsters' }
+      /** HotA only; the day count is a u32 in the files (research M4). */
+      | { kind: 'surviveDays'; days: number }
     ))
 
 export type LossCondition =
@@ -186,6 +190,8 @@ export type Quest =
       | { kind: 'resources'; resources: number[] }
       | { kind: 'beHero'; hero: number }
       | { kind: 'bePlayer'; player: number }
+      /** HotA-only condition (mission type 10) with its own sub-type. */
+      | { kind: 'hotaCondition'; subtype: number }
     ))
 
 export type SeerReward =
@@ -239,6 +245,10 @@ export interface HeroBody {
 }
 
 export type ObjectBody =
+  /** HotA: a class that has no body in the base game but carries a reward block in HotA. */
+  | { kind: 'hotaReward'; content: number; bytes: Uint8Array }
+  /** HotA: creature bank guard preset and artifacts. */
+  | { kind: 'creatureBank'; guardsPreset: number; upgradedStack: number; artifacts: number[] }
   | { kind: 'none' }
   | HeroBody
   | {
@@ -270,6 +280,8 @@ export type ObjectBody =
       buildings: { custom: true; built: Uint8Array; forbidden: Uint8Array } | { custom: false; hasFort: boolean }
       spellsMustHave: Uint8Array | null
       spellsMayHave: Uint8Array
+      /** HotA: "spell research allowed" plus the special-building state, kept raw. */
+      hotaExtra: Uint8Array | null
       events: TownEvent[]
       alignment: number | null
     }
@@ -277,7 +289,9 @@ export type ObjectBody =
   | { kind: 'shrine'; spell: number }
   | { kind: 'pandora'; guard: Guard | null; reward: Reward }
   | { kind: 'event'; guard: Guard | null; reward: Reward; players: number; computerActivate: boolean; removeAfterVisit: boolean }
-  | { kind: 'grail'; radius: number }
+  | { kind: 'grail'; radius: number | null }
+  /** Abandoned mine: which resources it may hold. */
+  | { kind: 'abandonedMine'; resources: Uint8Array }
   | { kind: 'randomDwelling'; owner: number; linkedTown: number | null; factions: number | null; minLevel: number | null; maxLevel: number | null }
   | { kind: 'questGuard'; quest: Quest }
   | { kind: 'heroPlaceholder'; owner: number; heroType: number; powerRank: number | null }
@@ -295,10 +309,37 @@ export interface MapObject {
   body: ObjectBody
 }
 
+/** HotA header fields that have no base-game counterpart (spec 005 research M4). */
+export interface HotaHeader {
+  /** HotA build that wrote the map, when the sub-version carries it (1.8.0 / 1.8.1). */
+  version: { major: number; minor: number; patch: number } | null
+  isMirrorMap: boolean
+  isArenaMap: boolean
+  terrainTypeCount: number | null
+  townTypeCount: number | null
+  allowedDifficultyMask: number | null
+  canHireDefeatedHeroes: boolean | null
+  forceMatchingHotaVersion: boolean | null
+  /** Zero in every measured map; meaning unknown. */
+  reserved: number | null
+  allowSpecialWeeks: boolean | null
+  combinedArtifactBan: Uint8Array | null
+  /** -1 = no limit. */
+  roundLimit: number | null
+  /** Per player: heroes cannot be recruited. */
+  blockedRecruitment: Uint8Array | null
+  /** Byte length of the event-system block, 0 when it is inactive (research M5). */
+  scriptBytes: number
+}
+
 export interface H3mMap {
   fileName: string
   version: H3mVersion
   versionCode: number
+  /** HotA sub-version; null for base-game formats. */
+  subVersion: number | null
+  /** HotA-only header fields; null for base-game formats. */
+  hota: HotaHeader | null
   info: H3mInfo
   players: PlayerInfo[]
   victory: VictoryCondition

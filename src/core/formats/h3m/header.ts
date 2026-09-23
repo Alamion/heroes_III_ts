@@ -2,10 +2,12 @@
 // heroes/artifacts/spells/skills, rumors and SoD hero settings.
 
 import type { H3mContext } from './context.ts'
+import { readScriptSection } from './script.ts'
 import { readArtifactId, readCreatureId, readHeroArtifacts, readPrimarySkills, readSecondarySkillsU32, readSpellMask } from './objects/common.ts'
 import type {
   CustomHero,
   H3mInfo,
+  HotaHeader,
   HeroSettings,
   LossCondition,
   PlayerInfo,
@@ -15,6 +17,36 @@ import type {
 } from './types.ts'
 
 const MAX_MAP_SIZE = 252
+
+/** Bitmask of a counted list: `u32 count` then `ceil(count / 8)` bytes (HotA). */
+function readCountedMask(c: H3mContext, what: string, maxCount: number): Uint8Array {
+  return c.r.scope(what, () => {
+    const at = c.r.offset
+    const count = c.r.u32()
+    if (count > maxCount) c.r.invalid(`${what} count ${count} exceeds ${maxCount}`, at)
+    return c.r.bytesCopy(Math.ceil(count / 8))
+  })
+}
+
+/**
+ * HotA header fields between the sub-version and the ordinary map info (research M4). Order was
+ * measured on sub-versions 9 and 10, where every field is present; for lower sub-versions it
+ * follows the ported feature table.
+ */
+export function readHotaHeaderFields(c: H3mContext): Omit<HotaHeader, 'allowSpecialWeeks' | 'combinedArtifactBan' | 'roundLimit' | 'blockedRecruitment' | 'scriptBytes'> {
+  return c.r.scope('hotaHeader', () => {
+    const version = c.f.hotaVersionTriple ? { major: c.r.u32(), minor: c.r.u32(), patch: c.r.u32() } : null
+    const isMirrorMap = c.f.hotaMirrorArena ? c.r.bool() : false
+    const isArenaMap = c.f.hotaMirrorArena ? c.r.bool() : false
+    const terrainTypeCount = c.f.hotaTerrainCount ? c.r.u32() : null
+    const townTypeCount = c.f.hotaTownCountAndDifficulty ? c.r.u32() : null
+    const allowedDifficultyMask = c.f.hotaTownCountAndDifficulty ? c.r.i8() : null
+    const canHireDefeatedHeroes = c.f.hotaHireDefeated ? c.r.bool() : null
+    const forceMatchingHotaVersion = c.f.hotaForceVersion ? c.r.bool() : null
+    const reserved = c.f.hotaHeaderReserved ? c.r.i32() : null
+    return { version, isMirrorMap, isArenaMap, terrainTypeCount, townTypeCount, allowedDifficultyMask, canHireDefeatedHeroes, forceMatchingHotaVersion, reserved }
+  })
+}
 
 export function readPos(c: H3mContext): Pos {
   return { x: c.r.u8(), y: c.r.u8(), z: c.r.u8() }
@@ -124,6 +156,14 @@ export function readVictory(c: H3mContext): VictoryCondition {
         return { ...common, kind: 'flagMines' }
       case 10:
         return { ...common, kind: 'transportArtifact', artifact: c.r.u8(), pos: readPos(c) }
+      case 11:
+        // HotA: defeat all monsters. No payload beyond the two common flags.
+        if (!c.f.hota) return c.r.invalid(`unknown victory condition ${type}`, at)
+        return { ...common, kind: 'defeatAllMonsters' }
+      case 12:
+        // HotA: survive N days. The Corpus says u16, the map files say u32 (research M4).
+        if (!c.f.hota) return c.r.invalid(`unknown victory condition ${type}`, at)
+        return { ...common, kind: 'surviveDays', days: c.r.u32() }
       default:
         return c.r.invalid(`unknown victory condition ${type}`, at)
     }
@@ -168,6 +208,21 @@ export function readHeroSettings(c: H3mContext): HeroSettings {
   return { experience, secondarySkills, artifacts, biography, gender, spells, primarySkills }
 }
 
+export type HotaMapOptions = Pick<HotaHeader, 'allowSpecialWeeks' | 'combinedArtifactBan' | 'roundLimit' | 'blockedRecruitment'>
+
+/** HotA map options, stored right after the 31 reserved zero bytes (research M4). */
+function readHotaMapOptions(c: H3mContext): HotaMapOptions | null {
+  if (!c.f.hota) return null
+  return c.r.scope('hotaOptions', () => {
+    const allowSpecialWeeks = c.f.hotaSpecialWeeks ? c.r.bool() : null
+    if (c.f.hotaSpecialWeeks) c.r.zeros(3, 'special weeks padding')
+    const combinedArtifactBan = c.f.hotaCombinedArtifactBan ? readCountedMask(c, 'combinedArtifactBan', 256) : null
+    const roundLimit = c.f.hotaRoundLimit ? c.r.i32() : null
+    const blockedRecruitment = c.f.hotaRecruitmentBlock ? c.r.scope('blockedRecruitment', () => c.r.bytesCopy(8)) : null
+    return { allowSpecialWeeks, combinedArtifactBan, roundLimit, blockedRecruitment }
+  })
+}
+
 export interface HeaderRest {
   teams: number[] | null
   allowedHeroes: Uint8Array
@@ -178,12 +233,17 @@ export interface HeaderRest {
   allowedSkills: Uint8Array | null
   rumors: Rumor[]
   heroSettings: (HeroSettings | null)[] | null
+  hotaOptions: HotaMapOptions | null
+  /** Bytes the HotA event-system body took (0 when absent or inactive). */
+  hotaScriptBytes: number
 }
 
 /** Everything between the loss condition and the tiles. */
 export function readHeaderRest(c: H3mContext): HeaderRest {
   const teams = readTeams(c)
-  const allowedHeroes = c.r.scope('allowedHeroes', () => c.r.bytesCopy(c.ab ? 20 : 16))
+  const allowedHeroes = c.f.hotaCountedHeroes
+    ? readCountedMask(c, 'allowedHeroes', 1024)
+    : c.r.scope('allowedHeroes', () => c.r.bytesCopy(c.ab ? 20 : 16))
   const placeholderHeroIds = c.ab
     ? c.r.scope('placeholderHeroes', () => {
         const at = c.r.offset
@@ -196,7 +256,14 @@ export function readHeaderRest(c: H3mContext): HeaderRest {
     ? c.r.scope('customHeroes', () => Array.from({ length: c.r.u8() }, () => ({ type: c.r.u8(), portrait: c.r.u8(), name: c.r.string(), players: c.r.u8() })))
     : []
   c.r.scope('reserved', () => c.r.zeros(31, 'reserved bytes'))
-  const allowedArtifacts = c.ab ? c.r.scope('allowedArtifacts', () => c.r.bytesCopy(c.sod ? 18 : 17)) : null
+  const options = readHotaMapOptions(c)
+  // HotA sub-version 9+ puts the event-system block here, before the allowed-artifact mask.
+  const script = readScriptSection(c)
+  const allowedArtifacts = c.f.hotaCountedArtifacts
+    ? readCountedMask(c, 'allowedArtifacts', 4096)
+    : c.ab
+      ? c.r.scope('allowedArtifacts', () => c.r.bytesCopy(c.sod ? 18 : 17))
+      : null
   const allowedSpells = c.sod ? c.r.scope('allowedSpells', () => c.r.bytesCopy(9)) : null
   const allowedSkills = c.sod ? c.r.scope('allowedSkills', () => c.r.bytesCopy(4)) : null
   const rumors = c.r.scope('rumors', () => {
@@ -205,8 +272,26 @@ export function readHeaderRest(c: H3mContext): HeaderRest {
     if (count > 10_000) c.r.invalid(`rumor count ${count} exceeds 10000`, at)
     return Array.from({ length: count }, (_, i) => c.r.scope(`[${i}]`, () => ({ name: c.r.string(), text: c.r.string() })))
   })
+  const heroCount = c.f.hotaCountedHeroSettings
+    ? c.r.scope('heroSettingsCount', () => {
+        const at = c.r.offset
+        const n = c.r.u32()
+        if (n > 1024) c.r.invalid(`hero settings count ${n} exceeds 1024`, at)
+        return n
+      })
+    : 156
   const heroSettings = c.sod
-    ? c.r.scope('heroSettings', () => Array.from({ length: 156 }, (_, i) => c.r.scope(`[${i}]`, () => (c.r.bool() ? readHeroSettings(c) : null))))
+    ? c.r.scope('heroSettings', () => Array.from({ length: heroCount }, (_, i) => c.r.scope(`[${i}]`, () => (c.r.bool() ? readHeroSettings(c) : null))))
     : null
-  return { teams, allowedHeroes, placeholderHeroIds, customHeroes, allowedArtifacts, allowedSpells, allowedSkills, rumors, heroSettings }
+  if (c.f.hotaHeroLevelBlock) {
+    // HotA: per hero "always add secondary skills", "cannot gain experience" and a starting level.
+    c.r.scope('heroLevels', () => {
+      for (let i = 0; i < heroCount; i++) {
+        c.r.u8()
+        c.r.u8()
+        c.r.i32()
+      }
+    })
+  }
+  return { teams, allowedHeroes, placeholderHeroIds, customHeroes, allowedArtifacts, allowedSpells, allowedSkills, rumors, heroSettings, hotaOptions: options, hotaScriptBytes: script.bytes }
 }

@@ -20,9 +20,9 @@ class FakeEngine implements ControllerEngine {
   /** Names that fail to load. */
   failing = new Set<string>()
   private statusListener: ((s: EngineStatus) => void) | undefined
-  private gen = { archive: 0, data: 0, map: 0 }
+  private gen = { archive: 0, data: 0, hota: 0, map: 0 }
 
-  private async load(slot: 'archive' | 'data' | 'map', name: string): Promise<LoadResult> {
+  private async load(slot: 'archive' | 'data' | 'hota' | 'map', name: string): Promise<LoadResult> {
     const g = ++this.gen[slot]
     this.calls.push(`${slot}:${name}`)
     await new Promise((r) => setTimeout(r, this.loadDelay))
@@ -32,6 +32,7 @@ class FakeEngine implements ControllerEngine {
   }
   loadArchive = (_b: Blob, n?: string) => this.load('archive', n ?? '')
   loadDataArchive = (_b: Blob, n?: string) => this.load('data', n ?? '')
+  loadHotaArchive = (_b: Blob, n?: string) => this.load('hota', n ?? '')
   loadMap = (_b: Blob, n?: string) => this.load('map', n ?? '')
   setObjectsVisible = (v: boolean) => void (this.objects = v)
   setUserScale = (s: 1 | 2 | 3) => void (this.scale = s)
@@ -47,7 +48,7 @@ class FakeEngine implements ControllerEngine {
   forgetCache = async () => void this.forgot++
   onStatus = (l: (s: EngineStatus) => void) => ((this.statusListener = l), () => true)
   emitDiagnostic(code: string) {
-    this.statusListener?.({ state: 'ready', archive: null, dataArchive: null, map: null, diagnostics: [{ level: 'warn', code, message: code }] })
+    this.statusListener?.({ state: 'ready', archive: null, dataArchive: null, hotaArchive: null, map: null, diagnostics: [{ level: 'warn', code, message: code }] })
   }
   stats = () => ({ paused: this.paused, visible: this.visible }) as unknown as EngineStats
 }

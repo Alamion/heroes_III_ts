@@ -8,6 +8,7 @@ export const en = {
   // Settings (labels and option labels)
   setting_spritearchive: 'Sprite archive (H3sprite.lod)',
   setting_dataarchive: 'Data archive (H3bitmap.lod)',
+  setting_hotaarchive: 'HotA archive (HotA.lod, for HotA maps)',
   setting_mapfile: 'Map (.h3m)',
   setting_level: 'Level',
   level_random: 'Random',
@@ -36,6 +37,7 @@ export const en = {
   // File slots and kinds
   kind_spriteArchive: 'sprite archive (H3sprite.lod)',
   kind_dataArchive: 'data archive (H3bitmap.lod)',
+  kind_hotaArchive: 'HotA archive (HotA.lod)',
   kind_map: 'map (.h3m)',
   kind_unknown: 'unknown file',
 
@@ -70,14 +72,14 @@ export const en = {
   // Packages and documentation
   package_title: APP_NAME,
   package_description: 'An animated adventure map of Heroes of Might and Magic III (Heroes 3, HoMM3) from your own Complete edition files: terrain, objects, heroes and towns, as in the original game. Fan-made, not affiliated with the game publishers. No game files are included.',
-  help_files: 'Take H3sprite.lod and H3bitmap.lod from the Data folder of your Heroes III Complete installation and any map (.h3m) from its Maps folder. Maps of Restoration of Erathia, Armageddon\'s Blade and Shadow of Death are supported; HotA maps are not yet.',
+  help_files: 'Take H3sprite.lod and H3bitmap.lod from the Data folder of your Heroes III Complete installation and any map (.h3m) from its Maps folder. Maps of Restoration of Erathia, Armageddon\'s Blade, Shadow of Death and Horn of the Abyss are supported. For a HotA map, also choose HotA.lod from the Data folder of your HotA installation; without it a HotA map is missing its terrains and objects.',
   help_privacy: 'The files stay on this computer: they are read locally and never uploaded.',
   help_web: 'Choose the files with the button or drop them onto the page. The browser remembers them until you press "Forget files".',
-  help_wallpaper_engine: 'Wallpaper Engine only lets a wallpaper read files inside its own folder, so you must place the files there yourself — without this the wallpaper cannot work. Copy H3sprite.lod and H3bitmap.lod (from the Data folder of your Heroes III Complete installation) and your map (.h3m) into the wallpaper folder, next to index.html; a "game" subfolder is the intended place. The "Sprite archive" and "Data archive" settings default to game\\H3sprite.lod and game\\h3bitmap.lod, so with the standard names only the map needs entering (for example game\\Arrogance.h3m); other names go into the settings the same way.',
+  help_wallpaper_engine: 'Wallpaper Engine only lets a wallpaper read files inside its own folder, so you must place the files there yourself — without this the wallpaper cannot work. Copy H3sprite.lod and H3bitmap.lod (from the Data folder of your Heroes III Complete installation) and your map (.h3m) into the wallpaper folder, next to index.html; a "game" subfolder is the intended place. The "Sprite archive" and "Data archive" settings default to game\\H3sprite.lod and game\\h3bitmap.lod, so with the standard names only the map needs entering (for example game\\Arrogance.h3m); other names go into the settings the same way. A HotA map also needs HotA.lod copied there and entered in the "HotA archive" setting (for example game\\HotA.lod).',
   notice_wallpaper_engine: '<b><i><u>Important:</u></i></b> the wallpaper can only read files inside its own folder, so copy H3sprite.lod, H3bitmap.lod and your map (.h3m) into the wallpaper folder yourself (next to index.html; a "game" subfolder is fine) — otherwise it will not load. The archive settings below already point to game\\H3sprite.lod and game\\h3bitmap.lod; enter your map the same way (game\\YourMap.h3m).<br></br>',
   spacer_wallpaper_engine: '<br></br>',
-  help_lively: 'Open "Customise" for the wallpaper in Lively and use "Browse" in the three file settings; Lively copies the files into the wallpaper folder.',
-  help_kde: `Install the plugin, open "Configure Desktop and Wallpaper", pick "${APP_NAME}" and choose the three files.`,
+  help_lively: 'Open "Customise" for the wallpaper in Lively and use "Browse" in the file settings; Lively copies the files into the wallpaper folder. The HotA archive is only needed for HotA maps.',
+  help_kde: `Install the plugin, open "Configure Desktop and Wallpaper", pick "${APP_NAME}" and choose the files. The HotA archive is only needed for HotA maps.`,
 } as const
 
 export type StringKey = keyof typeof en
@@ -86,6 +88,7 @@ export type Language = 'en' | 'ru'
 export const ru: Record<StringKey, string> = {
   setting_spritearchive: 'Архив спрайтов (H3sprite.lod)',
   setting_dataarchive: 'Архив данных (H3bitmap.lod)',
+  setting_hotaarchive: 'Архив HotA (HotA.lod, для карт HotA)',
   setting_mapfile: 'Карта (.h3m)',
   setting_level: 'Уровень',
   level_random: 'Случайный',
@@ -113,6 +116,7 @@ export const ru: Record<StringKey, string> = {
 
   kind_spriteArchive: 'архив спрайтов (H3sprite.lod)',
   kind_dataArchive: 'архив данных (H3bitmap.lod)',
+  kind_hotaArchive: 'архив HotA (HotA.lod)',
   kind_map: 'карта (.h3m)',
   kind_unknown: 'неизвестный файл',
 
@@ -144,14 +148,14 @@ export const ru: Record<StringKey, string> = {
 
   package_title: APP_NAME,
   package_description: 'Анимированная карта приключений Heroes of Might and Magic III (Герои 3, HoMM3) из ваших файлов издания Complete: местность, объекты, герои и города, как в оригинальной игре. Фанатский проект, не связан с издателями игры. Игровые файлы не входят в комплект.',
-  help_files: 'Возьмите H3sprite.lod и H3bitmap.lod из папки Data вашей установки Heroes III Complete и любую карту (.h3m) из папки Maps. Поддерживаются карты Restoration of Erathia, Armageddon\'s Blade и Shadow of Death; карты HotA пока нет.',
+  help_files: 'Возьмите H3sprite.lod и H3bitmap.lod из папки Data вашей установки Heroes III Complete и любую карту (.h3m) из папки Maps. Поддерживаются карты Restoration of Erathia, Armageddon\'s Blade, Shadow of Death и Horn of the Abyss. Для карты HotA выберите ещё HotA.lod из папки Data вашей установки HotA — без него у карты HotA не будет её земель и объектов.',
   help_privacy: 'Файлы остаются на этом компьютере: они читаются локально и никуда не загружаются.',
   help_web: 'Выберите файлы кнопкой или перетащите их на страницу. Браузер запомнит их, пока вы не нажмёте «Забыть файлы».',
-  help_wallpaper_engine: 'Wallpaper Engine разрешает обоям читать файлы только внутри их собственной папки, поэтому файлы нужно положить туда самостоятельно — без этого обои работать не будут. Скопируйте H3sprite.lod и H3bitmap.lod (из папки Data вашей установки Heroes III Complete) и карту (.h3m) в папку обоев, рядом с index.html; для этого предназначена подпапка «game». Настройки «Архив спрайтов» и «Архив данных» по умолчанию содержат game\\H3sprite.lod и game\\h3bitmap.lod, так что при стандартных именах остаётся вписать только карту (например game\\Arrogance.h3m); другие имена вводятся так же.',
+  help_wallpaper_engine: 'Wallpaper Engine разрешает обоям читать файлы только внутри их собственной папки, поэтому файлы нужно положить туда самостоятельно — без этого обои работать не будут. Скопируйте H3sprite.lod и H3bitmap.lod (из папки Data вашей установки Heroes III Complete) и карту (.h3m) в папку обоев, рядом с index.html; для этого предназначена подпапка «game». Настройки «Архив спрайтов» и «Архив данных» по умолчанию содержат game\\H3sprite.lod и game\\h3bitmap.lod, так что при стандартных именах остаётся вписать только карту (например game\\Arrogance.h3m); другие имена вводятся так же. Для карты HotA туда же нужно скопировать HotA.lod и вписать его в настройку «Архив HotA» (например game\\HotA.lod).',
   notice_wallpaper_engine: '<b><i><u>Важно:</u></i></b> обои могут читать файлы только внутри своей папки, поэтому скопируйте H3sprite.lod, H3bitmap.lod и карту (.h3m) в папку обоев самостоятельно (рядом с index.html; подойдёт подпапка «game») — иначе обои не загрузятся. Настройки архивов ниже уже указывают на game\\H3sprite.lod и game\\h3bitmap.lod; карту впишите так же (game\\ВашаКарта.h3m).<br></br>',
   spacer_wallpaper_engine: '<br></br>',
-  help_lively: 'Откройте «Настроить» для обоев в Lively и нажмите «Обзор» в трёх настройках файлов; Lively скопирует файлы в папку обоев.',
-  help_kde: `Установите плагин, откройте «Настроить рабочий стол и обои», выберите «${APP_NAME}» и укажите три файла.`,
+  help_lively: 'Откройте «Настроить» для обоев в Lively и нажмите «Обзор» в настройках файлов; Lively скопирует файлы в папку обоев. Архив HotA нужен только для карт HotA.',
+  help_kde: `Установите плагин, откройте «Настроить рабочий стол и обои», выберите «${APP_NAME}» и укажите файлы. Архив HotA нужен только для карт HotA.`,
 }
 
 export const STRINGS: Record<Language, Record<StringKey, string>> = { en, ru }

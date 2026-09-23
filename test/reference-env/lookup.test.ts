@@ -18,7 +18,7 @@ function store(records: CaptureRecord[]): string {
   const root = mkdtempSync(join(tmpdir(), 'h3ref-lookup-'))
   temps.push(root)
   for (const r of records) {
-    const dir = captureDir(root, r.map.key, r.level, r.source, r.kind, r.id)
+    const dir = captureDir(root, r.baseline ?? 'complete', r.map.key, r.level, r.source, r.kind, r.id)
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'record.json'), JSON.stringify(r))
     writeFileSync(join(dir, 'still.png'), 'x')
@@ -77,7 +77,7 @@ describe('list and prune', () => {
     expect(pruneCaptures(root, { before: '2026-09-05T00:00:00.000Z', dryRun: true })).toEqual(['old'])
     expect(listCaptures(root, {}).length).toBe(2)
     expect(pruneCaptures(root, { ids: ['new'], dryRun: false })).toEqual(['new'])
-    expect(existsSync(captureDir(root, newer.map.key, 0, 'game', 'still', 'new'))).toBe(false)
+    expect(existsSync(captureDir(root, 'complete', newer.map.key, 0, 'game', 'still', 'new'))).toBe(false)
     expect(() => pruneCaptures(root, { dryRun: false })).toThrow(expect.objectContaining({ code: ERROR_CODES.USAGE }))
   })
 })

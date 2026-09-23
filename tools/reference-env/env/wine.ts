@@ -12,6 +12,13 @@ export interface WineContext {
   logsDir: string
 }
 
+/**
+ * Wine DLL overrides that keep a capture silent. Every audio driver Wine may load is disabled;
+ * `winemenubuilder` and `winedbg` are unrelated but belong to the same "do not interfere" set.
+ */
+export const AUDIO_DRIVERS = ['winepulse.drv', 'winealsa.drv', 'wineoss.drv', 'winecoreaudio.drv'] as const
+export const AUDIO_OFF = ['winemenubuilder.exe', ...AUDIO_DRIVERS, 'winedbg.exe'].map((n) => `${n}=d`).join(';')
+
 export function wineContext(stateDir: string, wineBinary: string): WineContext {
   return { wineBinary, prefix: join(stateDir, 'prefix'), logsDir: join(stateDir, 'logs') }
 }
@@ -20,9 +27,10 @@ export function wineEnv(ctx: WineContext, extra: Env = {}): Env {
   const env: Env = {
     ...process.env,
     WINEPREFIX: ctx.prefix,
-    // No audio (captures must not play sound on the developer's machine), no desktop menu entries.
-    // No debugger either: a crashed program must exit so the tooling can detect it and retry.
-    WINEDLLOVERRIDES: 'winemenubuilder.exe=d;winepulse.drv=d;winealsa.drv=d;winedbg.exe=d',
+    // No audio at all: a capture runs on the developer's machine and must stay silent, so every
+    // Wine audio driver is disabled (the game then finds no sound device). No desktop menu
+    // entries, and no debugger either: a crashed program must exit so the tooling can detect it.
+    WINEDLLOVERRIDES: AUDIO_OFF,
     WINEDEBUG: '-all',
     ...extra,
   }

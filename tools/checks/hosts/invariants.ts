@@ -22,8 +22,10 @@ export interface InvariantResult {
 export interface FileSet {
   spriteArchive: string
   dataArchive: string
+  /** Optional HotA archive (spec 005); present only when the HotA install is configured. */
+  hotaArchive?: string
   map: string
-  bad: { hotaMap: string; truncatedMap: string; randomBytes: string; missing: string }
+  bad: { wogMap: string; truncatedMap: string; randomBytes: string; missing: string }
 }
 
 interface Snapshot {
@@ -242,7 +244,8 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
     run: async (ctx, hp, fail) => {
       const bad = ctx.files.bad
       const cases: [HostFiles, string][] = [
-        [{ map: bad.hotaMap }, 'UNSUPPORTED_MAP'],
+        // HotA maps are supported since spec 005; WoG is still an unsupported format.
+        [{ map: bad.wogMap }, 'UNSUPPORTED_MAP'],
         [{ spriteArchive: bad.randomBytes }, 'UNKNOWN_FILE'],
         [{ spriteArchive: ctx.files.spriteArchive, map: bad.truncatedMap }, 'CORRUPT_FILE'],
       ]
@@ -330,6 +333,27 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
       await hp.page.waitForTimeout(800)
       const r = await state(hp.page)
       if (r.phase !== 'waiting') fail(`files came back after forget: ${r.phase}`)
+    },
+  },
+  {
+    id: 12,
+    name: 'the optional HotA archive loads, and is never asked for when unset (spec 005 FR-025, FR-026)',
+    run: async (ctx, hp, fail) => {
+      // Unset: the placeholder must not ask for it, and the base-game files still reach 'ready'.
+      await ctx.driver.supplyFiles(hp, { spriteArchive: ctx.files.spriteArchive, dataArchive: ctx.files.dataArchive, map: ctx.files.map })
+      const ready = await waitPhase(hp.page, 'showing', 120_000)
+      if (ready.phase !== 'showing') fail(`base-game files did not reach showing: ${ready.phase}`)
+      // The placeholder text lists the files it still wants; the optional archive must not be there.
+      const waiting = await overlayText(hp.page)
+      if (/HotA/i.test(waiting) && ready.phase !== 'ready') fail(`the placeholder asks for the optional HotA archive: ${waiting.slice(0, 200)}`)
+      const hota = ctx.files.hotaArchive
+      if (hota === undefined) return
+      await ctx.driver.supplyFiles(hp, { hotaArchive: hota })
+      const loaded = await hp.page
+        .waitForFunction(() => (window as unknown as Wallpaper).__h3wallpaper.controller.state().slots.hotaArchive?.status === 'loaded', undefined, { timeout: 180_000 })
+        .then(() => true)
+        .catch(() => false)
+      if (!loaded) fail(`the HotA archive did not load: ${JSON.stringify((await state(hp.page)).slots.hotaArchive)}`)
     },
   },
 ]

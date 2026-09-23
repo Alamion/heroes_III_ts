@@ -85,8 +85,10 @@ The user points the wallpaper at a whole HotA `Maps` folder, which in practice m
 generations. Whatever kind of map they pick from it opens, regardless of generation.
 
 **Why this priority**: this is the acceptance bar the owner set, and it is what proves backward
-compatibility at the same time. The local folder holds 48 RoE (`0x0e`), 55 AB (`0x15`), 62 SoD
-(`0x1c`) and 72 HotA (`0x20`, 70 of sub-version 10 and 2 of sub-version 9) maps.
+compatibility at the same time. Measured on 2026-09-22: the HotA install's `Maps` folder holds 228
+maps — 48 RoE (`0x0e`), 55 AB (`0x15`), 56 SoD (`0x1c`) and 69 HotA (`0x20`, all sub-version 10) —
+and `public/dev-assets/` adds 9 more: 6 SoD, 1 HotA sub-version 10 and 2 HotA sub-version 9. Both
+HotA sub-versions therefore only appear when the two folders are taken together.
 
 **Independent Test**: a batch check classifies the available maps into coverage classes, opens at
 least one map of every class plus the named edge cases, and reports one line per map; the run

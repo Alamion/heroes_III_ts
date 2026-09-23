@@ -25,6 +25,8 @@ interface RenderPageGlobal {
 
 export interface RenderRequest {
   archive: string
+  /** Optional HotA archive path (spec 005). */
+  hotaArchive?: string
   map: string
   width: number
   height: number
@@ -84,6 +86,7 @@ export class HeadlessRenderer {
       await page.waitForFunction(() => (globalThis as unknown as RenderPageGlobal).__h3render !== undefined)
     }
     const archiveUrl = await this.route(req.archive)
+    const hotaUrl = req.hotaArchive === undefined ? undefined : await this.route(req.hotaArchive)
     const mapUrl = await this.route(req.map)
     const dataPath = req.dataArchive === undefined ? requireGameFileQuiet('h3bitmap.lod') : req.dataArchive
     const dataUrl = dataPath === null ? undefined : await this.route(dataPath)
@@ -92,6 +95,7 @@ export class HeadlessRenderer {
       {
         archiveUrl,
         mapUrl,
+        ...(hotaUrl !== undefined && req.hotaArchive !== undefined ? { hotaArchiveUrl: hotaUrl, hotaArchiveName: basename(req.hotaArchive) } : {}),
         archiveName: basename(req.archive),
         mapName: basename(req.map),
         width: req.width,

@@ -77,54 +77,36 @@ One `/speckit-specify` each and roughly in this order:
 
 After the open fixes of item 2, the order is (owner, 2026-09-22):
 
-3. **HotA support** — specified in [specs/005-hota-support/](specs/005-hota-support/). Read HotA
-   archives and maps, render HotA terrains, objects, towns and heroes. Target **HotA 1.8** directly:
-   that is what users run. Map version is 0x20 with a sub-version; measured on 2026-09-22, the
-   owner's maps carry two of them: sub-version 9 (`[HotA] The Devil Is in the Detail.h3m`,
-   `По праву силы.h3m` and 2 maps of the HotA `Maps` folder) and sub-version 10
-   (`test_map_hota.h3m` and 70 maps of that folder). HotA saves come later with item 5.
-   `[HotA] The Devil Is in the Detail.h3m` (252×252) is the stress-test map, `test_map_hota.h3m`
-   (built by the owner, HotA novelties in the lower-left corner of the underground level) is the
-   primary check map.
+3. ~~**HotA support**~~ — implemented in [specs/005-hota-support/](specs/005-hota-support/): the
+   obfuscated HotA 1.8 archive and archive sets, map format `0x20` (sub-versions 6, 7, 9 and 10,
+   including the event-system block), Highlands and Wasteland, five town forms per faction, hero
+   classes to 24, the HotA sprite conventions, a `hotaarchive` setting on every host and
+   `yarn verify maps`. All 453 local maps parse to the exact last byte. Measurements and the
+   reasoning behind each decision are in that spec's research.md; the constitution was amended
+   (1.3.0) for the HotA reference baseline and the HotA budget case.
 
-   Sources were surveyed on 2026-09-22 and cloned into `context/` (see the table in AGENTS.md for
-   each one's license and what it may be used for). Measurements below were verified against the
-   local HotA 1.8.1 install; the spec restates them with evidence.
+   The reference environment gained its second baseline from `h3hota.exe` (US4): `yarn ref …
+   --baseline hota`, refused without the constitution clause, with its own game root, calibration,
+   probe masks and capture namespace. Eight HotA views are captured; the water clip matches pixel
+   for pixel over 17 frames.
 
-   Rough order of work, to be detailed in its own spec:
+   Left for later, each recorded with its evidence:
+   - **The HotA object-pixel difference** — seven of the eight HotA fidelity views differ on object
+     pixels by 0.4 %–14 % (terrain and water are exact). The shadow-index mapping and RGB565
+     quantisation are both tested and ruled out; the likely causes are a frame choice for objects
+     the checker does not know animate, and a HotA-specific shadow rule. Needs owner review with
+     the diff images before it can become an accepted deviation (005 research "The open
+     difference").
+   - **A region-scoped object atlas** — object GPU memory still scales with the map, which
+     contradicts constitution IV. HotA made it visible: `test_map_hota.h3m` needs 4610 frames and
+     29.3 M sprite pixels, so the page size now follows the GPU's `MAX_TEXTURE_SIZE` (2048–4096)
+     instead of the guaranteed minimum. The real fix is to build the atlas from the visible region.
+   - **HotA saves**, **HotA truecolour sprites** (D32/P32; interface art only, not needed for the
+     adventure map), **`HotA.dat`** (editor text) and **`EdObjts.txt`** — all out of scope with
+     evidence in 005 research R12.
+   - **Hero gender** — HotA ships a second gendered body per class (`ah00b_`); no measured source
+     for a hero's gender was found, so the non-suffixed body is drawn.
 
-   1. **Archives (small, unblocked).** The 1.8 LOD keeps the vanilla 92-byte header and 32-byte
-      entries, but stores a u32 XOR key at offset 12 (0 or `0x7E0213` means a plain archive) and
-      replaces the 16-byte name with a u32 FNV-1a hash of the lowercase name, followed by
-      offset/size/compressed-size each XORed with that key and a plaintext compression byte
-      (0 raw, 2 LZMA, 3 zlib). Our 1.8.1 `HotA.lod` uses only zlib and raw, so `DecompressionStream`
-      still covers it; LZMA support is deferred until an archive needs it. Names are recovered by
-      hashing our own name lists, with `hota-lod-convert`'s table as the fallback. Replace the wrong
-      byte-135 check in `src/core/formats/lod/lod.ts`. Archive order must let HotA override the base
-      game (`Objects.txt`, `game.pal` and sprites all exist in both).
-   2. **Map format (the real unknown).** Version 0x20 with a sub-version: port sub-versions up to 5
-      from FreeHeroes (MIT), then derive the rest from our own maps, using VCMI only as study
-      material and `h3m2json`'s Corpus as the prose spec. Sub-versions 9 and 10 are required (they
-      are what the owner's maps use); 0–8 are best-effort, since no map of those exists locally.
-      The script block of these sub-versions has no fixed size — skipping it still means walking its
-      bytecode, so that work must be budgeted. Parsers stay bounds-checked with typed errors; no
-      guessed byte skips (constitution).
-   3. **Data and render.** New terrains Highlands and Wasteland ship as 124 numbered PCX tiles each
-      (`hglnt000…123`, `wstlt000…123`) with their own transition index scheme, not as terrain DEFs.
-      Towns have five adventure sprites per faction (`e0` village, `f0` fort, `c0` citadel,
-      `x0` castle, `z0` capitol) — the two-sprite rule in AGENTS.md is base-game only and must be
-      re-checked there too. New factions Cove and Factory, new objects and heroes, HotA render
-      quirks (shadows in palette indices 2/3, flag colour at index 255, `AVWccoat`). D32/P32
-      truecolour sprites exist but the 1.8.1 archive holds only 49 and 2 of them, all interface art —
-      confirm they are unused on the adventure map before implementing them. `HotA.dat` (`HDAT`
-      container) is only needed if object tables turn out to be incomplete without it.
-   4. **Fidelity reference.** The baseline stays Complete without HotA (constitution), so HotA
-      content needs its own reference decision: capture from `h3hota.exe` in the separate 1.8.1
-      install, with its own calibration, and amend the constitution accordingly. Editor captures are
-      the cheaper first step.
-   5. **Hosts and budgets.** A user-supplied HotA archive is a new file setting in all four hosts and
-      their manifests; `HotA.lod` is ~111 MB, so load time, cache size and the 252×252 map need fresh
-      budget numbers.
 4. **Publishing on the wallpaper platforms** — users download the wallpaper where they already look for
    wallpapers: Steam Workshop for Wallpaper Engine, the Lively library/gallery, the KDE Store
    (store.kde.org) for the Plasma plugin; the browser version stays on GitHub Pages. Ideally published

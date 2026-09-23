@@ -13,6 +13,9 @@ import { usage } from '../shared/errors.ts'
 export async function renderCommand(args: ParsedArgs): Promise<CommandResult> {
   const map = resolveGameFile(positional(args, 0, 'MAP'))
   const archive = resolveGameFile(opt(args, 'archive') ?? 'h3sprite.lod')
+  // HotA maps need the HotA archive for their terrains, towns and objects (spec 005).
+  const hotaArg = opt(args, 'hota')
+  const hotaArchive = hotaArg === undefined ? undefined : resolveGameFile(hotaArg)
   const level = intOpt(args, 'level', 0)
   const region = parseRegion(required(args, 'region'))
   const out = resolve(required(args, 'out'))
@@ -32,7 +35,7 @@ export async function renderCommand(args: ParsedArgs): Promise<CommandResult> {
     const seed = seedArg === undefined ? 1 : Number(seedArg)
     if (!Number.isInteger(tick) || !Number.isInteger(seed)) throw usage('--tick and --seed must be integers')
     const objects = !flag(args, 'no-objects')
-    const frame = await renderer.render({ archive, map, width, height, level, originTile: { x: region.x0, y: region.y0 }, originPixel: { x: 0, y: 0 }, step, tick, seed, objects, ...(objects ? {} : { dataArchive: null }), drawList: flag(args, 'draw-list'), scale })
+    const frame = await renderer.render({ archive, ...(hotaArchive !== undefined ? { hotaArchive } : {}), map, width, height, level, originTile: { x: region.x0, y: region.y0 }, originPixel: { x: 0, y: 0 }, step, tick, seed, objects, ...(objects ? {} : { dataArchive: null }), drawList: flag(args, 'draw-list'), scale })
     await mkdir(dirname(out), { recursive: true })
     await writeFile(out, encodePng({ width, height, channels: 4, data: frame.rgba }))
     return {

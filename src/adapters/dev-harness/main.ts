@@ -35,15 +35,23 @@ resize()
 document.addEventListener('visibilitychange', () => engine.setVisible(document.visibilityState === 'visible'))
 engine.setVisible(document.visibilityState === 'visible')
 
-async function loadInput(input: HTMLInputElement, kind: 'archive' | 'data' | 'map'): Promise<void> {
+async function loadInput(input: HTMLInputElement, kind: 'archive' | 'data' | 'hota' | 'map'): Promise<void> {
   const file = input.files?.[0]
   if (file === undefined) return
   const t0 = performance.now()
-  const r = kind === 'archive' ? await engine.loadArchive(file) : kind === 'data' ? await engine.loadDataArchive(file) : await engine.loadMap(file)
+  const r =
+    kind === 'archive'
+      ? await engine.loadArchive(file)
+      : kind === 'data'
+        ? await engine.loadDataArchive(file)
+        : kind === 'hota'
+          ? await engine.loadHotaArchive(file)
+          : await engine.loadMap(file)
   if (r.ok) statusEl.textContent += `\n${kind} ${r.fromCache ? 'from cache' : 'decoded'} in ${Math.round(performance.now() - t0)} ms`
 }
 ;(document.getElementById('archive') as HTMLInputElement).addEventListener('change', (e) => void loadInput(e.target as HTMLInputElement, 'archive'))
 ;(document.getElementById('dataarchive') as HTMLInputElement).addEventListener('change', (e) => void loadInput(e.target as HTMLInputElement, 'data'))
+;(document.getElementById('hotaarchive') as HTMLInputElement).addEventListener('change', (e) => void loadInput(e.target as HTMLInputElement, 'hota'))
 ;(document.getElementById('mapfile') as HTMLInputElement).addEventListener('change', (e) => void loadInput(e.target as HTMLInputElement, 'map'))
 ;(document.getElementById('toggle') as HTMLButtonElement).addEventListener('click', () => panel.classList.toggle('hidden'))
 

@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ERROR_CODES, RefError } from '../errors.ts'
-import type { CaptureRecord, Kind, Level, Source, TileRange } from '../model/types.ts'
+import { baselineProfile } from '../data/baselines.ts'
+import type { Baseline, CaptureRecord, Kind, Level, Source, TileRange } from '../model/types.ts'
 import { validateRecord } from '../model/validate-record.ts'
 
 /** Finds a map by file name (NFC-insensitive) in the search folders, or accepts a path. */
@@ -21,8 +22,21 @@ export function captureId(createdAt: Date, visible: TileRange): string {
   return `${stamp}_x${visible.x0}-${visible.x1}_y${visible.y0}-${visible.y1}`
 }
 
-export function captureDir(capturesDir: string, mapKey: string, level: Level, source: Source, kind: Kind, id: string): string {
-  return join(capturesDir, mapKey, String(level), `${source}-${kind}`, id)
+/**
+ * Captures of each baseline live in their own namespace (spec 005 FR-021). `complete` keeps the
+ * top level, so captures taken before the baseline dimension existed stay where they are.
+ */
+export function captureDir(
+  capturesDir: string,
+  baseline: Baseline,
+  mapKey: string,
+  level: Level,
+  source: Source,
+  kind: Kind,
+  id: string,
+): string {
+  const ns = baselineProfile(baseline).captureNamespace
+  return join(capturesDir, ...(ns === '' ? [] : [ns]), mapKey, String(level), `${source}-${kind}`, id)
 }
 
 /**

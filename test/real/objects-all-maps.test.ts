@@ -1,5 +1,6 @@
 // Objects of every base-game map in the install (spec 003 SC-007): resolve, build render objects and
-// the object atlas, and plan every view on both levels. Skips without game files.
+// the object atlas, and plan every view on both levels. Skips without game files. HotA maps are
+// skipped here: their sprites live in the HotA archive, which this check does not load (spec 005).
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -38,10 +39,12 @@ describe.skipIf(maps.length === 0)('objects of all install maps (SC-007)', () =>
       try {
         map = await parseH3mFile(new Uint8Array(readFileSync(path)), basename(path))
       } catch (err) {
-        // HotA and other unsupported versions are rejected by the parser (spec 002).
+        // Unsupported versions are rejected by the parser (spec 002).
         expect(err).toBeInstanceOf(FormatError)
         continue
       }
+      // HotA maps need the HotA archive for their sprites; they have their own checks (spec 005).
+      if (map.version === 'HotA') continue
       const state = fromH3m(map, { sha256: 'x', name: basename(path), version: map.version })
       const { objects } = buildRenderObjects(state, tables, createRng(1))
       const defs: DefSprite[] = []

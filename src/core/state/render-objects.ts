@@ -39,21 +39,39 @@ export interface RenderObject {
 }
 
 const WATER = 8
+// Town building mask, byte 0: bit 2 capitol, 3 fort, 4 citadel, 5 castle.
 const BUILDING_BIT_CAPITOL = 2
 const BUILDING_BIT_FORT = 3
+const BUILDING_BIT_CITADEL = 4
+const BUILDING_BIT_CASTLE = 5
 
 function terrainAt(state: WorldState, x: number, y: number, z: number): number {
   if (x < 0 || y < 0 || x >= state.size || y >= state.size) return -1
   return state.terrain[(z * state.size * state.size + y * state.size + x) * 7] ?? -1
 }
 
+/**
+ * Adventure-map sprite of a town.
+ *
+ * The base game only ever shows three forms, because its `Objects.txt` declares the castle
+ * template alone; HotA repainted all nine factions and added the fort and citadel forms, so a HotA
+ * map picks by fortification level (spec 005 research M7, FR-013).
+ */
 function townDef(faction: number, state: WorldState, id: ObjectId, fallback: string): string {
   const sprites = TOWN_SPRITES[faction]
   const town = state.towns.get(id)
   if (sprites === undefined || town === undefined) return fallback
   const built = town.buildings
-  if (built !== null && (((built[0] ?? 0) >> BUILDING_BIT_CAPITOL) & 1) === 1) return sprites.capitol
-  if (town.hasFort || (built !== null && (((built[0] ?? 0) >> BUILDING_BIT_FORT) & 1) === 1)) return sprites.fort
+  const bit = (b: number): boolean => built !== null && (((built[0] ?? 0) >> b) & 1) === 1
+  if (bit(BUILDING_BIT_CAPITOL)) return sprites.capitol
+  const hasFort = town.hasFort || bit(BUILDING_BIT_FORT)
+  if (state.map.version === 'HotA') {
+    if (bit(BUILDING_BIT_CASTLE)) return sprites.castle
+    if (bit(BUILDING_BIT_CITADEL)) return sprites.citadel ?? sprites.castle
+    if (hasFort) return sprites.fort ?? sprites.castle
+    return sprites.village
+  }
+  if (hasFort) return sprites.castle
   return sprites.village
 }
 

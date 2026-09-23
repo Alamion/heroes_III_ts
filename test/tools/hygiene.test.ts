@@ -36,6 +36,25 @@ describe('repository hygiene', () => {
     expect(sizes.reduce((sum, s) => sum + s.bytes, 0)).toBeLessThanOrEqual(10 * 1024 * 1024)
   })
 
+  it('has no committed archive entry-name list (spec 005 FR-028)', () => {
+    // HotA archives store hashed names; the name list that resolves them is third-party data about
+    // game files and is read from the git-ignored context/ folder, never committed.
+    const lists = files.filter((f) => /hashes\.txt$/i.test(f) || /entry-names/i.test(f))
+    expect(lists).toEqual([])
+    // The runtime resolves names by hashing, so no source file may embed a name table either.
+    const nameHash = readFileSync(resolve(REPO, 'src/core/formats/lod/name-hash.ts'), 'utf8')
+    expect(nameHash).not.toMatch(/\.def['"]\s*,\s*['"]/)
+  })
+
+  it('generates synthetic HotA fixtures in code, with no game bytes (spec 005)', () => {
+    for (const f of ['test/fixtures/synthetic/hota-lod.ts', 'test/fixtures/synthetic/hota-map.ts', 'test/fixtures/synthetic/hota-objects-txt.ts']) {
+      const src = readFileSync(resolve(REPO, f), 'utf8')
+      expect(src).toMatch(/no game content/i)
+      // A fixture that embedded real data would carry a long literal blob.
+      expect(src).not.toMatch(/[A-Za-z0-9+/]{200,}={0,2}/)
+    }
+  })
+
   it('stores flag colours as palette entries only (spec 003, constitution I)', () => {
     const players = readFileSync(resolve(REPO, 'src/core/data/players.ts'), 'utf8')
     // No RGB triples: colours are read from the user's game.pal at run time.

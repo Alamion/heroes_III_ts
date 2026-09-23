@@ -28,6 +28,7 @@ export type ControllerEngine = Pick<
   Engine,
   | 'loadArchive'
   | 'loadDataArchive'
+  | 'loadHotaArchive'
   | 'loadMap'
   | 'setObjectsVisible'
   | 'setUserScale'
@@ -121,12 +122,20 @@ export interface WallpaperController {
 const SLOT_OF_SETTING: Record<(typeof FILE_SETTING_KEYS)[number], FileSlot> = {
   spritearchive: 'spriteArchive',
   dataarchive: 'dataArchive',
+  hotaarchive: 'hotaArchive',
   mapfile: 'map',
 }
 const REQUIRED_SLOTS: readonly FileSlot[] = ['spriteArchive', 'map']
-const ALL_SLOTS: readonly FileSlot[] = ['spriteArchive', 'dataArchive', 'map']
+const ALL_SLOTS: readonly FileSlot[] = ['spriteArchive', 'dataArchive', 'hotaArchive', 'map']
+/**
+ * Slots the placeholder asks for while it waits. The HotA archive is left out on purpose: most
+ * users play base-game maps and would only be puzzled by it. A HotA map that needs it says so
+ * through its own message instead (spec 005 SC-007).
+ */
+const PROMPTED_SLOTS: readonly FileSlot[] = ['spriteArchive', 'dataArchive', 'map']
 
 function kindSlot(kind: FileKind): FileSlot | undefined {
+  if (kind.kind === 'hotaArchive') return 'hotaArchive'
   return kind.kind === 'spriteArchive' || kind.kind === 'dataArchive' || kind.kind === 'map' ? kind.kind : undefined
 }
 
@@ -143,10 +152,11 @@ export function createController(deps: ControllerDeps): WallpaperController {
   const slots: Record<FileSlot, SlotState> = {
     spriteArchive: { status: 'missing', name: null, identity: null },
     dataArchive: { status: 'missing', name: null, identity: null },
+    hotaArchive: { status: 'missing', name: null, identity: null },
     map: { status: 'missing', name: null, identity: null },
   }
   /** Generation per slot: a read or load that finishes after a newer one started is dropped. */
-  const generation: Record<FileSlot, number> = { spriteArchive: 0, dataArchive: 0, map: 0 }
+  const generation: Record<FileSlot, number> = { spriteArchive: 0, dataArchive: 0, hotaArchive: 0, map: 0 }
   let hostLanguage: string | null = null
   let hostPaused = false
   let hidden = false
@@ -182,7 +192,7 @@ export function createController(deps: ControllerDeps): WallpaperController {
 
   const snapshot = (): ControllerSnapshot => ({
     phase: phase(),
-    slots: { spriteArchive: { ...slots.spriteArchive }, dataArchive: { ...slots.dataArchive }, map: { ...slots.map } },
+    slots: { spriteArchive: { ...slots.spriteArchive }, dataArchive: { ...slots.dataArchive }, hotaArchive: { ...slots.hotaArchive }, map: { ...slots.map } },
     settings: { ...settings },
     messages: messages.map((m) => m.message),
     language: language(),
@@ -235,7 +245,7 @@ export function createController(deps: ControllerDeps): WallpaperController {
     const loadingSlot = ALL_SLOTS.find((s) => slots[s].status === 'reading' || slots[s].status === 'loading')
     deps.overlay?.render(
       {
-        missing: isShowing ? null : ALL_SLOTS.filter((s) => slots[s].status === 'missing' || slots[s].status === 'failed'),
+        missing: isShowing ? null : PROMPTED_SLOTS.filter((s) => slots[s].status === 'missing' || slots[s].status === 'failed'),
         loading: isShowing || loadingSlot === undefined ? null : (slots[loadingSlot].name ?? ''),
         messages: messages.map(({ id, message, sticky }) => ({ id, message, sticky })),
       },
@@ -310,7 +320,14 @@ export function createController(deps: ControllerDeps): WallpaperController {
     if (engine === undefined) return false
     slots[slot] = { status: 'loading', name, identity: null }
     refresh()
-    const r = slot === 'spriteArchive' ? await engine.loadArchive(blob, name) : slot === 'dataArchive' ? await engine.loadDataArchive(blob, name) : await engine.loadMap(blob, name)
+    const r =
+      slot === 'spriteArchive'
+        ? await engine.loadArchive(blob, name)
+        : slot === 'dataArchive'
+          ? await engine.loadDataArchive(blob, name)
+          : slot === 'hotaArchive'
+            ? await engine.loadHotaArchive(blob, name)
+            : await engine.loadMap(blob, name)
     if (gen !== generation[slot]) return false
     if (!r.ok) {
       if (r.error.code === 'SUPERSEDED') return false

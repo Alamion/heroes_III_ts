@@ -3,9 +3,9 @@ import { basename, join } from 'node:path'
 import { viewMapping } from '../analysis/geometry.ts'
 import { regionHash, waitUntilStable } from '../analysis/stability.ts'
 import { EDITOR_LAYOUT, EDITOR_OVERLAYS, EDITOR_SCREEN, type EditorOverlay } from '../data/editor-layout.ts'
-import { EDITOR_EXE } from '../data/staging-whitelist.ts'
+import { baselineBundleDir, baselineProfile } from '../data/baselines.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
-import type { Level, Point, Rect, ReferenceConfig, TileMapping, VisibleRange } from '../model/types.ts'
+import type { Baseline, Level, Point, Rect, ReferenceConfig, TileMapping, VisibleRange } from '../model/types.ts'
 import { mkdirSync } from 'node:fs'
 import { grabRaw, writePng, type RawFrame } from './grab.ts'
 import { createInput, type Input } from './input.ts'
@@ -30,9 +30,10 @@ export interface EditorView {
   mapping: TileMapping
 }
 
-export async function openEditor(cfg: ReferenceConfig, mapPath: string, timeoutMs: number): Promise<EditorSession> {
-  const root = stagingRoot(cfg.stateDir)
-  applyStaging(planStaging(cfg.bundleDir, mapPath), root)
+export async function openEditor(cfg: ReferenceConfig, baseline: Baseline, mapPath: string, timeoutMs: number): Promise<EditorSession> {
+  const profile = baselineProfile(baseline)
+  const root = stagingRoot(cfg.stateDir, baseline)
+  applyStaging(planStaging(profile, baselineBundleDir(cfg, baseline), mapPath), root)
   const wine = wineContext(cfg.stateDir, cfg.wineBinary)
   await killAll(wine)
   const display = await startDisplay(EDITOR_SCREEN)
@@ -47,7 +48,7 @@ export async function openEditor(cfg: ReferenceConfig, mapPath: string, timeoutM
   }
   try {
     const winPath = `Z:${join(root, 'Maps', STAGED_MAP_NAME).replace(/\//g, '\\')}`
-    launch(wine, EDITOR_EXE, { display: display.display, cwd: root, loadDllLog: false, args: [winPath], keepLocale: true })
+    launch(wine, profile.editorExe, { display: display.display, cwd: root, loadDllLog: false, args: [winPath], keepLocale: true })
     const env = { ...process.env, DISPLAY: display.display }
     const deadline = Date.now() + timeoutMs
     let geometry = ''

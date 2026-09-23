@@ -11,31 +11,39 @@ import { openGame, positionView, readView, revealMap, saveFailureShot, showLevel
 import type { GameSession } from '../env/session.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 import { log } from '../log.ts'
-import type { Calibration } from '../model/types.ts'
-import { config, levelTerrains, stagedHashes, targetContext } from './common.ts'
+import type { Baseline, Calibration } from '../model/types.ts'
+import { requireAmendment } from '../env/amendment.ts'
+import { assertMapFitsBaseline, baselineOf, config, levelTerrains, stagedHashes, targetContext } from './common.ts'
 import type { TargetContext } from './common.ts'
 import type { ReferenceConfig } from '../model/types.ts'
 import { requireTestMap } from '../../shared/game-files.ts'
 
+/** Calibration needs a two-level map with a scenario intro message that this build can open. */
+const CALIBRATION_MAP: Record<Baseline, string> = { complete: 'Arrogance.h3m', hota: 'test_map_hota.h3m' }
+
 export const calibrateCommand: Command = async (args) => {
   const cfg = config()
-  if (!args.flags.has('map')) args.flags.set('map', ['Arrogance.h3m'])
+  const baseline = baselineOf(args)
+  requireAmendment(cfg.repoRoot, baseline)
+  if (!args.flags.has('map')) args.flags.set('map', [CALIBRATION_MAP[baseline]])
   args.flags.set('x', ['0'])
   args.flags.set('y', ['0'])
   const ctx = await targetContext(cfg, args)
-  if (!ctx.map.hasUnderground) throw new RefError(ERROR_CODES.USAGE, 'calibration needs a two-level map with a scenario intro message (default Arrogance.h3m)')
+  assertMapFitsBaseline(ctx.map, baseline)
+  if (!ctx.map.hasUnderground) throw new RefError(ERROR_CODES.USAGE, `calibration needs a two-level map (default ${CALIBRATION_MAP[baseline]})`)
   const lock = await acquireLock(cfg.stateDir, cfg.timeouts.lockWait, 'calibrate')
-  const spikes = join(cfg.stateDir, 'spikes', 'calibrate')
+  const spikes = join(cfg.stateDir, 'spikes', baseline === 'complete' ? 'calibrate' : `calibrate-${baseline}`)
   mkdirSync(spikes, { recursive: true })
   try {
     const { session, recordedProbes } = await openGame(cfg, {
+      baseline,
       mapPath: ctx.mapPath,
       start: 'fixed',
       probes: undefined,
       stepTimeoutMs: cfg.timeouts.step,
     })
     try {
-      const hashes = await stagedHashes(cfg)
+      const hashes = await stagedHashes(cfg, baseline)
       const revealed = await revealMap(session)
       await waitForMessageClear(revealed)
       const terrain = await levelTerrains(ctx.mapPath)
@@ -61,7 +69,8 @@ export const calibrateCommand: Command = async (args) => {
       await writePng(under, join(spikes, 'underground.png'))
 
       const cal: Calibration = {
-        gameExecutable: 'original',
+        baseline,
+        gameExecutable: baseline === 'hota' ? 'hota' : 'original',
         launchMode: 'direct',
         gameExeSha256: hashes.game,
         editorExeSha256: hashes.editor,
@@ -70,17 +79,18 @@ export const calibrateCommand: Command = async (args) => {
         loadedDlls: session.loadedDlls(),
         measuredAt: new Date().toISOString(),
       }
-      writeCalibration(cfg.stateDir, cal)
+      writeCalibration(cfg.stateDir, baseline, cal)
       log.info(`calibration written; screenshots in ${spikes}`)
       return {
         ok: true,
-        calibrationPath: calibrationPath(cfg.stateDir),
+        baseline,
+        calibrationPath: calibrationPath(cfg.stateDir, baseline),
         positioningMethod: cal.positioningMethod,
         revealCode: revealed.code,
         checks,
         undergroundOrigin: underView.origin,
         levelDetection: { surface: surfaceLevel, underground: undergroundLevel },
-        minimapScale1: await scaleOneCheck(cfg),
+        minimapScale1: await scaleOneCheck(cfg, baseline),
       }
     } catch (err) {
       await saveFailureShot(cfg.stateDir, session, err)
@@ -97,12 +107,14 @@ export const calibrateCommand: Command = async (args) => {
  * Minimap reading at scale 1 px per tile (144×144 maps): positions a top-edge and a mid-map view on
  * test_map.h3m and reads the origins back. Skipped when the map is absent.
  */
-async function scaleOneCheck(cfg: ReferenceConfig): Promise<Record<string, unknown>> {
+async function scaleOneCheck(cfg: ReferenceConfig, baseline: Baseline): Promise<Record<string, unknown>> {
+  // The 144×144 case is already covered by the HotA calibration map itself.
+  if (baseline !== 'complete') return { skipped: 'covered by the calibration map of this baseline' }
   const path = requireTestMap()
   if (path === null) return { skipped: 'test_map.h3m not found' }
   const args: ParsedArgs = { command: 'calibrate', flags: new Map([['map', [path]], ['x', ['0']], ['y', ['0']]]) }
   const ctx: TargetContext = await targetContext(cfg, args)
-  const { session } = await openGame(cfg, { mapPath: ctx.mapPath, start: 'fixed', probes: readCalibrationProbes(cfg), stepTimeoutMs: cfg.timeouts.step })
+  const { session } = await openGame(cfg, { baseline, mapPath: ctx.mapPath, start: 'fixed', probes: readCalibrationProbes(cfg, baseline), stepTimeoutMs: cfg.timeouts.step })
   try {
     const revealed = await revealMap(session)
     await waitForMessageClear(revealed)
@@ -121,8 +133,8 @@ async function scaleOneCheck(cfg: ReferenceConfig): Promise<Record<string, unkno
   }
 }
 
-function readCalibrationProbes(cfg: ReferenceConfig): Record<string, string> {
-  const cal = readCalibration(cfg.stateDir)
+function readCalibrationProbes(cfg: ReferenceConfig, baseline: Baseline): Record<string, string> {
+  const cal = readCalibration(cfg.stateDir, baseline)
   if (cal === undefined) throw new RefError(ERROR_CODES.CALIBRATION_MISSING, 'calibration was not written')
   return cal.probes
 }

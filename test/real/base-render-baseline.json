@@ -1,0 +1,55 @@
+{
+  "map": "test_map.h3m",
+  "seed": 7,
+  "note": "SHA-256 of yarn h3 render PNGs taken on the base-game code before spec 005 changed anything (tasks.md T002). Used by test/real/base-render-unchanged.test.ts to prove US3.",
+  "renders": [
+    {
+      "name": "l0-nw-t0",
+      "level": 0,
+      "region": "0,0,24,24",
+      "time": 0,
+      "bytes": 309390,
+      "sha256": "205f64d39aa55a09d83fb3831924e2942a00bdc85bd15c34502ffc01e0befaf6"
+    },
+    {
+      "name": "l0-mid-t540",
+      "level": 0,
+      "region": "24,24,48,48",
+      "time": 540,
+      "bytes": 527611,
+      "sha256": "3161590ad8b8df1368140a6fa2b5e42f94e9e5aa25261793e5b68b3f03cc7917"
+    },
+    {
+      "name": "l0-c-t0",
+      "level": 0,
+      "region": "60,60,84,84",
+      "time": 0,
+      "bytes": 759376,
+      "sha256": "de656040a27d45ef0d00dd0e5d708a115cba5a3ad17033196d67b7aa3e592a63"
+    },
+    {
+      "name": "l0-se-t1080",
+      "level": 0,
+      "region": "100,100,124,124",
+      "time": 1080,
+      "bytes": 927905,
+      "sha256": "6fd7dd20dcbb77e344aa941103fb0c5f018d7f54eb7cad74dfbe6e94f6db95c2"
+    },
+    {
+      "name": "l1-nw-t0",
+      "level": 1,
+      "region": "0,0,24,24",
+      "time": 0,
+      "bytes": 251570,
+      "sha256": "c4da6fb6056086e5c0dcb8e24e44297039492bbeeb46e071fe96b12cde9dfb32"
+    },
+    {
+      "name": "l1-mid-t360",
+      "level": 1,
+      "region": "40,40,64,64",
+      "time": 360,
+      "bytes": 338749,
+      "sha256": "749d4abeee3d85789665a5d1748e4403e6327d99157c9ac86fbb9a5c3db96467"
+    }
+  ]
+}

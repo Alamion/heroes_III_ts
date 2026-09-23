@@ -2,6 +2,8 @@
   "_comment": "Copy to reference-env.config.json (git-ignored). Environment variables override these values.",
   "_comment_bundleDir": "H3REF_BUNDLE_DIR. Complete edition folder containing Heroes3.exe, h3maped.exe and Data/.",
   "bundleDir": "/home/<user>/.wine/drive_c/Games/Heroes of Might and Magic III Complete",
+  "_comment_hotaBundleDir": "H3REF_HOTA_BUNDLE_DIR. Optional. HotA 1.8.x folder containing h3hota.exe, h3hota_maped.exe and Data/HotA.lod. Needed for HotA file lookups and the HotA reference baseline.",
+  "hotaBundleDir": "/home/<user>/.wine/drive_c/Games/Heroes3_HotA",
   "_comment_wineBinary": "H3REF_WINE. Wine executable on PATH or absolute path.",
   "wineBinary": "wine",
   "_comment_stateDir": "H3REF_STATE_DIR. Outside the repo. Default: $XDG_STATE_HOME/h3-reference or ~/.local/state/h3-reference.",
