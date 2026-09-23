@@ -130,7 +130,7 @@ yarn test:watch     # Vitest, watch mode
 yarn test:coverage  # coverage of src/core
 yarn package [--host web|wallpaper-engine|lively|kde|all]   # dist/packages/<host>, Lively .zip, KDE .tar.gz
 yarn preview:web    # serve dist/packages/web under /heroes_III_ts/ (as GitHub Pages)
-yarn accept kde [--apply] [--screen 0] [--keep]   # install the plugin; --apply switches a screen and restores it
+yarn accept kde [--apply] [--screen 0] [--keep] [--no-restart]   # install; restarts plasmashell after an upgrade; --apply switches a screen and restores plugin and settings
 ```
 
 Inspection (one JSON document on stdout; exit 0 ok, 1 failure, 2 usage, 3 missing files).
@@ -381,11 +381,15 @@ Facts measured on HotA 1.8.1 (2026-09-23, details in [005 research](specs/005-ho
 - Actions (`ACTIONS` in `settings.ts`, e.g. "new random place now") hold no value: Wallpaper Engine gets a
   checkbox whose every toggle acts, Lively a button, KDE a counter the settings page increments, the browser a
   panel button (key `R`). They are handled by the bridges, never stored in `WallpaperSettings`.
-- KDE live debugging: restart plasmashell with `QTWEBENGINE_REMOTE_DEBUGGING=127.0.0.1:9333`, attach over the
-  DevTools protocol (Playwright's `connectOverCDP` is not supported by QtWebEngine; use the raw websocket).
+- KDE live debugging: give plasmashell `QTWEBENGINE_REMOTE_DEBUGGING=127.0.0.1:9333` (through the systemd user
+  environment, see below), attach over the DevTools protocol (Playwright's `connectOverCDP` is not supported
+  by QtWebEngine; use the raw websocket).
 - An upgraded KDE package is not picked up by an open wallpaper page, not even by `location.reload()`:
-  it keeps running the old script until plasmashell restarts (measured 2026-09-23). Restart it after
-  `yarn accept kde` before trusting what the live page does.
+  it keeps running the old script until plasmashell restarts (measured 2026-09-23). `yarn accept kde`
+  therefore restarts the shell after every upgrade, through `plasma-plasmashell.service`. Never start
+  `plasmashell` by hand in a systemd session: it runs outside the unit (no journal, no respawn); to get a
+  DevTools port, `systemctl --user set-environment QTWEBENGINE_REMOTE_DEBUGGING=127.0.0.1:9333` before the
+  restart and `unset-environment` afterwards.
 - Files arrive several at once — a host's settings, a drop of several files, the remembered files. The
   HotA archive goes in front of every archive set, so the controller loads it first (`hotaFirst`) and the
   engine re-decodes an archive when HotA arrives mid-decode; loading them together dropped every

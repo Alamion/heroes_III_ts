@@ -62,13 +62,18 @@ JS instead of `dist/assets` minus harness entries.
 ## `yarn accept kde` (optional, real Plasma session; not in `verify all`)
 
 ```bash
-yarn accept kde [--apply] [--screen N]
+yarn accept kde [--apply] [--screen N] [--seconds S] [--keep] [--no-restart]
 ```
 
-Installs/updates the package with `kpackagetool6`; without `--apply` stops there. With `--apply` saves the
-current wallpaper plugin/config of the screen, sets `io.github.alamion.h3dynam` with the dev files through
-plasmashell DBus scripting, reads status over CDP if `QTWEBENGINE_REMOTE_DEBUGGING` is set, captures a
-screenshot (`spectacle -b -n -o`), and restores the previous wallpaper. Output:
+Installs/updates the package with `kpackagetool6`. After an **upgrade** it restarts plasmashell
+(`kquitapp6`, then its systemd unit `plasma-plasmashell.service` when the session has one, else a
+detached `plasmashell`) and waits until the shell answers scripting calls: an open wallpaper page keeps
+running the previous script until then, even across `location.reload()` (measured 2026-09-23).
+`--no-restart` skips it and reports the step as `manual`. Without `--apply` it stops there. With
+`--apply` it saves the screen's wallpaper plugin and the value of every setting it is about to write,
+sets `io.github.alamion.h3dynam` with the dev files through plasmashell DBus scripting, captures a
+screenshot (`spectacle -b -n -o`), and restores the previous plugin and those settings (`--keep` leaves
+the wallpaper applied). Output:
 `{ host: "kde", steps: [ { id, outcome: "pass"|"fail"|"manual"|"skip", evidence } ] }`, also written to
 `check-reports/accept/<ts>/report.json`.
 

@@ -6,8 +6,8 @@ import type { CommandSpec } from '../shared/cli-runner.ts'
 
 export const ACCEPT_COMMANDS: Record<string, CommandSpec> = {
   kde: {
-    help: 'install/upgrade the KDE package; --apply switches a screen to it with the dev files, screenshots and restores [--screen 0] [--seconds 20] [--keep]',
-    booleanFlags: ['apply', 'keep'],
+    help: 'install/upgrade the KDE package and restart plasmashell after an upgrade; --apply switches a screen to it with the dev files, screenshots and restores the plugin and its settings [--screen 0] [--seconds 20] [--keep] [--no-restart]',
+    booleanFlags: ['apply', 'keep', 'no-restart'],
     load: async () => (await import('./kde.ts')).acceptKdeCommand,
   },
 }

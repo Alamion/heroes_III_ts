@@ -1,9 +1,11 @@
-// `yarn accept kde [--apply] [--screen N] [--seconds S] [--keep]` (spec 004 contracts/cli.md, FR-022):
-// installs or upgrades the KDE package in the user's Plasma session; with --apply it switches one
-// screen to the wallpaper with the development game files, takes a screenshot, and restores the
-// previous wallpaper plugin (whose own settings stay untouched in their config group).
+// `yarn accept kde [--apply] [--screen N] [--seconds S] [--keep] [--no-restart]` (spec 004
+// contracts/cli.md, FR-022): installs or upgrades the KDE package in the user's Plasma session and
+// restarts plasmashell after an upgrade, because an open wallpaper page keeps running the old
+// script until then (measured 2026-09-23: not even `location.reload()` picks up the new one). With
+// --apply it switches one screen to the wallpaper with the development game files, takes a
+// screenshot, and restores both the previous wallpaper plugin and every setting it wrote.
 
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { existsSync, mkdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -40,6 +42,66 @@ export function plasmaScript(script: string): string {
 
 const js = (v: unknown): string => JSON.stringify(v)
 
+const SHELL_UNIT = 'plasma-plasmashell.service'
+
+function shellRunning(): boolean {
+  try {
+    execFileSync('pgrep', ['-x', 'plasmashell'], { stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Whether plasmashell answers scripting calls on the session bus. */
+function shellAnswers(): boolean {
+  try {
+    plasmaScript('print("ok")')
+    return true
+  } catch {
+    return false
+  }
+}
+
+function unitLoaded(): boolean {
+  try {
+    return execFileSync('systemctl', ['--user', 'show', '-p', 'LoadState', '--value', SHELL_UNIT], { encoding: 'utf8' }).trim() === 'loaded'
+  } catch {
+    return false
+  }
+}
+
+async function waitFor(check: () => boolean, ms: number): Promise<boolean> {
+  const until = Date.now() + ms
+  while (Date.now() < until) {
+    if (check()) return true
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  return check()
+}
+
+/**
+ * Quits plasmashell and starts it again, through its systemd unit when the session has one (Plasma 6
+ * on systemd) so a shell that was started by hand goes back under the unit, else as a detached
+ * process. Resolves once the new shell answers scripting calls.
+ */
+async function restartShell(): Promise<Step> {
+  if (!has('kquitapp6')) return { id: 'restart-shell', outcome: 'fail', evidence: 'kquitapp6 not found; restart plasmashell yourself, or the open wallpaper keeps its old code' }
+  try {
+    execFileSync('kquitapp6', ['plasmashell'], { stdio: 'ignore', timeout: 30_000 })
+  } catch {
+    // Already gone, or it refused; the wait below decides.
+  }
+  if (!(await waitFor(() => !shellRunning(), 20_000))) return { id: 'restart-shell', outcome: 'fail', evidence: 'plasmashell did not quit within 20 s' }
+  const viaUnit = unitLoaded()
+  if (viaUnit) execFileSync('systemctl', ['--user', 'start', SHELL_UNIT], { stdio: 'ignore', timeout: 30_000 })
+  else spawn('plasmashell', [], { detached: true, stdio: 'ignore' }).unref()
+  const up = await waitFor(shellAnswers, 60_000)
+  return up
+    ? { id: 'restart-shell', outcome: 'pass', evidence: viaUnit ? `restarted through ${SHELL_UNIT}` : 'restarted as a detached process (no systemd unit)' }
+    : { id: 'restart-shell', outcome: 'fail', evidence: 'plasmashell did not come back within 60 s' }
+}
+
 export async function acceptKdeCommand(args: ParsedArgs): Promise<CommandResult> {
   const steps: Step[] = []
   const repoRoot = process.cwd()
@@ -65,6 +127,17 @@ export async function acceptKdeCommand(args: ParsedArgs): Promise<CommandResult>
     return { ok: false, host: 'kde', steps }
   }
 
+  // A fresh install has no page running old code; an upgrade does, until the shell restarts.
+  if (installed && shellRunning()) {
+    if (flag(args, 'no-restart')) {
+      steps.push({ id: 'restart-shell', outcome: 'manual', evidence: 'skipped (--no-restart): an open wallpaper keeps running the previous code until plasmashell restarts' })
+    } else {
+      const restarted = await restartShell()
+      steps.push(restarted)
+      if (restarted.outcome === 'fail') return { ok: false, host: 'kde', steps }
+    }
+  }
+
   if (!flag(args, 'apply')) {
     steps.push({ id: 'apply', outcome: 'manual', evidence: 'run with --apply to switch a screen to the wallpaper, or pick it in "Configure Desktop and Wallpaper"' })
     return { ok: true, host: 'kde', steps }
@@ -88,11 +161,22 @@ export async function acceptKdeCommand(args: ParsedArgs): Promise<CommandResult>
     mapfile: pathToFileURL(map).href,
     viewmode: 'random',
   }
+  const group = `d.currentConfigGroup = ["Wallpaper", ${js(KDE_PLUGIN_ID)}, "General"];`
+  // The dev files go into the same config group as the owner's own settings for this plugin, so
+  // every key written here is read first and written back afterwards.
+  const savedRaw = plasmaScript(`var d = desktopForScreen(${screen}); ${group} var o = {}; ${Object.keys(settings).map((k) => `o[${js(k)}] = d.readConfig(${js(k)});`).join(' ')} print(JSON.stringify(o));`).trim()
+  let saved: Record<string, unknown>
+  try {
+    saved = JSON.parse(savedRaw) as Record<string, unknown>
+  } catch {
+    return { ok: false, host: 'kde', steps: [...steps, { id: 'save-previous', outcome: 'fail', evidence: `could not read the screen's settings: ${savedRaw.slice(0, 200)}` }] }
+  }
+  steps.push({ id: 'save-settings', outcome: 'pass', evidence: Object.keys(saved).join(', ') })
   const writes = Object.entries(settings)
     .map(([k, v]) => `d.writeConfig(${js(k)}, ${js(v)});`)
     .join(' ')
   try {
-    plasmaScript(`var d = desktopForScreen(${screen}); d.wallpaperPlugin = ${js(KDE_PLUGIN_ID)}; d.currentConfigGroup = ["Wallpaper", ${js(KDE_PLUGIN_ID)}, "General"]; ${writes} d.reloadConfig();`)
+    plasmaScript(`var d = desktopForScreen(${screen}); d.wallpaperPlugin = ${js(KDE_PLUGIN_ID)}; ${group} ${writes} d.reloadConfig();`)
     steps.push({ id: 'apply', outcome: 'pass', evidence: `screen ${screen}` })
     log.info(`waiting ${seconds} s for the wallpaper to load`)
     await new Promise((r) => setTimeout(r, seconds * 1000))
@@ -115,8 +199,12 @@ export async function acceptKdeCommand(args: ParsedArgs): Promise<CommandResult>
     )
   } finally {
     if (!flag(args, 'keep')) {
-      plasmaScript(`var d = desktopForScreen(${screen}); d.wallpaperPlugin = ${js(previous)};`)
-      steps.push({ id: 'restore', outcome: 'pass', evidence: previous })
+      // Unset keys read back as "" and are written back as "", which the plugin treats as unset.
+      const restores = Object.entries(saved)
+        .map(([k, v]) => `d.writeConfig(${js(k)}, ${js(v ?? '')});`)
+        .join(' ')
+      plasmaScript(`var d = desktopForScreen(${screen}); ${group} ${restores} d.wallpaperPlugin = ${js(previous)}; d.reloadConfig();`)
+      steps.push({ id: 'restore', outcome: 'pass', evidence: `${previous}, settings ${Object.keys(saved).join(', ')}` })
     }
   }
   return { ok: steps.every((s) => s.outcome !== 'fail'), host: 'kde', steps }
