@@ -45,7 +45,7 @@ export const clipCommand: Command = async (args) => {
     const first = result.frames[0]
     if (first === undefined) throw new RefError(ERROR_CODES.GRAB_FAILED, 'no clip frames grabbed')
     record.verification = { ...verificationBase(s), mapping: await verifyGrabMapping(s, record.mapping, { width: vp.w, rgb: first.rgb }) }
-    const dir = captureDir(cfg.capturesDir, s.ctx.map.key, s.ctx.level, 'game', 'clip', id)
+    const dir = captureDir(cfg.capturesDir, s.baseline, s.ctx.map.key, s.ctx.level, 'game', 'clip', id)
     await writeCaptureAtomically(dir, record, async (tmp) => {
       mkdirSync(join(tmp, 'frames'))
       for (const f of result.frames) await writePng({ width: vp.w, height: vp.h, rgb: f.rgb }, join(tmp, fileOf(f.index)))

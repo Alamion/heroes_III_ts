@@ -122,6 +122,16 @@ export function installMaps(dirs: GameDirs = gameDirs()): string[] {
 }
 
 /** All `.h3m` files in the HotA install's Maps folder (empty when it is not configured). */
+/**
+ * The HotA archive of the configured HotA install. Both installs may ship a file of that name, so
+ * callers that know they want HotA's take this rather than a bare-name lookup (spec 005).
+ */
+export function hotaArchivePath(dirs: GameDirs = gameDirs()): string | undefined {
+  if (dirs.hotaDataDir === undefined) return undefined
+  const hit = readdirSync(dirs.hotaDataDir).find((n) => n.toLowerCase() === 'hota.lod')
+  return hit === undefined ? undefined : join(dirs.hotaDataDir, hit)
+}
+
 export function hotaInstallMaps(dirs: GameDirs = gameDirs()): string[] {
   const dir = dirs.hotaMapsDir
   if (dir === undefined) return []

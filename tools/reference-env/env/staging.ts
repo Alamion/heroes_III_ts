@@ -1,6 +1,8 @@
 import {
   copyFileSync,
   existsSync,
+  readFileSync,
+  writeFileSync,
   lstatSync,
   mkdirSync,
   readdirSync,
@@ -12,16 +14,18 @@ import {
   utimesSync,
 } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
-import { NEVER_STAGE, STAGING_WHITELIST } from '../data/staging-whitelist.ts'
+import type { BaselineProfile } from '../data/baselines.ts'
+import type { WhitelistEntry } from '../data/staging-whitelist.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 
 /** File name of the map inside the staging root's Maps/ folder. */
 export const STAGED_MAP_NAME = 'reference.h3m'
 
 export interface StagingAction {
-  kind: 'copy' | 'symlink' | 'mkdir' | 'map'
+  kind: 'copy' | 'symlink' | 'mkdir' | 'map' | 'text'
   from?: string
   to: string
+  rewrite?: WhitelistEntry['rewrite']
 }
 
 export type ListDir = (dir: string) => string[]
@@ -39,28 +43,35 @@ export function resolveCaseInsensitive(root: string, relPath: string, listDir: L
   return current
 }
 
-export function planStaging(bundleDir: string, mapPath: string | undefined, listDir: ListDir = defaultListDir): StagingAction[] {
+export function planStaging(
+  profile: BaselineProfile,
+  bundleDir: string,
+  mapPath: string | undefined,
+  listDir: ListDir = defaultListDir,
+): StagingAction[] {
   const actions: StagingAction[] = [
     { kind: 'mkdir', to: 'Data' },
     { kind: 'mkdir', to: 'Maps' },
     { kind: 'mkdir', to: 'Games' },
   ]
   const missing: string[] = []
-  for (const entry of STAGING_WHITELIST) {
+  for (const entry of profile.whitelist) {
     const src = resolveCaseInsensitive(bundleDir, entry.path, listDir)
     if (src === undefined) {
       if (entry.required) missing.push(entry.path)
       continue
     }
-    if (NEVER_STAGE.some((p) => p.test(basename(entry.path)))) {
-      throw new RefError(ERROR_CODES.CONFIG_INVALID, `whitelist entry ${entry.path} matches a forbidden name`)
+    if (profile.neverStage.some((p) => p.test(basename(entry.path)))) {
+      throw new RefError(ERROR_CODES.CONFIG_INVALID, `whitelist entry ${entry.path} matches a name forbidden for the ${profile.id} baseline`)
     }
-    actions.push({ kind: entry.mode, from: src, to: entry.path })
+    actions.push({ kind: entry.mode, from: src, to: entry.path, ...(entry.rewrite !== undefined ? { rewrite: entry.rewrite } : {}) })
   }
   if (missing.length > 0) {
-    throw new RefError(ERROR_CODES.PREREQ_MISSING, `game folder is missing required files: ${missing.join(', ')}`, {
-      details: { bundleDir, missing },
-    })
+    throw new RefError(
+      ERROR_CODES.PREREQ_MISSING,
+      `the ${profile.id} game folder is missing required files: ${missing.join(', ')}`,
+      { details: { baseline: profile.id, bundleDir, missing } },
+    )
   }
   // The map is staged under a fixed ASCII name: the game lists no scenarios when the file name
   // cannot be represented in the Windows code page (e.g. Cyrillic names under an English locale).
@@ -88,7 +99,12 @@ export function applyStaging(plan: StagingAction[], stagingRoot: string): void {
     }
     const from = a.from as string
     mkdirSync(dirname(to), { recursive: true })
-    if (a.kind === 'symlink') {
+    if (a.kind === 'text') {
+      // Configuration the game may rewrite: staged as a private copy, so a write from inside the
+      // game can never reach the original installation.
+      const wanted = (a.rewrite ?? ((t: string) => t))(readFileSync(from, 'utf8'))
+      if (!existsSync(to) || readFileSync(to, 'utf8') !== wanted) writeFileSync(to, wanted)
+    } else if (a.kind === 'symlink') {
       let exists = false
       try {
         exists = lstatSync(to).isSymbolicLink() && readlinkSync(to) === from

@@ -9,6 +9,7 @@ import { buildVolatileMask, compareWithMasks } from '../../tools/reference-env/a
 import { aggregate } from '../../tools/reference-env/commands/doctor.ts'
 import { GAME_LAYOUT, GAME_VIEW } from '../../tools/reference-env/data/game-layout.ts'
 import { planStaging } from '../../tools/reference-env/env/staging.ts'
+import { baselineProfile } from '../../tools/reference-env/data/baselines.ts'
 import { ERROR_CODES } from '../../tools/reference-env/errors.ts'
 import { captureDir, captureId, writeCaptureAtomically } from '../../tools/reference-env/store/capture-store.ts'
 import { makeRecord } from './fixtures.ts'
@@ -125,7 +126,7 @@ describe('staging plan', () => {
   const listDir = (d: string) => tree[d] ?? []
 
   it('stages whitelisted files case-insensitively and nothing from HotA/HD Mod', () => {
-    const plan = planStaging('/b', '/maps/A.h3m', listDir)
+    const plan = planStaging(baselineProfile('complete'), '/b', '/maps/A.h3m', listDir)
     const froms = plan.map((a) => a.from).filter(Boolean)
     expect(froms).toContain('/b/BINKW32.DLL')
     expect(froms).toContain('/b/Data/H3ab_spr.lod')
@@ -135,7 +136,7 @@ describe('staging plan', () => {
   })
   it('reports missing required files', () => {
     const partial = (d: string) => (d === '/b' ? ['Heroes3.exe', 'Data'] : [])
-    expect(() => planStaging('/b', undefined, partial)).toThrow(expect.objectContaining({ code: ERROR_CODES.PREREQ_MISSING }))
+    expect(() => planStaging(baselineProfile('complete'), '/b', undefined, partial)).toThrow(expect.objectContaining({ code: ERROR_CODES.PREREQ_MISSING }))
   })
 })
 
@@ -157,7 +158,7 @@ describe('capture store', () => {
     const record = makeRecord()
     const id = captureId(new Date('2026-09-14T10:00:00.000Z'), record.visible)
     expect(id).toBe('2026-09-14T10-00-00-000Z_x1-19_y3-21')
-    const dir = captureDir(root, record.map.key, 0, 'game', 'still', id)
+    const dir = captureDir(root, 'complete', record.map.key, 0, 'game', 'still', id)
     await writeCaptureAtomically(dir, record, async (tmp) => {
       const { writeFileSync } = await import('node:fs')
       writeFileSync(join(tmp, 'still.png'), 'x')
@@ -169,7 +170,7 @@ describe('capture store', () => {
   it('leaves nothing behind on failure', async () => {
     const root = temp()
     const record = makeRecord()
-    const dir = captureDir(root, record.map.key, 0, 'game', 'still', 'x')
+    const dir = captureDir(root, 'complete', record.map.key, 0, 'game', 'still', 'x')
     await expect(writeCaptureAtomically(dir, record, async () => undefined)).rejects.toMatchObject({ code: ERROR_CODES.GRAB_FAILED })
     expect(readdirSync(join(dir, '..'))).toEqual([])
   })

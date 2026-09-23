@@ -3,7 +3,7 @@ import type { Command } from '../cli.ts'
 import { cropForRegion } from '../analysis/geometry.ts'
 import { buildVolatileMask } from '../analysis/volatile-mask.ts'
 import { EDITOR_LAYOUT, EDITOR_OVERLAYS, EDITOR_SCREEN, type EditorOverlay } from '../data/editor-layout.ts'
-import { EDITOR_EXE } from '../data/staging-whitelist.ts'
+import { baselineProfile } from '../data/baselines.ts'
 import { openEditor, positionEditorView, setOverlays, showEditorLevel, type EditorSession, type EditorView } from '../env/editor.ts'
 import { writeGrayPng, writePng, type RawFrame } from '../env/grab.ts'
 import { acquireLock } from '../env/lock.ts'
@@ -11,7 +11,8 @@ import { toolVersions } from '../env/tooling.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 import type { CaptureMatch, CaptureRecord } from '../model/types.ts'
 import { captureDir, captureId, writeCaptureAtomically } from '../store/capture-store.ts'
-import { config, intOpt, stagedHashes, targetContext } from './common.ts'
+import { requireAmendment } from '../env/amendment.ts'
+import { assertMapFitsBaseline, baselineOf, config, intOpt, stagedHashes, targetContext } from './common.ts'
 import { requirePrereqs } from './doctor.ts'
 
 export const editorCommand: Command = async (args) => {
@@ -20,8 +21,11 @@ export const editorCommand: Command = async (args) => {
     if (!(o in EDITOR_OVERLAYS)) throw new RefError(ERROR_CODES.USAGE, `unknown overlay "${o}" (known: ${Object.keys(EDITOR_OVERLAYS).join(', ')})`)
     return o as EditorOverlay
   })
-  await requirePrereqs(cfg, ['bundle-found', 'wine', 'xvfb', 'xdotool', 'ffmpeg', 'prefix', 'captures-gitignored'])
+  const baseline = baselineOf(args)
+  requireAmendment(cfg.repoRoot, baseline)
+  await requirePrereqs(cfg, baseline, ['bundle-found', 'wine', 'xvfb', 'xdotool', 'ffmpeg', 'prefix', 'captures-gitignored'])
   const ctx = await targetContext(cfg, args)
+  assertMapFitsBaseline(ctx.map, baseline)
   const lock = await acquireLock(cfg.stateDir, cfg.timeouts.lockWait, `editor ${ctx.map.name}`)
   const launches = intOpt(args, 'launches', 3)
   if (launches < 1 || launches > 10) throw new RefError(ERROR_CODES.USAGE, '--launches must be 1–10')
@@ -32,7 +36,7 @@ export const editorCommand: Command = async (args) => {
     const frames: RawFrame[] = []
     let view: EditorView | undefined
     for (let i = 0; i < launches; i++) {
-      session = await openEditor(cfg, ctx.mapPath, cfg.timeouts.step * 2)
+      session = await openEditor(cfg, baseline, ctx.mapPath, cfg.timeouts.step * 2)
       await showEditorLevel(session, ctx.level)
       await setOverlays(session, overlays)
       const v = await positionEditorView(session, ctx.target, ctx.map.sizeTiles, join(cfg.stateDir, 'spikes', 'editor'))
@@ -51,7 +55,7 @@ export const editorCommand: Command = async (args) => {
       frame.height,
     )
     if (view === undefined) throw new RefError(ERROR_CODES.GRAB_FAILED, 'no editor frame grabbed')
-    const hashes = await stagedHashes(cfg)
+    const hashes = await stagedHashes(cfg, baseline)
     const createdAt = new Date()
     const id = captureId(createdAt, view.visible)
     const req = ctx.target
@@ -60,6 +64,7 @@ export const editorCommand: Command = async (args) => {
       schemaVersion: 1,
       id,
       createdAt: createdAt.toISOString(),
+      baseline,
       source: 'editor',
       kind: 'still',
       map: ctx.map,
@@ -71,14 +76,14 @@ export const editorCommand: Command = async (args) => {
       positionSource: 'editor-view',
       visibility: { method: 'editor', overlays },
       cursor: { drawnByX: false, parkedAt: EDITOR_LAYOUT.cursorPark },
-      executable: { file: EDITOR_EXE, sha256: hashes.editor, label: 'h3maped.exe (original)' },
+      executable: { file: baselineProfile(baseline).editorExe, sha256: hashes.editor, label: baselineProfile(baseline).editorLabel },
       archives: hashes.archives,
       settings: { profileId: 'editor-defaults-v1', values: { overlays, maskLaunches: launches } },
       display: { ...EDITOR_SCREEN },
       files: { still: 'still.png', volatileMask: 'volatile-mask.png' },
       tooling: await toolVersions(cfg.repoRoot, cfg.wineBinary),
     }
-    const dir = captureDir(cfg.capturesDir, ctx.map.key, ctx.level, 'editor', 'still', id)
+    const dir = captureDir(cfg.capturesDir, baseline, ctx.map.key, ctx.level, 'editor', 'still', id)
     await writeCaptureAtomically(dir, record, async (tmp) => {
       await writePng(frame, join(tmp, 'still.png'))
       await writeGrayPng(mask, frame.width, frame.height, join(tmp, 'volatile-mask.png'))

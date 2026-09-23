@@ -532,6 +532,114 @@ Evidence that HotA support is additive:
   suite is 48 files passed, 8 skipped, 290 tests passed, 29 skipped — every real-file suite skips
   with a named reason and nothing fails.
 
+## US4 — the HotA reference baseline (2026-09-23, T066–T071)
+
+The second baseline runs `h3hota.exe` under Wine on a virtual display, exactly as the Complete
+edition baseline runs `Heroes3.exe`, with its own game root, its own calibration and its own
+capture namespace (`reference-captures/hota/…`). Everything below was measured on the owner's
+HotA 1.8.1 install.
+
+### What HotA needs to start from a staged root
+
+`h3hota.exe` exits with code 5, silently, unless `patcher_x86.dll` is present, and then stops with
+a "binkw32new.dll is not found" box until that file is staged too. Both ship with HotA (the first
+is on the Complete baseline's forbidden list because there it would come from HD Mod). With
+`HotA.dll`, `HotA.dat`, `HotA_Data/`, the vanilla runtime DLLs and `Data/HotA*.lod` plus the base
+archives, the game reaches its main menu, loads `test_map_hota.h3m` and reveals it with
+`nwcwhatisthematrix` — the same cheat as the base game. HD Mod files (`HD_*`, `_HD3_*`, `HW_*`,
+`h3hota HD.exe`) are never staged, and `yarn ref doctor --baseline hota` verifies that both from
+the staged folder and from the modules the running game loaded.
+
+`HotA_Setup.ini` is staged as a **copy** with `AutoUpdate=false`, so a capture run neither goes
+online nor writes to the install. The same rule now covers every `.ini` of both baselines: a
+symlinked ini would let the game write into the owner's game folder, which is exactly what
+`yarn ref` must never do. A test asserts it (`test/reference-env/foundation.test.ts`).
+
+### Silence
+
+Captures run on the developer's machine, so a capture must never make a sound. Wine's audio
+drivers (`winepulse`, `winealsa`, `wineoss`, `winecoreaudio`) are disabled for the whole prefix,
+and HotA's own `Enable Bckgr Sounds` is set to false in the staged settings. Both are asserted by
+tests. (The one time sound was heard in this session, it came from a hand-run `wine` command that
+bypassed the tooling's environment, not from `yarn ref`.)
+
+### Recognising HotA's screens: nothing on them holds still
+
+The Complete edition draws its menus as still images, so a hash of a screen region identifies a
+screen. HotA animates the main menu behind the buttons: over eight frames, **41 942 of the button
+column's 124 200 pixels change**, and no sub-region of the menu is still. Two consequences:
+
+- *Finding the menu during calibration* (no probes recorded yet) cannot use "the screen stopped
+  changing". What separates a playing video from a drawn menu is **lit pixels that hold still**: a
+  video's only constant areas are black letterbox. Measured over a launch: 0–3 such pixels while
+  the logos and the intro movie play, then 90 000–146 000 from the frame the menu appears. The
+  threshold is 20 000, roughly a factor of five from either side.
+- *Recognising a screen later* uses a **stable-pixel mask** recorded during calibration: eight
+  frames 350 ms apart, the pixels identical in all of them, hashed in that order. The masks are
+  derived from game output, so they live in `~/.local/state/h3-reference/probes-hota/` and are
+  never committed. A screen with fewer than 2000 stable pixels is refused as unrecognisable.
+
+### Geometry: same pixels, different rectangle
+
+HotA's adventure map at 800×600 uses **the same pixel mapping as the Complete edition**. Measured
+by rendering our own terrain at every candidate offset against a revealed HotA screenshot: the
+match is at camera offset (3432, 64) with **0.21 % of 228 226 compared pixels differing**, and the
+next-best candidate differs on 92 %. That offset is exactly `originTile (107, 2)` with the vanilla
+viewport `{8, 8, 592, 544}` and origin pixel `{0, 8}`.
+
+What does differ is the view rectangle HotA draws on the minimap: **19×18 tiles instead of 19×17**,
+while the view it stands for is still 17 rows tall (centring a view puts the target 9 columns and
+8 rows in, as in the base game). The two uses were therefore separated: the rectangle's size is a
+per-baseline profile value used to read the origin back, and the view's size stays shared. Without
+that split, positioning is off by one row at a clipped map edge and by nothing elsewhere — which is
+how the difference first showed up.
+
+### Captures and fidelity
+
+Seven stills and one clip of `test_map_hota.h3m` were taken, covering the Highlands and Wasteland
+terrains at full-view density, three HotA factions across all five town forms, the base-game town
+block, the novelty zone in the lower-left of the underground, and HotA's 80-frame water. Every one
+passed the tooling's own mapping verification at zero shift (0.4 %–1.6 % of terrain pixels
+differing, the rest exact).
+
+`yarn verify fidelity --map test_map_hota.h3m --all-regions` then gives:
+
+| View | Level | Outcome | Differing of 319 947 compared |
+| --- | --- | --- | --- |
+| water clip, 17 frames | 0 | **pass** | 0 (0.00 %) |
+| Cove/Bulwark towns near the novelty zone | 1 | fail | 1 348 (0.42 %) |
+| base-game town block | 0 | fail | 3 930 (1.23 %) |
+| Wasteland | 1 | fail | 8 402 (2.63 %) |
+| Cove/Castle town forms | 1 | fail | 13 745 (4.30 %) |
+| Highlands | 1 | fail | 17 520 (5.48 %) |
+| novelty zone | 1 | fail | 27 438 (8.58 %) |
+| Factory/Cove/Bulwark town forms | 1 | fail | 44 918 (14.04 %) |
+
+The clip result is the strongest single piece of evidence in this feature: across 17 frames of
+HotA's own 80-frame water, **every pixel matches**, and the palette step advances by exactly one
+per change at a measured 183.3 ms against the expected 180 ms (one 60 fps grab quantum).
+
+The clip also exposed a real flaw in the checker, now fixed: a view whose animated objects never
+change frame produced "object timing could not be measured", which was reported as a failure. It is
+now reported as not measured, with a null interval, and only a measured-and-wrong interval fails.
+
+### The open difference
+
+The seven failing stills differ only on **object pixels** — flat terrain matches, and the terrain
+views' failures sit on object silhouettes, their shadows and vegetation. Two obvious explanations
+were tested and ruled out:
+
+- **Not the shadow-index mapping.** Swapping HotA's indices 2 and 3 changes the Wasteland view's
+  differing count by exactly zero, so those pixels are not drawn through index 2 or 3.
+- **Not RGB565 quantisation.** Of 10 503 differing pixels, zero are explained by quantising either
+  side to the other; only half are within one quantisation step.
+
+The differences are small and systematic (our pixels are usually one or two steps brighter) and
+concentrated where objects meet terrain. The likely remaining causes, in order: a HotA-specific
+frame choice for objects the checker does not know animate, and a shadow rule that differs from the
+base game's for HotA sprites. This is recorded as an open question, not an accepted deviation: it
+needs owner review with the diff images in `check-reports/fidelity/` before it can be called one.
+
 ## Risks and open questions
 
 | # | Risk / unknown | Handling |
@@ -543,4 +651,4 @@ Evidence that HotA support is additive:
 | 5 | An unseen HotA build may use LZMA or a different key | Typed "unsupported compression" error; the key is read per file, never assumed constant |
 | 6 | A third-party vanilla LOD could carry junk at bytes 12–15 other than `0`/`0x7E0213` | Only two junk values observed across 16 archives; the de-XOR sanity asserts catch a wrong key and produce a typed error instead of garbage |
 | 7 | HotA hero gender source not found | Default to the non-suffixed body; documented (R9) |
-| 8 | HotA fidelity may expose base-game rules that were only ever verified on base sprites | Fidelity check compares against HotA captures; differences become accepted deviations with owner review, as in spec 003 |
+| 8 | HotA fidelity may expose base-game rules that were only ever verified on base sprites | Measured: it does. Seven of eight HotA views differ on object pixels by 0.4 %–14 %, terrain and water are exact (US4 above). Cause not yet identified; awaiting owner review, not accepted silently |

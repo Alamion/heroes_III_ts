@@ -44,7 +44,7 @@ async function setup() {
   const defs: DefSprite[] = []
   for (const n of new Set(objects.map((o) => o.def))) if (sprites.has(n)) defs.push(parseDef(await sprites.read(n), n))
   const oc: ObjectContext = { seed: 1, objects, index: new ObjectIndex(objects, state.size, state.levels), atlas: buildObjectAtlas(defs), flagColors: flagColors({ 'game.pal': parseRiffPal(await data.read('game.pal'), 'game.pal') }, toDisplayColor), missing: [] }
-  const ctx: MapContext = { mapPath: 's.h3m', archivePath: 's.lod', sha256: 'x', state, atlas, objects: [new Map(), new Map()], floating: { levels: [{ z: 0, tiles: [], footprint: new Map() }, { z: 1, tiles: [], footprint: new Map() }], warnings: [] } }
+  const ctx: MapContext = { mapPath: 's.h3m', archivePath: 's.lod', archivePaths: ['s.lod'], sha256: 'x', state, atlas, objects: [new Map(), new Map()], floating: { levels: [{ z: 0, tiles: [], footprint: new Map() }, { z: 1, tiles: [], footprint: new Map() }], warnings: [] } }
   const origin = { x: 1, y: 1 }
   const cam = cameraForMapping(0, origin, { x: 0, y: 0 }, W, H)
   const plan = buildDrawPlan(state, atlas.layout, 0, visibleRange(cam, 1))

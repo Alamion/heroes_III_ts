@@ -1,14 +1,13 @@
 // Decoding work shared by the worker and the in-thread fallback: archive → terrain atlas, map →
 // world state, both cached by source identity.
 
-import { HOTA_TERRAINS, terrainLayerDefs, terrainTileName, TERRAINS } from '../core/data/terrain.ts'
+import { terrainAtlasInputs } from '../core/render/terrain-atlas.ts'
 import { parseDef } from '../core/formats/def/def.ts'
-import { parsePcx } from '../core/formats/pcx/pcx.ts'
 import { parseH3mFile } from '../core/formats/h3m/h3m.ts'
 import { ArchiveSet } from '../core/formats/lod/archive-set.ts'
 import { LodArchive } from '../core/formats/lod/lod.ts'
 import { buildAtlas } from '../core/render/atlas.ts'
-import type { Atlas, AtlasInput } from '../core/render/atlas.ts'
+import type { Atlas } from '../core/render/atlas.ts'
 import { fromH3m } from '../core/state/world.ts'
 import type { WorldState } from '../core/state/world.ts'
 import { FORMAT_ERROR_CODES, FormatError } from '../core/util/errors.ts'
@@ -88,39 +87,23 @@ export async function decodeArchive(files: readonly ArchiveFile[], cache: Decode
   const cached = await cache.get<Atlas>('atlas', key)
   if (cached !== undefined) return { identity, atlas: cached, fromCache: true, warnings: [] }
   const lod = await openSet(files)
-  const missing = terrainLayerDefs().filter((d) => !lod.has(d))
-  if (missing.length > 0) {
+  const { inputs, missingDefs, incompleteHotaTerrains } = await terrainAtlasInputs(lod)
+  if (missingDefs.length > 0) {
     throw new FormatError({
       code: FORMAT_ERROR_CODES.NOT_FOUND,
       file: name,
       offset: 0,
       format: 'lod',
       structure: 'entries',
-      message: `archive has no terrain sprites (${missing.slice(0, 3).join(', ')}${missing.length > 3 ? ', …' : ''}); supply the sprite archive (h3sprite.lod)`,
+      message: `archive has no terrain sprites (${missingDefs.slice(0, 3).join(', ')}${missingDefs.length > 3 ? ', …' : ''}); supply the sprite archive (h3sprite.lod)`,
     })
   }
-  const inputs: AtlasInput[] = []
-  for (const defName of terrainLayerDefs()) {
-    inputs.push({ def: parseDef(await lod.read(defName), defName), overlay: !TERRAINS.some((t) => t.defName === defName) })
-  }
-  // HotA terrains ship as numbered PCX tiles and are appended, so the base-game rows and cells
-  // keep the values they had before (spec 005 FR-011, US3).
-  const hotaWarnings: WorkerDiagnostic[] = []
-  for (const terrain of HOTA_TERRAINS) {
-    if (!lod.has(terrainTileName(terrain.prefix, 0))) continue
-    const tiles = []
-    let missing = false
-    for (let i = 0; i < terrain.count; i++) {
-      const tileName = terrainTileName(terrain.prefix, i)
-      if (!lod.has(tileName)) {
-        missing = true
-        hotaWarnings.push({ level: 'warn', code: 'MISSING_TERRAIN_TILE', message: `${terrain.name} tile ${tileName} is missing; the terrain is not drawn`, file: name })
-        break
-      }
-      tiles.push(parsePcx(await lod.read(tileName), tileName))
-    }
-    if (!missing) inputs.push({ tileSet: { name: terrain.prefix, tiles }, overlay: false })
-  }
+  const hotaWarnings: WorkerDiagnostic[] = incompleteHotaTerrains.map((t) => ({
+    level: 'warn' as const,
+    code: 'MISSING_TERRAIN_TILE',
+    message: `${t.terrain} tile ${t.tile} is missing; the terrain is not drawn`,
+    file: name,
+  }))
   const atlas = buildAtlas(inputs)
   await cache.put('atlas', key, atlas)
   return { identity, atlas, fromCache: false, warnings: [...setWarnings(lod, name), ...hotaWarnings] }

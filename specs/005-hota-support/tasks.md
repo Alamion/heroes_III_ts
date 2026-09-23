@@ -175,12 +175,12 @@ byte, and every existing check keeps its previous verdict.
 thresholds as base-game views, comparing only against HotA captures.
 
 - [X] T065 [US4] Amend `.specify/memory/constitution.md` (FR-024): add the HotA reference baseline to Principle II (which build, which install, capture labelling, relation to the Complete baseline); **reconcile the scope order** — Principle II currently reads "(1) RoE/AB/SoD maps, (2) Complete save files, (3) HotA" and the "Formats in scope" list says saves come next, while the owner reordered HotA ahead of saves on 2026-09-22, so record that decision in both places; reserve the HotA budget numbers filled by T075; include the Sync Impact Report and bump the version
-- [ ] T066 [US4] Add the baseline dimension to the reference environment in `tools/reference-env/`: `--baseline complete|hota`, a separate game root built from the HotA install, separate calibration probes, and a capture namespace recorded on every record (FR-021) (depends on T065, T004)
-- [ ] T067 [US4] Refuse the `hota` baseline with a clear message when the constitution amendment is absent, in `tools/reference-env/` (depends on T066)
-- [ ] T068 [US4] Make a fidelity view compare only against captures of its own baseline, erroring on a mismatch, in `tools/checks/fidelity/` (FR-022) (depends on T066)
-- [ ] T069 [US4] Run `yarn ref doctor|setup|calibrate --baseline hota` and record the probes and prerequisites in [research.md](research.md) (depends on T067)
-- [ ] T070 [US4] Capture HotA stills and clips of `test_map_hota.h3m` covering the new terrains, every town faction and form, and the underground novelty zone (FR-021) (depends on T069)
-- [ ] T071 [US4] Run `yarn verify fidelity --map test_map_hota.h3m --all-regions`, fix what it finds, and record any remaining difference as an accepted deviation with owner review in [research.md](research.md) (FR-018, FR-022, SC-004) (depends on T070, T068)
+- [X] T066 [US4] Add the baseline dimension to the reference environment in `tools/reference-env/`: `--baseline complete|hota`, a separate game root built from the HotA install, separate calibration probes, and a capture namespace recorded on every record (FR-021) (depends on T065, T004)
+- [X] T067 [US4] Refuse the `hota` baseline with a clear message when the constitution amendment is absent, in `tools/reference-env/` (depends on T066)
+- [X] T068 [US4] Make a fidelity view compare only against captures of its own baseline, erroring on a mismatch, in `tools/checks/fidelity/` (FR-022) (depends on T066)
+- [X] T069 [US4] Run `yarn ref doctor|setup|calibrate --baseline hota` and record the probes and prerequisites in [research.md](research.md) (depends on T067)
+- [X] T070 [US4] Capture HotA stills and clips of `test_map_hota.h3m` covering the new terrains, every town faction and form, and the underground novelty zone (FR-021) (depends on T069)
+- [X] T071 [US4] Run `yarn verify fidelity --map test_map_hota.h3m --all-regions`, fix what it finds, and record any remaining difference as an accepted deviation with owner review in [research.md](research.md) (FR-018, FR-022, SC-004) (depends on T070, T068)
 
 **Checkpoint**: US4 is complete — HotA fidelity is measured, not assumed.
 

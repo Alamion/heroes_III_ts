@@ -24,12 +24,16 @@ export type Level = 0 | 1
 export type Source = 'game' | 'editor'
 export type Kind = 'still' | 'clip'
 export type StartMode = 'fixed' | 'random'
-export type FormatVersion = 'RoE' | 'AB' | 'SoD'
+export type FormatVersion = 'RoE' | 'AB' | 'SoD' | 'HotA'
+/** Which game build a capture is compared against (constitution II; data/baselines.ts). */
+export type Baseline = 'complete' | 'hota'
 export type Edge = 'left' | 'top' | 'right' | 'bottom'
 export type ExecutableLabel =
   | 'Heroes3.exe (original)'
   | 'Heroes3_HD.exe (HD Mod vanilla profile)'
   | 'h3maped.exe (original)'
+  | 'h3hota.exe (HotA)'
+  | 'h3hota_maped.exe (HotA)'
 
 export interface Timeouts {
   still: number
@@ -115,6 +119,11 @@ export interface CaptureRecord {
   schemaVersion: 1
   id: string
   createdAt: string
+  /**
+   * Which game build this capture came from (spec 005 FR-021). Absent in records written before
+   * the baseline dimension existed; those are Complete-edition captures (see `recordBaseline`).
+   */
+  baseline?: Baseline
   source: Source
   kind: Kind
   map: MapInfo
@@ -156,6 +165,8 @@ export interface CaptureQuery {
   region: TileRange
   source?: Source
   kind?: Kind
+  /** When set, only captures of this baseline match. */
+  baseline?: Baseline
   limit?: number
 }
 
@@ -180,9 +191,11 @@ export interface DoctorReport {
   checks: DoctorCheck[]
 }
 
-export type GameExecutable = 'original' | 'hd-mod'
+export type GameExecutable = 'original' | 'hd-mod' | 'hota'
 
 export interface Calibration {
+  /** Absent in calibrations written before the baseline dimension: those are `complete`. */
+  baseline?: Baseline
   gameExecutable: GameExecutable
   launchMode: 'direct' | 'virtual-desktop'
   gameExeSha256: string

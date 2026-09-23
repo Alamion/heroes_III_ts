@@ -1,13 +1,13 @@
 // Helpers shared by commands: option parsing and the map/hash context of a capture.
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
-import { readH3mHeader } from '../analysis/h3m-header.ts'
+import { readMapHeader } from '../analysis/h3m-header.ts'
 import { parseH3mFile } from '../../../src/core/formats/h3m/h3m.ts'
 import type { ParsedArgs } from '../cli.ts'
 import { loadConfig } from '../config.ts'
-import { EDITOR_EXE, GAME_EXE, HASHED_ARCHIVES } from '../data/staging-whitelist.ts'
+import { baselineForMapVersion, baselineProfile, parseBaseline } from '../data/baselines.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
-import type { FileHash, Level, MapInfo, Point, ReferenceConfig, StartMode } from '../model/types.ts'
+import type { Baseline, FileHash, Level, MapInfo, Point, ReferenceConfig, StartMode } from '../model/types.ts'
 import { resolveMap } from '../store/capture-store.ts'
 import { mapKey, sha256Buffer, sha256File } from '../store/identity.ts'
 import { stagingRoot } from '../env/session.ts'
@@ -41,6 +41,11 @@ export function flag(args: ParsedArgs, name: string): boolean {
   return opt(args, name) === 'true'
 }
 
+/** The baseline a command works on: `--baseline`, default `complete`. */
+export function baselineOf(args: ParsedArgs): Baseline {
+  return parseBaseline(opt(args, 'baseline'))
+}
+
 export interface TargetContext {
   mapPath: string
   map: MapInfo
@@ -51,7 +56,7 @@ export interface TargetContext {
 export async function targetContext(cfg: ReferenceConfig, args: ParsedArgs): Promise<TargetContext> {
   const mapPath = resolveMap(required(args, 'map'), cfg.mapSearchDirs)
   const bytes = readFileSync(mapPath)
-  const header = readH3mHeader(bytes, basename(mapPath))
+  const header = await readMapHeader(bytes, basename(mapPath))
   const sha = sha256Buffer(bytes)
   const level = intOpt(args, 'level', 0)
   if (level !== 0 && level !== 1) throw new RefError(ERROR_CODES.USAGE, '--level must be 0 or 1')
@@ -83,15 +88,34 @@ export async function levelTerrains(mapPath: string): Promise<Uint8Array[]> {
   })
 }
 
-export async function stagedHashes(cfg: ReferenceConfig): Promise<{ game: string; editor: string; archives: FileHash[] }> {
-  const root = stagingRoot(cfg.stateDir)
+export async function stagedHashes(cfg: ReferenceConfig, baseline: Baseline): Promise<{ game: string; editor: string; archives: FileHash[] }> {
+  const profile = baselineProfile(baseline)
+  const root = stagingRoot(cfg.stateDir, baseline)
   const archives: FileHash[] = []
-  for (const a of HASHED_ARCHIVES) archives.push({ file: a, sha256: await sha256File(join(root, a)) })
+  for (const a of profile.hashedArchives) {
+    const path = join(root, a)
+    if (!existsSync(path)) continue // optional whitelist entries this install does not ship
+    archives.push({ file: a, sha256: await sha256File(path) })
+  }
   return {
-    game: await sha256File(join(root, GAME_EXE)),
-    editor: await sha256File(join(root, EDITOR_EXE)),
+    game: await sha256File(join(root, profile.gameExe)),
+    editor: await sha256File(join(root, profile.editorExe)),
     archives,
   }
+}
+
+/**
+ * Refuses a capture of a map the chosen build cannot open: the Complete edition does not read
+ * HotA maps, and a HotA capture must never stand in for a base-game one (constitution II).
+ */
+export function assertMapFitsBaseline(map: MapInfo, baseline: Baseline): void {
+  const expected = baselineForMapVersion(map.formatVersion)
+  if (expected === baseline) return
+  throw new RefError(
+    ERROR_CODES.MAP_UNSUPPORTED,
+    `${map.name} is a ${map.formatVersion} map: capture it with --baseline ${expected}, not ${baseline}`,
+    { details: { map: map.name, formatVersion: map.formatVersion, baseline, expected } },
+  )
 }
 
 export function startMode(value: string | undefined): StartMode {

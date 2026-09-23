@@ -35,7 +35,7 @@ export const stillCommand: Command = async (args) => {
       files: { still: 'still.png', volatileMask: 'volatile-mask.png' },
       verification: { ...verificationBase(s), mapping },
     }
-    const dir = captureDir(cfg.capturesDir, s.ctx.map.key, s.ctx.level, 'game', 'still', id)
+    const dir = captureDir(cfg.capturesDir, s.baseline, s.ctx.map.key, s.ctx.level, 'game', 'still', id)
     await writeCaptureAtomically(dir, record, async (tmp) => {
       await writePng(still, join(tmp, 'still.png'))
       await writeGrayPng(mask, GAME_SCREEN.width, GAME_SCREEN.height, join(tmp, 'volatile-mask.png'))

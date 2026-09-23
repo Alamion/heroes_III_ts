@@ -2,6 +2,7 @@
 // floating-tile computations in Node. Masks are computed once per DEF and kept in memory only.
 
 import { LodArchive } from '../../src/core/formats/lod/lod.ts'
+import { ArchiveSet } from '../../src/core/formats/lod/archive-set.ts'
 import { parseDef } from '../../src/core/formats/def/def.ts'
 import { parseObjectsTxt } from '../../src/core/formats/text/objects-txt.ts'
 import type { ObjectsTxtRow } from '../../src/core/formats/text/objects-txt.ts'
@@ -24,7 +25,7 @@ export interface GameSprites {
   preloadForState(state: WorldState): Promise<void>
 }
 
-export async function openGameSprites(opts: { sprites?: string[]; bitmaps?: string } = {}): Promise<GameSprites> {
+export async function openGameSprites(opts: { sprites?: string[]; bitmaps?: string | string[] } = {}): Promise<GameSprites> {
   const spriteFiles = opts.sprites ?? ['h3sprite.lod', 'H3ab_spr.lod']
   const archives: LodArchive[] = []
   for (const f of spriteFiles) {
@@ -35,7 +36,9 @@ export async function openGameSprites(opts: { sprites?: string[]; bitmaps?: stri
       if (f === spriteFiles[0]) throw err
     }
   }
-  const bitmaps = await LodArchive.open(await NodeFileSource.open(resolveGameFile(opts.bitmaps ?? 'h3bitmap.lod')))
+  // Objects.txt may come from an archive set (HotA first): HotA ships its own, 12 columns wide.
+  const bitmapFiles = opts.bitmaps === undefined ? ['h3bitmap.lod'] : Array.isArray(opts.bitmaps) ? opts.bitmaps : [opts.bitmaps]
+  const bitmaps = new ArchiveSet(await Promise.all(bitmapFiles.map(async (f) => LodArchive.open(await NodeFileSource.open(resolveGameFile(f))))))
   const templates = parseObjectsTxt(await bitmaps.read('Objects.txt'))
   const masks = new Map<string, SpriteMask | null>()
   const lookup = (name: string): SpriteMask | undefined => masks.get(name.toLowerCase()) ?? undefined

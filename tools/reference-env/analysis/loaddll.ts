@@ -1,3 +1,4 @@
+import type { BaselineProfile } from '../data/baselines.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 
 /** Lowercase DLL base names from a Wine `WINEDEBUG=+loaddll` log. */
@@ -13,19 +14,19 @@ export function parseLoadedDlls(logText: string): string[] {
   return [...names].sort()
 }
 
-const ALWAYS_FORBIDDEN = [/^hota\.dll$/, /^hota_me\.dll$/, /^hw_hota\.dll$/, /^hd_hota\.dll$/, /^hota_.*\.dll$/]
-const HD_MOD = [/^_hd3_\.dll$/, /^patcher_x86\.dll$/, /^hd_.*\.dll$/, /^hw_sod\.dll$/]
-
-export function forbiddenDlls(names: string[], opts: { allowHdMod: boolean }): string[] {
-  const patterns = opts.allowHdMod ? ALWAYS_FORBIDDEN : [...ALWAYS_FORBIDDEN, ...HD_MOD]
-  return names.filter((n) => patterns.some((p) => p.test(n)))
+/**
+ * Modules loaded into the game that this baseline forbids: HotA and HD Mod for the Complete
+ * edition, HD Mod for the HotA baseline (which loads HotA's own modules by design).
+ */
+export function forbiddenDlls(names: string[], profile: Pick<BaselineProfile, 'forbiddenModules'>): string[] {
+  return names.filter((n) => profile.forbiddenModules.some((p) => p.test(n)))
 }
 
-export function assertNoForbiddenDlls(names: string[], opts: { allowHdMod: boolean }): void {
-  const bad = forbiddenDlls(names, opts)
+export function assertNoForbiddenDlls(names: string[], profile: Pick<BaselineProfile, 'id' | 'forbiddenModules'>): void {
+  const bad = forbiddenDlls(names, profile)
   if (bad.length > 0) {
-    throw new RefError(ERROR_CODES.HASH_MISMATCH, `forbidden modules loaded into the game: ${bad.join(', ')}`, {
-      details: { forbidden: bad },
+    throw new RefError(ERROR_CODES.HASH_MISMATCH, `modules forbidden for the ${profile.id} baseline loaded into the game: ${bad.join(', ')}`, {
+      details: { baseline: profile.id, forbidden: bad },
     })
   }
 }

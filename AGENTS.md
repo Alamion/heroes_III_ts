@@ -11,7 +11,8 @@ Read it first. If this file conflicts with it, the constitution wins — fix thi
 
 ## Current State
 
-HotA support ([specs/005-hota-support/](specs/005-hota-support/)) is implemented: the obfuscated
+HotA support ([specs/005-hota-support/](specs/005-hota-support/)) is implemented, including its own
+capture baseline (`yarn ref … --baseline hota`): the obfuscated
 HotA 1.8 archive, the `0x20` map format (sub-versions 6, 7, 9 and 10, including the event-system
 block), the Highlands and Wasteland terrains, five town forms per faction, hero classes to 24, the
 HotA sprite conventions, a `hotaarchive` setting on every host and `yarn verify maps`. All 453
@@ -167,6 +168,8 @@ yarn verify all
 
 Reference environment (captures from the original game; see below):
 
+Every command takes `--baseline complete|hota` (default `complete`); see "Baseline game" below.
+
 ```bash
 yarn ref doctor                                   # check prerequisites (exit 3 if any fail)
 yarn ref setup [--force]                          # dedicated Wine prefix + staging root + expected hashes
@@ -265,7 +268,9 @@ Online Wallpaper Engine docs: <https://docs.wallpaperengine.io/>
 ## Baseline Game (fidelity reference)
 
 - Heroes of Might and Magic III: **Complete**, unmodified: original SoD/Complete `Heroes3.exe`
-  plus Complete data archives. Not HD Mod, not HotA.
+  plus Complete data archives. Not HD Mod, not HotA. Content that exists only in HotA is captured
+  from HotA's own build instead (`--baseline hota`, below); a view is only ever compared against
+  captures of its own baseline.
 - Local install: a Complete edition (with HotA + HD Mod on top) in a Wine prefix (path set in
   local config). It contains the original `Heroes3.exe` and `h3maped.exe`. Captures run the
   original executable under plain Wine on a virtual display with HotA/HD Mod not loaded; the
@@ -310,6 +315,31 @@ Facts agents need when touching the tooling:
   up to three times, the first attempt's Return closes such a message.
 - `--debug-steps` saves a screenshot after every session step to the failures folder.
 - Captures of an edited map file are skipped as `map-changed`; `yarn ref doctor` counts them.
+- Captures must be silent: Wine's audio drivers are disabled for the prefix and the staged HotA
+  settings turn background sounds off. Run the game through `yarn ref`, never by hand — a hand-run
+  `wine h3hota.exe` bypasses both and will play music on the developer's machine.
+- Ini files are staged as copies, never symlinks: the game may rewrite them and must never write
+  into the owner's installation.
+
+### The HotA baseline (`--baseline hota`, spec 005 US4)
+
+HotA content is captured from `h3hota.exe` (constitution II, amendment 1.3.0); the tooling refuses
+the baseline outright if that clause is missing from the constitution. It has its own game root
+(`game-root-hota`), calibration (`calibration-hota.json`), probe masks and capture namespace
+(`reference-captures/hota/`), and a map is refused on the baseline that cannot open it.
+
+Facts measured on HotA 1.8.1 (2026-09-23, details in [005 research](specs/005-hota-support/research.md)):
+- `h3hota.exe` needs its own `patcher_x86.dll` and `binkw32new.dll`; without them it exits with
+  code 5 or a "not found" box. HD Mod files are never staged and never loaded.
+- HotA animates its menus, so no region of a menu screen is ever still. Calibration finds the main
+  menu by **lit pixels that hold still** (0–3 during the videos, 90 000+ on the menu) and records a
+  **stable-pixel mask** per probe; screens are recognised through that mask.
+- The adventure-map pixel mapping is identical to the Complete edition's (verified to 0.21 % of
+  228 226 pixels). Only the minimap's view rectangle differs: HotA draws it 19×18 tiles where the
+  base game draws 19×17, while the view itself is still 17 rows.
+- Fidelity: the water clip matches pixel for pixel over 17 frames; the seven stills differ on
+  object pixels by 0.4 %–14 %. That difference is open (not the shadow-index mapping, not RGB565
+  quantisation — both tested) and awaits owner review; do not treat it as accepted yet.
 
 ---
 

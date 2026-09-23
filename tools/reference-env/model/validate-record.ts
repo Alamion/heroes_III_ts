@@ -5,7 +5,14 @@ import type { CaptureRecord } from './types.ts'
 type Obj = Record<string, unknown>
 
 const HEX64 = /^[0-9a-f]{64}$/
-const LABELS = ['Heroes3.exe (original)', 'Heroes3_HD.exe (HD Mod vanilla profile)', 'h3maped.exe (original)']
+const LABELS = [
+  'Heroes3.exe (original)',
+  'Heroes3_HD.exe (HD Mod vanilla profile)',
+  'h3maped.exe (original)',
+  'h3hota.exe (HotA)',
+  'h3hota_maped.exe (HotA)',
+]
+const BASELINES = ['complete', 'hota']
 const EDGES = ['left', 'top', 'right', 'bottom']
 
 function fail(path: string, message: string): never {
@@ -69,6 +76,8 @@ export function validateRecord(value: unknown): CaptureRecord {
   if (r.schemaVersion !== 1) fail('$.schemaVersion', 'expected 1')
   str(r.id, '$.id')
   if (Number.isNaN(Date.parse(str(r.createdAt, '$.createdAt')))) fail('$.createdAt', 'expected ISO date-time')
+  // Absent in records written before the baseline dimension: those are Complete-edition captures.
+  const baseline = r.baseline === undefined ? 'complete' : oneOf(r.baseline, BASELINES, '$.baseline')
   const source = oneOf(r.source, ['game', 'editor'] as const, '$.source')
   const kind = oneOf(r.kind, ['still', 'clip'] as const, '$.kind')
 
@@ -78,7 +87,11 @@ export function validateRecord(value: unknown): CaptureRecord {
   hash(map.sha256, '$.map.sha256')
   const size = int(map.sizeTiles, '$.map.sizeTiles', 1)
   const underground = bool(map.hasUnderground, '$.map.hasUnderground')
-  oneOf(map.formatVersion, ['RoE', 'AB', 'SoD'] as const, '$.map.formatVersion')
+  const formatVersion = oneOf(map.formatVersion, ['RoE', 'AB', 'SoD', 'HotA'] as const, '$.map.formatVersion')
+  // Only the HotA build opens a HotA map, and a HotA capture is never a base-game reference.
+  if ((formatVersion === 'HotA') !== (baseline === 'hota')) {
+    fail('$.baseline', `a ${formatVersion} map cannot be captured on the ${baseline} baseline`)
+  }
 
   const level = oneOf(r.level, [0, 1] as const, '$.level')
   if (level === 1 && !underground) fail('$.level', 'level 1 on a map without underground')

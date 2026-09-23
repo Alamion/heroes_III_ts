@@ -93,18 +93,29 @@ in the harness and counted in the console.
 
 ## 5. Fidelity against HotA
 
-Only after the constitution amendment is in place.
+Only after the constitution amendment is in place; without it every command below refuses with a
+message naming the missing clause.
 
 ```bash
-yarn ref doctor --baseline hota
+yarn ref doctor --baseline hota          # 21 checks, all pass once set up
 yarn ref setup --baseline hota && yarn ref calibrate --baseline hota
 yarn ref still --baseline hota --map test_map_hota.h3m --level 1 --x 12 --y 126
+yarn ref clip  --baseline hota --map test_map_hota.h3m --level 0 --x 10 --y 20 --duration 3000
 yarn verify fidelity --map test_map_hota.h3m --all-regions
 ```
 
-Expected: the HotA baseline builds its own game root and probes; captures land in the HotA
-namespace and carry the baseline id; fidelity views compare only against HotA captures and pass at
-the same thresholds as base-game views. A view compared against the wrong baseline is an error.
+Expected: the HotA baseline builds its own game root (`game-root-hota`), its own calibration
+(`calibration-hota.json`) and its own probe masks; captures land under `reference-captures/hota/`
+and carry `"baseline": "hota"`. Each capture verifies its own tile mapping before it is stored.
+`yarn verify fidelity` picks the baseline from the map itself and compares only against captures of
+that baseline — a capture of the other build is an error naming the mismatch, never a silent skip.
+Measured on 2026-09-23 over eight views: the water clip matches pixel for pixel across 17 frames,
+the seven stills differ on object pixels by 0.4 %–14 % (research.md "The open difference" — under
+owner review, not yet an accepted deviation).
+
+Captures must stay silent: Wine's audio drivers are disabled for the prefix and HotA's own
+background sounds are turned off in the staged settings. Only `yarn ref` guarantees this; a
+hand-run `wine h3hota.exe` does not.
 
 ## 6. On a real host (needs eyes)
 
@@ -135,7 +146,7 @@ predates this feature (see `TODO.md` housekeeping), not something HotA introduce
 | SC-001 coverage classes | §2 `yarn verify maps`, `--all` |
 | SC-002 novelty zone | §4 renders and the harness |
 | SC-003 no regression | §3 |
-| SC-004 HotA fidelity | §5 |
+| SC-004 HotA fidelity | §5 (measured; the remaining object-pixel difference is recorded, not waived) |
 | SC-005 hosts | §6 |
 | SC-006 budgets | §7 |
 | SC-007 honest failure | §1–§2 typed errors, §6 with the setting cleared and a HotA map loaded |
