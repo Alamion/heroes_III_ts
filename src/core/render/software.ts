@@ -117,12 +117,13 @@ export interface SceneObjects {
 /**
  * Terrain, rivers and roads, then objects, then the map border — the renderer's layer order
  * (research.md §2). `owners`, when given, receives the render-object index of the topmost object
- * body drawn at each pixel, or of a shadow over no object (−1 = none).
+ * body drawn at each pixel, or of a shadow over no object (−1 = none); `layers` receives the shadow
+ * layers applied per pixel, which tells a check whether a pixel is body, shadow, or both.
  */
-export function rasterizeScene(plan: DrawPlan, atlas: Atlas, palettes: Uint8Array, cam: Camera, objects: SceneObjects | undefined, owners?: Int32Array): Uint8Array {
+export function rasterizeScene(plan: DrawPlan, atlas: Atlas, palettes: Uint8Array, cam: Camera, objects: SceneObjects | undefined, owners?: Int32Array, layers?: ShadowLayers): Uint8Array {
   const borderFrom = plan.quadCount - plan.layerQuads.border
   const out = rasterize(plan, atlas, palettes, cam, [0, 0, 0], { from: 0, to: borderFrom })
-  if (objects !== undefined) drawObjects(out, objects, cam, owners)
+  if (objects !== undefined) drawObjects(out, objects, cam, owners, layers)
   else owners?.fill(-1)
   rasterize(plan, atlas, palettes, cam, [0, 0, 0], { from: borderFrom, to: plan.quadCount }, out)
   return out
@@ -154,12 +155,18 @@ export function shadowColor(r: number, g: number, b: number, dark: number, light
   return [fromBits(r5, 31), fromBits(g6, 63), fromBits(b5, 31)]
 }
 
+/** Per-pixel shadow layers a draw applied, for checks that ask why a pixel looks as it does. */
+export interface ShadowLayers {
+  dark: Uint8Array
+  light: Uint8Array
+}
+
 /**
  * Draws an object plan over `out` (RGBA, camera-sized): palette lookup and flag colour for body
  * pixels; shadow pixels are counted per kind since the last body pixel and applied at the end in
  * 16-bit colour (research.md T046). The WebGL renderer uses the same model, so both stay bit-equal.
  */
-export function drawObjects(out: Uint8Array, objects: SceneObjects, cam: Camera, owners?: Int32Array): void {
+export function drawObjects(out: Uint8Array, objects: SceneObjects, cam: Camera, owners?: Int32Array, layers?: ShadowLayers): void {
   const { plan, atlas, flagColors } = objects
   const { width, height } = cam
   owners?.fill(-1)
@@ -213,6 +220,10 @@ export function drawObjects(out: Uint8Array, objects: SceneObjects, cam: Camera,
         }
       }
     }
+  }
+  if (layers !== undefined) {
+    layers.dark.set(dark)
+    layers.light.set(light)
   }
   for (let i = 0; i < width * height; i++) {
     if (dark[i] === 0 && light[i] === 0) continue

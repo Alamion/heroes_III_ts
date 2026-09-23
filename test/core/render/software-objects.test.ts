@@ -24,6 +24,29 @@ describe('software rasterizer with objects', async () => {
   const palettes = palettesAt(terrainAtlas.layout, terrainAtlas.palettes, 0)
   const scene = { plan: objectPlan, atlas: s.atlas, flagColors: s.colors }
 
+  it('reports the shadow layers it applied, so a check can tell shadow from body', () => {
+    const layers = { dark: new Uint8Array(cam.width * cam.height), light: new Uint8Array(cam.width * cam.height) }
+    const img = rasterizeScene(plan, terrainAtlas, palettes, cam, scene, undefined, layers)
+    const plain = rasterize(plan, terrainAtlas, palettes, cam)
+    let shadowed = 0
+    let onTerrain = 0
+    for (let i = 0; i < cam.width * cam.height; i++) {
+      const d = layers.dark[i] as number
+      const l = layers.light[i] as number
+      if (d === 0 && l === 0) continue
+      shadowed++
+      // A shadow falls on the terrain or on a body drawn before it. Where it fell on the terrain,
+      // the drawn pixel is exactly that terrain shaded by the reported layers — which is what lets
+      // a check compare the game's shadow with ours (spec 005 research, the HotA shadow question).
+      const [r, g, b] = shadowColor(plain[i * 4] as number, plain[i * 4 + 1] as number, plain[i * 4 + 2] as number, d, l)
+      if (img[i * 4] === r && img[i * 4 + 1] === g && img[i * 4 + 2] === b) onTerrain++
+    }
+    expect(shadowed).toBeGreaterThan(0)
+    expect(onTerrain).toBeGreaterThan(0)
+    // No layers reported where nothing shaded the pixel: those pixels are the plain scene.
+    expect(layers.dark.some((v, i) => v === 0 && (layers.light[i] as number) === 0)).toBe(true)
+  })
+
   it('draws owner colours on flag pixels and records the topmost object per pixel', () => {
     const owners = new Int32Array(cam.width * cam.height)
     const img = rasterizeScene(plan, terrainAtlas, palettes, cam, scene, owners)

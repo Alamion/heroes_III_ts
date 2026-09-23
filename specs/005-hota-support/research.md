@@ -678,37 +678,41 @@ Effect on the HotA fidelity views: the town-forms view went from 44 918 to **16 
 pixels (14.04 % → 5.07 %) and the Cove/Castle forms view from 13 745 to **9 610** (4.30 % → 3.00 %).
 Base-game fidelity is unchanged at 7 fail / 5 pass.
 
-### The open difference, narrowed
+### The open difference, narrowed to the shadow rule
 
-What remains after the town fixes is smaller and of one kind: thin outlines along object edges and a
-band of terrain beside some objects, on every view with objects (0.42 %–8.58 %). Three explanations
-were tested and ruled out:
+After the town fixes, the rest of the difference is **object shadows**, and the rasterizer now says
+so per pixel: `rasterizeScene`/`drawObjects` take an optional `layers` output with the dark and
+light shadow steps applied at each pixel, next to the `owners` output that already existed. Of the
+town view's 18 328 differing pixels, 12 923 are single-dark shadows and 3 530 single-light ones;
+only 1 871 are body or terrain.
 
-- **Not the shadow-index mapping.** Swapping HotA's indices 2 and 3 changes the differing count by
-  exactly zero, on the Wasteland view and on the town view.
-- **Not RGB565 quantisation.** The game's own colours are quantised too — its pixels sit in the
-  quantised palette, not the raw one — and no differing pixel is explained by quantising either
-  side to the other.
-- **Not a different shading strength.** Rendering the terrain alone under each differing pixel shows
-  that our value is exactly `terrain >> 1` per 5/6/5-bit channel — the measured base-game "dark"
-  rule — while the game's value is `(terrain >> 1) + delta`.
+Restricted to the clean case — one dark layer, falling on plain terrain, where our value is exactly
+the measured base-game rule `terrain >> 1` per 5/6/5-bit channel — the game disagrees **by terrain**:
 
-`delta` is what is left to explain. It is **constant within a sprite** (881 of the Cove citadel's
-1 999 differing pixels share `delta = (3, 1, 0)`, and our side is exactly `terrain >> 1` on all of
-them) but **differs between views**: `(−1, −2, −1)` on Wasteland, `(0…1, 2…3, 0)` on Highlands,
-`(−6…−7, −9…−10, −3)` on the base-game town block. So the game does not darken the background by a
-fixed rule at all: it blends it with a colour that depends on what is casting the shadow. The
-sprite's own palette entries at the shadow indices do not match that colour directly (the Cove
-citadel's are `7,7,4` and `5,5,8` against a `delta` implying roughly `49,8,0`), so the blend takes
-its colour from somewhere else.
+| View | Terrain | Agree | Differ | Dominant offset from `terrain >> 1` |
+| --- | --- | --- | --- | --- |
+| HotA town forms | sand (1) | 22 | 12 228 | **(+3, +1, 0)** on 7 916 pixels |
+| base-game town block | dirt (0) | 3 360 | 2 598 | (−6, −9, −3), scattered |
+| Wasteland | wasteland (11) | 119 | 4 711 | (−1, −2, −1), scattered |
+| Cove/Bulwark towns | highlands (10) | 2 713 | 895 | (−3, −10, −1), scattered |
 
-A second, smaller case sits alongside it: on 400–1 900 pixels per view we draw plain terrain where
-the game draws something — a shadow we do not cast at all.
+The sand row is the one to explain: a single offset, on nearly every shadow pixel of the view. It is
+not a scaling — the per-channel mapping is `red: (T>>1)+3`, `green: (T>>1)+1`, `blue: T>>1` across
+the whole range of terrain values, so no common multiplier fits all three channels. Written as a
+blend `(T + S) / 2`, the implied `S` is `(6, 2, 0)` in 5/6/5, about `(48, 8, 0)` in eight bits — a
+dark warm brown. Ruled out as its source: the sprite's palette (the shadow indices of these town
+sprites hold marker colours, and the sprites that share the offset have different palettes) and the
+sand tile's own palette (its only dark entries are `(39,57,21)` and `(41,36,25)`).
 
-**Next step**, when this is picked up: instrument the software rasterizer to record, per pixel, the
-sprite and the palette index that produced it, then fit `delta` per (sprite, index). That turns the
-question from "what rule?" into a table lookup, the same way the town forms were settled. Until
-then this stays an open question, not an accepted deviation.
+So five mechanisms have been tested and eliminated: the shadow-index mapping, RGB565 quantisation,
+a different shading strength, a per-sprite shadow colour, and the terrain tile's palette.
+
+**Next experiment**, and the cheapest one: a purpose-built probe map — one shadow-casting object of
+the same sprite on each terrain, nothing else — captured once on the HotA baseline. That isolates
+`terrain → shadow` with no draw-order, frame or neighbour effects, and would settle in one capture
+whether the rule is per terrain, per tile palette or per sprite. Failing that, instrumenting the
+terrain rasterizer to report the atlas row and palette index per pixel would show whether the
+game's shadowed colour is a palette entry of the tile rather than arithmetic on the colour.
 
 ## Risks and open questions
 

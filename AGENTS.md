@@ -344,10 +344,13 @@ Facts measured on HotA 1.8.1 (2026-09-23, details in [005 research](specs/005-ho
   base game draws 19×17, while the view itself is still 17 rows.
 - Fidelity: the water clip matches pixel for pixel over 17 frames. The stills' object pixels differ
   by 0.4 %–8.6 % after two town-form rules were found and fixed with these captures. What is left is
-  object shadows: our value is exactly `terrain >> 1`, the game's is that plus an offset that is
-  constant within a sprite but differs between views — so the game blends the background with a
-  colour that depends on what casts the shadow. Not the shadow-index mapping and not RGB565
-  quantisation (both tested to zero effect). Open; do not treat it as accepted yet.
+  **object shadows, and the difference follows the terrain**: on sand nearly every single-dark
+  shadow pixel is `(terrain >> 1) + (3, 1, 0)` in 5/6/5 where ours is `terrain >> 1`; on the other
+  terrains most agree and the rest scatter. Five mechanisms are tested and ruled out (shadow-index
+  mapping, RGB565 quantisation, shading strength, per-sprite shadow colour, the tile's palette);
+  the next step is a probe map with one object per terrain (005 research). Open; do not treat it as
+  accepted yet. `rasterizeScene` takes an optional `layers` output with the shadow steps per pixel,
+  which is what makes this measurable.
 
 ---
 
