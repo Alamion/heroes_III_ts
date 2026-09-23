@@ -344,13 +344,14 @@ Facts measured on HotA 1.8.1 (2026-09-23, details in [005 research](specs/005-ho
   base game draws 19×17, while the view itself is still 17 rows.
 - Fidelity: the water clip matches pixel for pixel over 17 frames. The stills' object pixels differ
   by 0.4 %–8.6 % after two town-form rules were found and fixed with these captures. What is left is
-  **object shadows on two terrains**. The owner's probe map `test_shadows.h3m` (in the HotA install's
-  `Maps`, one witch hut per surface terrain) shows the shadow rule `terrain >> 1` holds exactly on
-  dirt, grass, snow, swamp, rough, lava and highlands, and fails on every shadow pixel of sand and
-  wasteland — not at the edges, the whole shadow. On sand the channels disagree in different ways
-  (red like `× 5/8`, green `+1`, blue exact), so it is not arithmetic on the colour; seven mechanisms
-  are ruled out (005 research). Open; do not treat it as accepted yet. `rasterizeScene` takes an
-  optional `layers` output with the shadow steps per pixel, which is what makes this measurable.
+  **object shadows on two terrains**, and the cause is known: HotA recolours shadows by soil type (its
+  1.7.2 changelog). Measured on the owner's probe map `test_shadows.h3m` (in the HotA install's `Maps`,
+  one witch hut per terrain): black at 50 % everywhere except **sand** (50 % towards a dark brown, `S`
+  about `(6,2,0)` in 5/6/5, exact) and **wasteland** (about 60 % towards `S ≈ (3,1,0)`, not yet exact).
+  The Complete edition draws black on sand, so the rule is HotA-only. Still open: whether the terrain
+  is read under each shadow pixel or under the object (005 research). Not implemented yet.
+  `rasterizeScene` takes an optional `layers` output with the shadow steps per pixel, which is what
+  makes this measurable.
 
 ---
 

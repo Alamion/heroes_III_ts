@@ -743,9 +743,40 @@ and ruled out on the probe captures, in addition to the five mechanisms above:
 - **the nearest palette entry to `terrain >> 1`**: explains 0 of 417 sand pixels and 15 of 405
   wasteland ones.
 
-Open. What sand and wasteland share, and the other seven terrains do not, is the next question;
-the probe map and its two captures make any candidate a one-command test
-(`yarn verify fidelity --map test_shadows.h3m --all-regions`).
+### Solved in principle: HotA recolours shadows by soil type
+
+HotA's own changelog names the mechanism. Version 1.7.2 (2024-12-31) lists *"Fixed faulty shadow
+recoloring depending on the soil type of the currently selected hero"*
+([changelog](https://homm.miraheze.org/wiki/Horn_of_the_Abyss_(Changelog))): HotA tints object shadows
+by the terrain, and 1.7.2 fixed it taking the terrain from the selected hero. None of the study
+sources in `context/` model it — the Android port, MMArchive and VCMI all draw a shadow as black at
+alpha 128, and no terrain config (VCMI's or its HotA mod's) carries a shadow property.
+
+Measured on the probe captures (both layers, every pixel of every hut):
+
+- **Within a terrain the game's shadow is a function of the terrain colour alone** (no colour maps
+  to two results), but **the same colour shadows differently on different terrains** — `(156,113,74)`
+  gives `(74,57,33)` on dirt and `(99,61,33)` on sand. So the terrain type, not the pixel, chooses
+  the rule.
+- A linear fit per channel gives slope 0.50 and offset −0.25 (the floor of `>> 1`) on dirt, grass,
+  snow, swamp, rough, lava, highlands, subterranean and water: black at 50 %.
+- **Sand** — same strength, a coloured shadow: dark `(T >> 1) + (S >> 1)` and light edge
+  `(T >> 1) + (T >> 2) + (S >> 2)` reproduce every dark and every light pixel exactly for
+  `S ∈ {6,7} × {2,3} × {0,1}` in 5/6/5, a very dark brown near `(52, 10, 4)` in eight bits. That is
+  the usual 16-bit 50 % blend, towards brown instead of black.
+- **Wasteland** — stronger and coloured: a blend `T × (1 − α) + α × S` with **α ≈ 0.6** for the dark
+  layer (0.61 / 0.60 / 0.61 per channel) and α/2 for the edge, `S ≈ (3, 1, 0)`, explains red and blue
+  on all 1 086 pixels and green on 94 %; the exact arithmetic is not pinned yet.
+- **Base game**: a Complete-edition capture of `test_map.h3m`'s sand zone (x 109–127, y 72–88) has
+  black shadows on sand — 2 694 of 3 228 single-dark pixels agree with `T >> 1`, and none of the rest
+  shows the `(+3, +1, 0)` offset (they are draw-order and double-shadow cases in a dense cluster). The
+  recolouring is HotA's, so it applies to HotA maps only, like the five town forms.
+
+**Open before implementing**: whether the terrain is taken under each shadow pixel or under the
+object. Every shadow in the existing captures lies on its object's own terrain (17 413 pixels in the
+town views, all of the probe map), so no capture can tell. A probe with huts standing next to a
+terrain border, their shadows spilling onto the neighbour, settles it; so would more light-edge and
+wasteland data for the exact wasteland arithmetic.
 
 ### Hosts: the HotA archive must be loaded first (found on a real KDE session, 2026-09-23)
 
