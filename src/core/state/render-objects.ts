@@ -56,6 +56,12 @@ function terrainAt(state: WorldState, x: number, y: number, z: number): number {
  * The base game only ever shows three forms, because its `Objects.txt` declares the castle
  * template alone; HotA repainted all nine factions and added the fort and citadel forms, so a HotA
  * map picks by fortification level (spec 005 research M7, FR-013).
+ *
+ * The form follows the **fortification** built, not the town hall: a town with a Capitol but only
+ * a Fort shows the fort. The capitol form is the castle with a capitol on top, so it needs both.
+ * Measured against HotA 1.8.1 on twenty towns of four factions — each form was rendered and
+ * compared with the capture, and the town with capitol-but-no-castle matched the fort form on 858
+ * pixels against 13 942 for the capitol form (spec 005 research).
  */
 function townDef(faction: number, state: WorldState, id: ObjectId, fallback: string): string {
   const sprites = TOWN_SPRITES[faction]
@@ -63,14 +69,14 @@ function townDef(faction: number, state: WorldState, id: ObjectId, fallback: str
   if (sprites === undefined || town === undefined) return fallback
   const built = town.buildings
   const bit = (b: number): boolean => built !== null && (((built[0] ?? 0) >> b) & 1) === 1
-  if (bit(BUILDING_BIT_CAPITOL)) return sprites.capitol
   const hasFort = town.hasFort || bit(BUILDING_BIT_FORT)
   if (state.map.version === 'HotA') {
-    if (bit(BUILDING_BIT_CASTLE)) return sprites.castle
+    if (bit(BUILDING_BIT_CASTLE)) return bit(BUILDING_BIT_CAPITOL) ? sprites.capitol : sprites.castle
     if (bit(BUILDING_BIT_CITADEL)) return sprites.citadel ?? sprites.castle
     if (hasFort) return sprites.fort ?? sprites.castle
     return sprites.village
   }
+  if (bit(BUILDING_BIT_CAPITOL)) return sprites.capitol
   if (hasFort) return sprites.castle
   return sprites.village
 }

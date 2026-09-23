@@ -15,9 +15,9 @@ describe('object tables', () => {
   })
 
   it('has five distinct town sprites per faction, including the HotA factions', () => {
-    // Base-game factions plus HotA's Cove and Factory (spec 005 FR-013).
+    // Base-game factions plus HotA's Cove, Factory and its twelfth town (spec 005 FR-013).
     expect(TOWN_SPRITES).toHaveLength(HOTA_FACTION_COUNT)
-    expect(HOTA_FACTION_COUNT).toBe(FACTION_COUNT + 2)
+    expect(HOTA_FACTION_COUNT).toBe(FACTION_COUNT + 3)
     for (const t of TOWN_SPRITES) {
       const forms = [t.village, t.fort, t.citadel, t.castle, t.capitol].filter((d): d is string => d !== null)
       expect(forms).toHaveLength(5)

@@ -640,6 +640,62 @@ frame choice for objects the checker does not know animate, and a shadow rule th
 base game's for HotA sprites. This is recorded as an open question, not an accepted deviation: it
 needs owner review with the diff images in `check-reports/fidelity/` before it can be called one.
 
+### Town forms measured against the game (2026-09-23, after US4)
+
+The first thing the HotA captures were used for was the open object-pixel difference. Attributing
+every differing pixel of the town view to the sprite that drew it (each draw-list entry's rect, top
+one wins) put **all 47 019 of them on town sprites**, and the palette test was decisive: the colours
+the game drew are **not in `avcbulf0.def`'s palette at all**, while 77.6 % of them are in
+`avcbulc0.def`'s. The game was drawing a different form of the same town.
+
+Rendering every town in the view as each of the five forms and counting differing pixels per town
+against the capture settled the rule on twenty towns of four factions:
+
+| Built | Form the game draws | Best-match pixels vs the next form |
+| --- | --- | --- |
+| nothing | village | 0 |
+| fort | fort | 858–1 268 vs 4 285–11 820 |
+| fort + citadel | citadel | 1 704–3 131 vs 3 294–12 560 |
+| fort + citadel + castle | castle | 1 350–3 077 vs 2 494–15 996 |
+| all, incl. capitol | capitol | 1 384–2 278 vs 1 762–3 026 |
+| **fort + capitol, no castle** | **fort** | **858 vs 13 942 for the capitol form** |
+
+Two defects followed, both now fixed:
+
+- **The capitol form is the castle with a capitol on top**, so it needs both. Our rule checked the
+  capitol bit first and drew the capitol form for a town with a Capitol but only a Fort. That
+  combination cannot be built in play but the editor places it, and the owner's map has one — which
+  is exactly why the check map holds every combination.
+- **HotA 1.8.1 has a twelfth town** (sprite stem `bul`), and our table stopped at eleven factions,
+  so all five of its forms fell back to the map template's sprite. The map header said so all along:
+  sub-version 10 reports 12 town types, and `HotA.lod` ships `avcbule0/f0/c0/x0/z0.def`. It is not
+  playable in 1.8.1, but the editor places it and the game draws it.
+
+Both are covered by tests on synthetic maps (`test/core/formats/h3m-hota.test.ts`), which is why the
+fixture can now place towns with a chosen building mask.
+
+Effect on the HotA fidelity views: the town-forms view went from 44 918 to **16 227** differing
+pixels (14.04 % → 5.07 %) and the Cove/Castle forms view from 13 745 to **9 610** (4.30 % → 3.00 %).
+Base-game fidelity is unchanged at 7 fail / 5 pass.
+
+### The open difference, narrowed
+
+What remains after the town fixes is smaller and of one kind: thin outlines along object edges and a
+band of terrain beside some objects, on every view with objects (0.42 %–8.58 %). Measured facts:
+
+- It is **not** the shadow-index mapping. Swapping HotA's indices 2 and 3 changes the differing
+  count by exactly zero on both the Wasteland view and the town view.
+- It is **not** RGB565 quantisation: the game's own colours are quantised too (the reference's
+  pixels sit in the quantised palette, not the raw one), and no differing pixel is explained by
+  quantising either side to the other.
+- The remaining pairs are neighbouring palette entries (e.g. `123,81,58` → `99,77,58`: one channel
+  unchanged, the others off by one and three steps), not a uniform darkening — so it is a different
+  palette **index**, not a different shading of the same one.
+
+That points at the frame chosen for objects the checker does not know animate, or a HotA rule for
+which pixels of a sprite are shaded. Still an open question for owner review, with the diff images
+in `check-reports/fidelity/`.
+
 ## Risks and open questions
 
 | # | Risk / unknown | Handling |

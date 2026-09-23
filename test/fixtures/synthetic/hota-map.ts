@@ -17,6 +17,12 @@ export interface SyntheticHotaMapOptions {
   scriptActive?: boolean
   /** Tiles use Highlands (10) and Wasteland (11) as well as grass. */
   hotaTerrains?: boolean
+  /**
+   * Extra towns of the first template's faction, one per entry, placed in a row. `null` is a town
+   * without custom buildings and without a fort; a number is the custom building mask's first byte
+   * (bit 2 capitol, 3 fort, 4 citadel, 5 castle), which is what the adventure sprite follows.
+   */
+  townBuildings?: (number | null)[]
 }
 
 /** Object templates the fixture places, with the class/subtype the reader dispatches on. */
@@ -155,7 +161,8 @@ export function writeHotaMap(opts: SyntheticHotaMapOptions = {}): Uint8Array {
   w.u32(TEMPLATES.length)
   for (const t of TEMPLATES) writeTemplate(w, t)
 
-  w.u32(TEMPLATES.length)
+  const extraTowns = opts.townBuildings ?? []
+  w.u32(TEMPLATES.length + extraTowns.length)
   TEMPLATES.forEach((t, index) => {
     w.u8(index + 1).u8(index + 1).u8(0)
     w.u32(index)
@@ -199,6 +206,31 @@ export function writeHotaMap(opts: SyntheticHotaMapOptions = {}): Uint8Array {
       default:
         break
     }
+  })
+
+  // Extra towns share the town template, so they differ only in what is built in them.
+  extraTowns.forEach((built, i) => {
+    w.u8(6 + i * 2).u8(6).u8(0)
+    w.u32(0) // the town template
+    w.zeros(5)
+    w.u32(300 + i) // identifier
+    w.u8(0) // owner
+    w.bool(false) // no name
+    w.bool(false) // no garrison
+    w.u8(0) // formation
+    if (built === null) {
+      w.bool(false).bool(false) // no custom buildings, no fort
+    } else {
+      w.bool(true) // custom buildings
+      w.u8(built).zeros(5) // built mask
+      w.zeros(6) // forbidden mask
+    }
+    w.zeros(9).zeros(9) // spell masks
+    w.u8(0) // allow spell research
+    if (sub >= 5) w.u32(0) // no special buildings
+    w.u32(0) // no events
+    w.u8(0xff) // alignment
+    w.zeros(3)
   })
 
   // --- global events and trailer ------------------------------------------------------------------

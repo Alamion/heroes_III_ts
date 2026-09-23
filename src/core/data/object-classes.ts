@@ -285,8 +285,14 @@ export function randomRule(classId: number): RandomRule | undefined {
 /** Base-game factions: Castle … Conflux. Random towns roll only among these. */
 export const FACTION_COUNT = 9
 
-/** HotA adds Cove (9) and Factory (10). */
-export const HOTA_FACTION_COUNT = 11
+/**
+ * HotA adds Cove (9), Factory (10) and a twelfth town (11, sprite stem `bul`). The twelfth is not
+ * playable in 1.8.1, but its five adventure sprites ship in `HotA.lod`, the editor places it and
+ * the game draws it — `test_map_hota.h3m` has all five of its forms, and a capture of them
+ * matched sprite for sprite (spec 005 research "Town forms measured against the game").
+ * The map header agrees: sub-version 10 reports 12 town types.
+ */
+export const HOTA_FACTION_COUNT = 12
 
 /**
  * Adventure-map hero sprites, one per hero class. Heroes are not listed in Objects.txt; these are
@@ -342,6 +348,7 @@ export const TOWN_SPRITES: readonly TownSprites[] = [
   { village: 'avchfor0.def', fort: 'avchfof0.def', citadel: 'avchfoc0.def', castle: 'avchforx.def', capitol: 'avchforz.def' },
   { village: 'avccove0.def', fort: 'avccovf0.def', citadel: 'avccovc0.def', castle: 'avccovx0.def', capitol: 'avccovz0.def' },
   { village: 'avcface0.def', fort: 'avcfacf0.def', citadel: 'avcfacc0.def', castle: 'avcfacx0.def', capitol: 'avcfacz0.def' },
+  { village: 'avcbule0.def', fort: 'avcbulf0.def', citadel: 'avcbulc0.def', castle: 'avcbulx0.def', capitol: 'avcbulz0.def' },
 ]
 
 /** Random town (class 77), same five forms. */

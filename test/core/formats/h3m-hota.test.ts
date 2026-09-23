@@ -6,6 +6,10 @@ import { parseH3m } from '../../../src/core/formats/h3m/h3m.ts'
 import { featuresFor, HOTA_MAX_SUBVERSION } from '../../../src/core/formats/h3m/features.ts'
 import { ByteWriter } from '../../fixtures/synthetic/writer.ts'
 import { writeHotaMap } from '../../fixtures/synthetic/hota-map.ts'
+import { fromH3m } from '../../../src/core/state/world.ts'
+import { buildRenderObjects } from '../../../src/core/state/render-objects.ts'
+import { createRng } from '../../../src/core/util/rng.ts'
+import { HOTA_FACTION_COUNT, TOWN_SPRITES } from '../../../src/core/data/object-classes.ts'
 
 const parse = (opts: Parameters<typeof writeHotaMap>[0], name = 'synthetic-hota.h3m') => parseH3m(writeHotaMap(opts), name)
 
@@ -104,5 +108,51 @@ describe('HotA map format', () => {
   it('still reports a genuinely unknown format', () => {
     const wog = new ByteWriter().u32(0x33).zeros(40).toBytes()
     expect(() => parseH3m(wog, 'wog.h3m')).toThrow(/not supported/)
+  })
+})
+
+/**
+ * The adventure sprite of a HotA town follows the fortification built, not the town hall, and the
+ * capitol form is the castle with a capitol on top. Measured against HotA 1.8.1 on twenty towns of
+ * four factions (spec 005 research US4); this keeps the rule covered without game files.
+ */
+describe('HotA town forms', () => {
+  const BIT = { capitol: 1 << 2, fort: 1 << 3, citadel: 1 << 4, castle: 1 << 5 }
+  const cove = TOWN_SPRITES[9] as (typeof TOWN_SPRITES)[number]
+
+  const spritesFor = (townBuildings: (number | null)[]): string[] => {
+    const map = parseH3m(writeHotaMap({ townBuildings }), 'forms.h3m')
+    const state = fromH3m(map, { sha256: 'x', name: 'forms.h3m', version: map.version }, 1)
+    // Towns take their sprite from the map's template and the buildings, not from Objects.txt.
+    const { objects } = buildRenderObjects(state, { templates: [], artifactClasses: [] }, createRng(1))
+    // The template's own town comes first; the extras follow in the order they were written.
+    return objects.filter((o) => o.classId === 98).map((o) => o.def).slice(1)
+  }
+
+  it('picks the form from the fortification built', () => {
+    expect(spritesFor([null, BIT.fort, BIT.fort | BIT.citadel, BIT.fort | BIT.citadel | BIT.castle])).toEqual([
+      cove.village,
+      cove.fort,
+      cove.citadel,
+      cove.castle,
+    ])
+  })
+
+  it('shows the capitol form only when the castle is built too', () => {
+    // A capitol without a castle is impossible in play but placeable in the editor, and the game
+    // draws the fort: measured 858 differing pixels against 13 942 for the capitol form.
+    expect(spritesFor([BIT.fort | BIT.capitol])).toEqual([cove.fort])
+    expect(spritesFor([BIT.fort | BIT.citadel | BIT.castle | BIT.capitol])).toEqual([cove.capitol])
+  })
+
+  it('knows the twelfth faction, whose five forms ship in HotA 1.8.1', () => {
+    expect(TOWN_SPRITES).toHaveLength(HOTA_FACTION_COUNT)
+    expect(TOWN_SPRITES[11]).toEqual({
+      village: 'avcbule0.def',
+      fort: 'avcbulf0.def',
+      citadel: 'avcbulc0.def',
+      castle: 'avcbulx0.def',
+      capitol: 'avcbulz0.def',
+    })
   })
 })

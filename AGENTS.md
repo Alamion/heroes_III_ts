@@ -73,7 +73,12 @@ are HotA 1.8.1):
   counts the 32-byte header.
 - Towns: **five** forms per faction in HotA (village, fort `f0`, citadel `c0`, castle `x0`, capitol
   `z0`) with irregular stems; the base game only ever shows three, because its `Objects.txt`
-  declares the castle template alone. The two-sprite rule above is base-game only.
+  declares the castle template alone. The two-sprite rule above is base-game only. The form follows
+  the **fortification** built, not the town hall: a town with a Capitol but only a Fort shows the
+  fort (measured; the editor places that otherwise impossible combination), so the capitol form
+  needs the castle too. HotA 1.8.1 has **twelve** factions — the twelfth (stem `bul`) is not
+  playable but ships all five sprites, the editor places it and the game draws it; the map header
+  reports 12 town types.
 
 ---
 
@@ -337,9 +342,11 @@ Facts measured on HotA 1.8.1 (2026-09-23, details in [005 research](specs/005-ho
 - The adventure-map pixel mapping is identical to the Complete edition's (verified to 0.21 % of
   228 226 pixels). Only the minimap's view rectangle differs: HotA draws it 19×18 tiles where the
   base game draws 19×17, while the view itself is still 17 rows.
-- Fidelity: the water clip matches pixel for pixel over 17 frames; the seven stills differ on
-  object pixels by 0.4 %–14 %. That difference is open (not the shadow-index mapping, not RGB565
-  quantisation — both tested) and awaits owner review; do not treat it as accepted yet.
+- Fidelity: the water clip matches pixel for pixel over 17 frames. The stills' object pixels differ
+  by 0.4 %–8.6 % after two town-form rules were found and fixed with these captures. What is left
+  is thin outlines along object edges: not the shadow-index mapping and not RGB565 quantisation
+  (both tested to zero effect), but neighbouring palette indices. Open for owner review; do not
+  treat it as accepted yet.
 
 ---
 
