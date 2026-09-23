@@ -28,10 +28,9 @@ export type ShadowKind = 'light' | 'dark'
  * c: light (index 1) → (c >> 1) + (c >> 2), dark (index 4) → c >> 1. Indices 6 and 7 did not occur
  * in the captured base-game sprites; 7 is assumed light, 6 dark.
  *
- * Indices 2 and 3 are HotA's shadow slots, where 3 behaves like base index 1 and 2 like base index
- * 4. This is not a per-file exception: sweeping both archives (spec 005 T041) found them in 699 of
- * 1072 HotA adventure sprites and in 2 of 1369 base-game ones, where they cover 1 and 25 pixels.
- * The indices themselves are therefore the signal and no name list is needed.
+ * Indices 2 and 3 carry HotA's shadows in the sprites that use them as shadows: 3 behaves like base
+ * index 1 and 2 like base index 4. Whether an index *is* a shadow in a given sprite is decided by
+ * its palette entry, see `isShadowMarker`.
  */
 export const SHADOW_KINDS: ReadonlyMap<number, ShadowKind> = new Map([
   [1, 'light'],
@@ -41,6 +40,36 @@ export const SHADOW_KINDS: ReadonlyMap<number, ShadowKind> = new Map([
   [6, 'dark'],
   [7, 'light'],
 ])
+
+/**
+ * Palette colours that make a special index a shadow. Every base-game object sprite holds one of
+ * these at the special indices its pixels use. Most HotA sprites keep ordinary colours there
+ * instead — at index 2 in 630 of 1227 HotA object sprites, at 3 in 694, at 6 in 955, at 7 in 951 —
+ * and the game draws those opaque (a door drawn with index 2, `(7,2,2)`, shows as that colour,
+ * measured on the owner's probe map, 2026-09-24; spec 005 research). Base reef and rock sprites
+ * store `(255,151,255)`, one step off the usual marker, hence the tolerance.
+ */
+const SHADOW_MARKER_COLOURS: readonly (readonly [number, number, number])[] = [
+  [255, 150, 255],
+  [255, 100, 255],
+  [255, 50, 255],
+  [255, 0, 255],
+  [180, 0, 255],
+  [0, 255, 0],
+]
+const MARKER_TOLERANCE = 2
+
+/**
+ * Whether a special index holds a shadow marker rather than an ordinary colour. Cyan variants at a
+ * special index (19 HotA sprites, e.g. `(0,191,191)` at index 4) are not understood; they keep the
+ * shadow reading every special index had before, until a capture shows otherwise.
+ */
+export function isShadowMarker(r: number, g: number, b: number): boolean {
+  const near = (m: readonly [number, number, number]): boolean =>
+    Math.abs(r - m[0]) <= MARKER_TOLERANCE && Math.abs(g - m[1]) <= MARKER_TOLERANCE && Math.abs(b - m[2]) <= MARKER_TOLERANCE
+  if (SHADOW_MARKER_COLOURS.some(near)) return true
+  return r <= 8 && g >= 180 && Math.abs(g - b) <= 8
+}
 
 /** Palette alpha marking shadow entries in object palettes (not used as opacity). */
 export const SHADOW_MARKER_ALPHA: Readonly<Record<ShadowKind, number>> = { light: 64, dark: 128 }

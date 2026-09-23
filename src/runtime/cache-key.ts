@@ -3,9 +3,10 @@
 /**
  * Bump when cached payload formats change. 6: archive identity became the ordered identity of an
  * archive set (spec 005 FR-004), so an entry cached under a single archive's identity must not be
- * reused.
+ * reused. 7: special palette indices are shadows only when the sprite marks them as such, so object
+ * atlases cached before that draw HotA sprites' dark details as shadows.
  */
-export const CACHE_SCHEMA = 6
+export const CACHE_SCHEMA = 7
 
 export type CacheStore = 'atlas' | 'world' | 'objects'
 

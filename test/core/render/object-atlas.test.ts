@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { decodeFrame } from '../../../src/core/formats/def/def.ts'
 import { buildObjectAtlas, objectAtlasGpuBytes } from '../../../src/core/render/object-atlas.ts'
-import { SHADOW_KINDS, SHADOW_MARKER_ALPHA } from '../../../src/core/data/animation.ts'
+import { SHADOW_KINDS, SHADOW_MARKER_ALPHA, isShadowMarker } from '../../../src/core/data/animation.ts'
+import { parseDef } from '../../../src/core/formats/def/def.ts'
+import { objectPalette, writeObjectDef } from '../../fixtures/synthetic/object-defs.ts'
 import { objectScene } from './objects-helpers.ts'
 
 describe('object atlas', async () => {
@@ -43,6 +45,28 @@ describe('object atlas', async () => {
   it('makes index 0 transparent and marks shadow kinds in the alpha channel', () => {
     for (const [i, kind] of SHADOW_KINDS) expect(Array.from(atlas.palettes.subarray(i * 4, i * 4 + 4))).toEqual([0, 0, 0, SHADOW_MARKER_ALPHA[kind]])
     expect(atlas.palettes[3]).toBe(0)
+  })
+
+  it('treats a special index as a colour when the sprite does not mark it as a shadow', () => {
+    // Most HotA sprites keep ordinary colours at 2, 3, 6 and 7; the game draws them opaque.
+    const palette = objectPalette(9)
+    const colours: Record<number, [number, number, number]> = { 2: [7, 2, 2], 3: [14, 17, 0], 6: [24, 4, 3], 7: [23, 19, 5] }
+    for (const [i, c] of Object.entries(colours)) palette.set(c, Number(i) * 3)
+    const def = parseDef(writeObjectDef({ width: 64, height: 64, frames: 1, seed: 9, shadow: true, palette }), 'hotalike.def')
+    const own = buildObjectAtlas([def])
+    const row = own.layout.sprites['hotalike.def']?.row as number
+    const entry = (i: number): number[] => Array.from(own.palettes.subarray((row * 256 + i) * 4, (row * 256 + i) * 4 + 4))
+    for (const i of [2, 3, 6, 7]) expect(entry(i)[3]).toBe(255)
+    // The marked indices of the same sprite stay shadows.
+    expect(entry(1)).toEqual([0, 0, 0, SHADOW_MARKER_ALPHA.light])
+    expect(entry(4)).toEqual([0, 0, 0, SHADOW_MARKER_ALPHA.dark])
+  })
+
+  it('recognises the marker colours, including the one-off reef marker, and nothing else', () => {
+    const markers: [number, number, number][] = [[255, 150, 255], [255, 151, 255], [255, 100, 255], [255, 50, 255], [255, 0, 255], [180, 0, 255], [0, 255, 0]]
+    for (const [r, g, b] of markers) expect(isShadowMarker(r, g, b)).toBe(true)
+    const colours: [number, number, number][] = [[7, 2, 2], [24, 4, 3], [163, 180, 198], [255, 0, 0], [128, 0, 0]]
+    for (const [r, g, b] of colours) expect(isShadowMarker(r, g, b)).toBe(false)
   })
 
   it('reports overflow with sizes and counts GPU bytes', () => {

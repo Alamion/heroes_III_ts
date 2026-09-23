@@ -65,8 +65,10 @@ are HotA 1.8.1):
 - Data: `Objects.txt` uses 12-wide terrain masks in HotA and 9-wide in the base game (and in HotA's
   own `objtmplt.txt`), so the width is read per file. Highlands (id 10) and Wasteland (id 11) ship
   as 124 numbered PCX tiles each, one palette per tile.
-- Sprites: HotA shades with palette indices 2 and 3 (3 like base 1, 2 like base 4) — that is the
-  rule, not an exception (699 of 1072 HotA sprites, 2 of 1369 base ones). A short ported list
+- Sprites: a special palette index (1–4, 6, 7) is a shadow **only when the palette holds a marker
+  colour there**; otherwise it is an opaque colour (`isShadowMarker`). Base sprites always mark
+  them; most HotA sprites keep real colours at 2, 3, 6 and 7 (up to 955 of 1227), and some mark 2/3
+  as shadows (3 like base 1, 2 like base 4). A short ported list
   covers the sprites whose flag colour sits at index 255, and one sprite name in HotA's tables is a
   typo (`avwcoat.def` → `avwccoat.def`). 74 D32F and 269 P32F truecolour entries exist, some under
   `.def`/`.pcx` names, but none is an adventure-map sprite. 30 DEFs declare a last frame whose size
@@ -345,11 +347,11 @@ Facts measured on HotA 1.8.1 (2026-09-23, details in [005 research](specs/005-ho
 - Fidelity: the water clip matches pixel for pixel over 17 frames. The stills' object pixels differ
   by 0.4 %–8.6 % after two town-form rules were found and fixed with these captures. What is left is
   **object shadows on two terrains**, and the cause is known: HotA recolours shadows by soil type (its
-  1.7.2 changelog). Measured on the owner's probe map `test_shadows.h3m` (in the HotA install's `Maps`,
-  one witch hut per terrain): black at 50 % everywhere except **sand** (50 % towards a dark brown, `S`
-  about `(6,2,0)` in 5/6/5, exact) and **wasteland** (about 60 % towards `S ≈ (3,1,0)`, not yet exact).
-  The Complete edition draws black on sand, so the rule is HotA-only. Still open: whether the terrain
-  is read under each shadow pixel or under the object (005 research). Not implemented yet.
+  1.7.2 changelog). Measured on the owner's probe map `test_shadows.h3m` (in the HotA install's `Maps`):
+  black at 50 % everywhere except **sand** (50 % towards a dark brown, `S` about `(6,2,0)` in 5/6/5,
+  exact) and **wasteland** (8-bit blend, α ≈ 0.6 towards `(22,6,0)`, near-exact). The terrain is read
+  **under the object** (its entrance/occupied tile, not the anchor), never under the shadow pixel.
+  The Complete edition draws black on sand, so the rule is HotA-only. Not implemented yet.
   `rasterizeScene` takes an optional `layers` output with the shadow steps per pixel, which is what
   makes this measurable.
 

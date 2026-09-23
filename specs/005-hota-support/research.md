@@ -386,12 +386,11 @@ mis-shade base-game sprites, which US3 forbids.
 **Sweep result (2026-09-23, T041)** — the survey's framing was wrong, and the measurement replaced
 it:
 
-- **Shadows at 2/3 are not an exception, they are how HotA draws.** Decoding every adventure sprite
-  of both archives found indices 2 or 3 in **699 of 1072** HotA sprites and in **2 of 1369**
-  base-game ones, where they cover 1 and 25 pixels in total. So no name list is needed: the index
-  itself is the signal, and `SHADOW_KINDS` covers every sprite. The mapping was corrected at the
-  same time — index 3 behaves like base index 1 (light) and index 2 like base index 4 (dark), the
-  opposite of what the table assumed before.
+- ~~Shadows at 2/3 are not an exception, they are how HotA draws.~~ **Corrected 2026-09-24**: this
+  sweep counted sprites whose pixels *use* indices 2 or 3, not what the palette holds there. Most of
+  them hold ordinary colours, which the game draws opaque (see "Special indices are shadows only
+  when marked" below). The mapping stands for the sprites that do mark them: index 3 behaves like
+  base index 1 (light) and index 2 like base index 4 (dark).
 - **The flag colour at index 255 cannot be measured.** Index 255 is an ordinary colour elsewhere
   (1052 of 1369 base-game adventure sprites use it), and the sprites that follow the rule use index
   5 as well, so nothing in the pixels separates them. That list stays a short, ported,
@@ -772,11 +771,54 @@ Measured on the probe captures (both layers, every pixel of every hut):
   shows the `(+3, +1, 0)` offset (they are draw-order and double-shadow cases in a dense cluster). The
   recolouring is HotA's, so it applies to HotA maps only, like the five town forms.
 
-**Open before implementing**: whether the terrain is taken under each shadow pixel or under the
-object. Every shadow in the existing captures lies on its object's own terrain (17 413 pixels in the
+**Answered below** (towers): the terrain is taken under the object. Kept for the record: whether the
+terrain is taken under each shadow pixel or under the object. Every shadow in the existing captures lies on its object's own terrain (17 413 pixels in the
 town views, all of the probe map), so no capture can tell. A probe with huts standing next to a
 terrain border, their shadows spilling onto the neighbour, settles it; so would more light-edge and
 wasteland data for the exact wasteland arithmetic.
+
+### Special indices are shadows only when marked (found with the probe map, 2026-09-24)
+
+The owner's towers on the probe map (`avredtwr.def`, `avblktwr.def`) showed pixels inside their
+bodies — door, windows, the underside of roofs — that the game draws as flat colours and we drew as
+darkened terrain. Their palettes explain it: indices 1 and 4 hold the magenta shadow markers, but 2,
+3, 6 and 7 hold real colours (`avredtwr`: `(7,2,2)`, `(14,17,0)`, `(24,4,3)`, `(23,19,5)`), and the
+game's flat pixels are exactly those colours in 5/6/5. Surveying every object DEF:
+
+| Archive | idx 1 marker / real | idx 2 | idx 3 | idx 4 | idx 6 | idx 7 |
+| --- | --- | --- | --- | --- | --- | --- |
+| HotA.lod (1 227) | 980 / 10 | 81 / **630** | 80 / **694** | 1 042 / 13 | 0 / **955** | 1 / **951** |
+| H3sprite.lod (1 436) | 1 121 / 0 | 2 / 0 | 0 / 0 | 1 160 / 0 | 1 / 0 | 1 / 0 |
+
+(count of sprites whose pixels use the index, by what their palette holds there). Base-game sprites
+only ever hold markers at the indices they use; reef and rock sprites store `(255,151,255)`, one
+step off. So a special index is a shadow only when its palette entry is a marker (`isShadowMarker`
+in `src/core/data/animation.ts`, ±2 per channel); otherwise it is an opaque colour. Cyan variants at
+a special index (19 HotA sprites) are not understood and keep the old shadow reading. The object
+cache schema went to 7 so cached atlases are rebuilt.
+
+Effect on fidelity (differing pixels): the eight HotA views of `test_map_hota.h3m` from 84 475 to
+57 596 (−32 %; one view from 3 930 to 1, others −6 % to −75 %), the probe views −16 % and −32 %, and
+every Complete-edition view of `test_map.h3m` identical to the pixel.
+
+### Shadow recolouring follows the object, not the pixel (probe map with towers, 2026-09-24)
+
+The owner added three towers whose long shadows cross terrain borders:
+
+- `avblktwr.def` at (10,10) stands on swamp; its shadow falls on wasteland and sand and is **black on
+  100 %** of its pixels. The terrain under a shadow pixel does not choose the rule.
+- `avblktwr.def` at (10,6) stands on wasteland; its shadow on highlands follows the wasteland rule.
+- `avredtwr.def` at (25,5) has its anchor (bottom-right) tile on water, but its entrance (23,5) and
+  its blocked tile (23,4) on wasteland; its shadow follows the wasteland rule. So the terrain is not
+  read at the anchor either, but under the tile the object stands on. For objects with an entrance
+  the entrance and the occupied tiles agree in every case measured; objects without one are not
+  measured yet.
+
+With the fake shadows gone, the wasteland rule is close to exact and linear in eight bits: dark
+`(T8 × 101 + S8 × 155) >> 8` with `S8 ≈ (22, 6, 0)` (α ≈ 0.6; red 99.9 %, green 98.6 %, blue 100 % of
+2 488 pixels), light edge α ≈ 0.32 towards the same colour (red and blue 100 %, green 96 % of 714). The
+earlier "no linear model" result came from those fake shadows. Sand stays exact in 5/6/5 shift
+arithmetic (see above). Not implemented yet.
 
 ### Hosts: the HotA archive must be loaded first (found on a real KDE session, 2026-09-23)
 

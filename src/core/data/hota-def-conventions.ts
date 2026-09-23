@@ -3,10 +3,10 @@
 //
 // Two conventions were surveyed. Only one of them needs a table:
 //
-// - Shadows in palette indices 2 and 3. Not listed here: sweeping both archives (spec 005 T041)
-//   found those indices in 699 of 1072 HotA adventure sprites and in 2 of 1369 base-game ones,
-//   where they cover 1 and 25 pixels in total. The index is the signal, so `SHADOW_KINDS` in
-//   `animation.ts` covers it for every sprite.
+// - Shadows in palette indices 2 and 3. Not listed here: the sprite says it itself. A special index
+//   is a shadow only when its palette entry is a marker colour (`isShadowMarker` in
+//   `animation.ts`); most HotA sprites keep ordinary colours there (spec 005 research, "Special
+//   indices are shadows only when marked").
 // - The player-flag colour at index 255 instead of index 5. This one *is* a per-file rule: index
 //   255 is an ordinary colour elsewhere (1052 of 1369 base-game adventure sprites use it), and the
 //   sprites that follow the rule use index 5 as well, so nothing in the pixels distinguishes them.

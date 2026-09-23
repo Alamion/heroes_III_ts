@@ -2,7 +2,7 @@
 // needs, cropped, shelf-packed into 2048² index pages, plus one RGBA palette row per sprite. GPU
 // memory depends on the distinct sprites of the map, not on the number of objects.
 
-import { FLAG_INDEX, SHADOW_KINDS, SHADOW_MARKER_ALPHA } from '../data/animation.ts'
+import { FLAG_INDEX, SHADOW_KINDS, SHADOW_MARKER_ALPHA, isShadowMarker } from '../data/animation.ts'
 import { HOTA_FLAG_AT_255 } from '../data/hota-def-conventions.ts'
 import { decodeFrame } from '../formats/def/def.ts'
 import type { DefSprite } from '../formats/def/def.ts'
@@ -160,7 +160,8 @@ export function buildObjectAtlas(defs: readonly DefSprite[], pageSize = OBJECT_P
       const o = base + i * 4
       if (i === 0) continue
       const shadow = SHADOW_KINDS.get(i)
-      if (shadow !== undefined) {
+      // A special index is a shadow only when the sprite marks it as one; otherwise it is a colour.
+      if (shadow !== undefined && isShadowMarker(def.palette[i * 3] as number, def.palette[i * 3 + 1] as number, def.palette[i * 3 + 2] as number)) {
         palettes[o + 3] = SHADOW_MARKER_ALPHA[shadow]
         continue
       }

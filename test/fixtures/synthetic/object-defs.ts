@@ -2,6 +2,17 @@
 // palette indices the object renderer handles: 0 transparent, 1–4 and 6–7 shadow, 5 flag colour.
 
 import { proceduralPalette, writeDef } from './def.ts'
+
+/**
+ * A procedural palette with the base game's markers at the special indices: cyan (transparent),
+ * magenta shades (shadows 1-4), yellow (flag), purple and green (selection shadows 6-7).
+ */
+export function objectPalette(seed: number): Uint8Array {
+  const p = proceduralPalette(seed)
+  const MARKERS = [[0, 255, 255], [255, 150, 255], [255, 100, 255], [255, 50, 255], [255, 0, 255], [255, 255, 0], [180, 0, 255], [0, 255, 0]]
+  MARKERS.forEach((c, i) => p.set(c, i * 3))
+  return p
+}
 import type { SyntheticFrame, SyntheticGroup } from './def.ts'
 
 export interface ObjectDefOptions {
@@ -16,6 +27,8 @@ export interface ObjectDefOptions {
   flag?: boolean
   /** Paint a shadow band with indices 1–4 and 6–7. */
   shadow?: boolean
+  /** Palette to store; defaults to `objectPalette`, which marks the special indices as shadows. */
+  palette?: Uint8Array
 }
 
 /**
@@ -48,7 +61,7 @@ export function writeObjectDef(o: ObjectDefOptions): Uint8Array {
     type: g,
     frames: Array.from({ length: o.frames }, (_, i) => objectFrame(o, g, i)),
   }))
-  return writeDef({ type: 0x43, fullWidth: o.width, fullHeight: o.height, palette: proceduralPalette(o.seed + 40), groups })
+  return writeDef({ type: 0x43, fullWidth: o.width, fullHeight: o.height, palette: o.palette ?? objectPalette(o.seed + 40), groups })
 }
 
 /** Hero body layout: groups 0–4 idle (1 frame), 5–9 moving (8 frames). */
@@ -57,7 +70,7 @@ export function writeHeroBodyDef(seed: number): Uint8Array {
     const o: ObjectDefOptions = { width: 96, height: 64, frames: g < 5 ? 1 : 8, seed, shadow: true }
     return { type: g, frames: Array.from({ length: o.frames }, (_, i) => objectFrame(o, g, i)) }
   })
-  return writeDef({ type: 0x44, fullWidth: 96, fullHeight: 64, palette: proceduralPalette(seed + 40), groups })
+  return writeDef({ type: 0x44, fullWidth: 96, fullHeight: 64, palette: objectPalette(seed + 40), groups })
 }
 
 /** Writes an `Objects.txt` line for a template (masks as in the game file, see objects-txt.ts). */
