@@ -681,20 +681,34 @@ Base-game fidelity is unchanged at 7 fail / 5 pass.
 ### The open difference, narrowed
 
 What remains after the town fixes is smaller and of one kind: thin outlines along object edges and a
-band of terrain beside some objects, on every view with objects (0.42 %–8.58 %). Measured facts:
+band of terrain beside some objects, on every view with objects (0.42 %–8.58 %). Three explanations
+were tested and ruled out:
 
-- It is **not** the shadow-index mapping. Swapping HotA's indices 2 and 3 changes the differing
-  count by exactly zero on both the Wasteland view and the town view.
-- It is **not** RGB565 quantisation: the game's own colours are quantised too (the reference's
-  pixels sit in the quantised palette, not the raw one), and no differing pixel is explained by
-  quantising either side to the other.
-- The remaining pairs are neighbouring palette entries (e.g. `123,81,58` → `99,77,58`: one channel
-  unchanged, the others off by one and three steps), not a uniform darkening — so it is a different
-  palette **index**, not a different shading of the same one.
+- **Not the shadow-index mapping.** Swapping HotA's indices 2 and 3 changes the differing count by
+  exactly zero, on the Wasteland view and on the town view.
+- **Not RGB565 quantisation.** The game's own colours are quantised too — its pixels sit in the
+  quantised palette, not the raw one — and no differing pixel is explained by quantising either
+  side to the other.
+- **Not a different shading strength.** Rendering the terrain alone under each differing pixel shows
+  that our value is exactly `terrain >> 1` per 5/6/5-bit channel — the measured base-game "dark"
+  rule — while the game's value is `(terrain >> 1) + delta`.
 
-That points at the frame chosen for objects the checker does not know animate, or a HotA rule for
-which pixels of a sprite are shaded. Still an open question for owner review, with the diff images
-in `check-reports/fidelity/`.
+`delta` is what is left to explain. It is **constant within a sprite** (881 of the Cove citadel's
+1 999 differing pixels share `delta = (3, 1, 0)`, and our side is exactly `terrain >> 1` on all of
+them) but **differs between views**: `(−1, −2, −1)` on Wasteland, `(0…1, 2…3, 0)` on Highlands,
+`(−6…−7, −9…−10, −3)` on the base-game town block. So the game does not darken the background by a
+fixed rule at all: it blends it with a colour that depends on what is casting the shadow. The
+sprite's own palette entries at the shadow indices do not match that colour directly (the Cove
+citadel's are `7,7,4` and `5,5,8` against a `delta` implying roughly `49,8,0`), so the blend takes
+its colour from somewhere else.
+
+A second, smaller case sits alongside it: on 400–1 900 pixels per view we draw plain terrain where
+the game draws something — a shadow we do not cast at all.
+
+**Next step**, when this is picked up: instrument the software rasterizer to record, per pixel, the
+sprite and the palette index that produced it, then fit `delta` per (sprite, index). That turns the
+question from "what rule?" into a table lookup, the same way the town forms were settled. Until
+then this stays an open question, not an accepted deviation.
 
 ## Risks and open questions
 

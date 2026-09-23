@@ -343,10 +343,11 @@ Facts measured on HotA 1.8.1 (2026-09-23, details in [005 research](specs/005-ho
   228 226 pixels). Only the minimap's view rectangle differs: HotA draws it 19×18 tiles where the
   base game draws 19×17, while the view itself is still 17 rows.
 - Fidelity: the water clip matches pixel for pixel over 17 frames. The stills' object pixels differ
-  by 0.4 %–8.6 % after two town-form rules were found and fixed with these captures. What is left
-  is thin outlines along object edges: not the shadow-index mapping and not RGB565 quantisation
-  (both tested to zero effect), but neighbouring palette indices. Open for owner review; do not
-  treat it as accepted yet.
+  by 0.4 %–8.6 % after two town-form rules were found and fixed with these captures. What is left is
+  object shadows: our value is exactly `terrain >> 1`, the game's is that plus an offset that is
+  constant within a sprite but differs between views — so the game blends the background with a
+  colour that depends on what casts the shadow. Not the shadow-index mapping and not RGB565
+  quantisation (both tested to zero effect). Open; do not treat it as accepted yet.
 
 ---
 
