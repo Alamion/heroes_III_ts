@@ -4,7 +4,7 @@ import type { Command } from '../cli.ts'
 import { forbiddenDlls } from '../analysis/loaddll.ts'
 import { CONFIG_FILE } from '../config.ts'
 import { CONSTITUTION_PATH, amendmentState } from '../env/amendment.ts'
-import { baselineBundleDir, baselineProfile, type BaselineProfile } from '../data/baselines.ts'
+import { baselineBundleDir, baselineProfile, mapSearchDirs, type BaselineProfile } from '../data/baselines.ts'
 import { REQUIRED_PROBES, readCalibration } from '../env/calibration.ts'
 import { readActiveLock } from '../env/lock.ts'
 import { runProcess } from '../env/process.ts'
@@ -145,7 +145,7 @@ export const CHECKS: Record<string, Check> = {
     const missing: string[] = []
     for (const m of REFERENCE_MAPS[c.baseline]) {
       try {
-        resolveMap(m, c.cfg.mapSearchDirs)
+        resolveMap(m, mapSearchDirs(c.cfg))
       } catch {
         missing.push(m)
       }
@@ -154,7 +154,7 @@ export const CHECKS: Record<string, Check> = {
   },
   'captures-gitignored': async (c) => gitIgnored(c.cfg, 'captures-gitignored', 'reference-captures/'),
   'captures-map-hash': async (c) => {
-    const matches = mapHashChecker(c.cfg.mapSearchDirs)
+    const matches = mapHashChecker(mapSearchDirs(c.cfg))
     const stale = scanRecords(c.cfg.capturesDir).filter((x) => matches(x.record) === false)
     if (stale.length === 0) return pass('captures-map-hash', 'all captures match their current map files')
     const maps = [...new Set(stale.map((x) => x.record.map.name))]

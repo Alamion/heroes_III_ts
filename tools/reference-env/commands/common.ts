@@ -5,7 +5,7 @@ import { readMapHeader } from '../analysis/h3m-header.ts'
 import { parseH3mFile } from '../../../src/core/formats/h3m/h3m.ts'
 import type { ParsedArgs } from '../cli.ts'
 import { loadConfig } from '../config.ts'
-import { baselineForMapVersion, baselineProfile, parseBaseline } from '../data/baselines.ts'
+import { baselineForMapVersion, baselineProfile, mapSearchDirs, parseBaseline } from '../data/baselines.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 import type { Baseline, FileHash, Level, MapInfo, Point, ReferenceConfig, StartMode } from '../model/types.ts'
 import { resolveMap } from '../store/capture-store.ts'
@@ -54,7 +54,7 @@ export interface TargetContext {
 }
 
 export async function targetContext(cfg: ReferenceConfig, args: ParsedArgs): Promise<TargetContext> {
-  const mapPath = resolveMap(required(args, 'map'), cfg.mapSearchDirs)
+  const mapPath = resolveMap(required(args, 'map'), mapSearchDirs(cfg))
   const bytes = readFileSync(mapPath)
   const header = await readMapHeader(bytes, basename(mapPath))
   const sha = sha256Buffer(bytes)

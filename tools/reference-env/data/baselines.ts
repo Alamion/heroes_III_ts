@@ -7,6 +7,7 @@
 //
 // Everything here is file names and geometry, no game data.
 
+import { join } from 'node:path'
 import { ERROR_CODES, RefError } from '../errors.ts'
 import type { Baseline, CaptureRecord, ExecutableLabel, ReferenceConfig } from '../model/types.ts'
 import {
@@ -138,6 +139,23 @@ export function baselineBundleDir(cfg: ReferenceConfig, id: Baseline): string {
     )
   }
   return cfg.hotaBundleDir
+}
+
+/**
+ * Where a map file is looked up: the folders from the config plus every configured install's
+ * `Maps`. A HotA-only map lives in the HotA installation and is invisible to the Complete
+ * edition's search path, so without this a capture of it fails as "map not found" instead of with
+ * the baseline error that actually applies (`assertMapFitsBaseline`). Finding a file is not a
+ * claim that a build can open it.
+ */
+export function mapSearchDirs(cfg: ReferenceConfig): string[] {
+  const dirs = [...cfg.mapSearchDirs]
+  for (const bundle of [cfg.bundleDir, cfg.hotaBundleDir]) {
+    if (bundle === undefined) continue
+    const own = join(bundle, 'Maps')
+    if (!dirs.includes(own)) dirs.push(own)
+  }
+  return dirs
 }
 
 /** A record's baseline; records written before the dimension existed are Complete-edition ones. */

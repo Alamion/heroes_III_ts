@@ -1,6 +1,7 @@
 import type { Command } from '../cli.ts'
 import { ERROR_CODES, RefError } from '../errors.ts'
 import type { Kind, Level, Source } from '../model/types.ts'
+import { mapSearchDirs } from '../data/baselines.ts'
 import { findCaptures, mapHashChecker } from '../store/lookup.ts'
 import { baselineOf, config, intOpt, opt, required } from './common.ts'
 
@@ -40,6 +41,6 @@ export const findCommand: Command = async (args) => {
     ...(kind !== undefined ? { kind } : {}),
     ...(limit !== undefined ? { limit: intOpt(args, 'limit') } : {}),
   })
-  const hashMatches = mapHashChecker(cfg.mapSearchDirs)
+  const hashMatches = mapHashChecker(mapSearchDirs(cfg))
   return { ok: true, matches: matches.map((m) => ({ ...m, mapSha256Matches: hashMatches(m.record) })) }
 }

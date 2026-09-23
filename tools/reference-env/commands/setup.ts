@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Command } from '../cli.ts'
-import { baselineBundleDir, baselineProfile } from '../data/baselines.ts'
+import { baselineBundleDir, baselineProfile, mapSearchDirs } from '../data/baselines.ts'
 import { requireAmendment } from '../env/amendment.ts'
 import { applyStaging, bundleManifest, planStaging } from '../env/staging.ts'
 import { stagingRoot } from '../env/session.ts'
@@ -27,7 +27,7 @@ export const setupCommand: Command = async (args) => {
   await ensurePrefix(wine, flag(args, 'force'))
 
   // A map is staged so the layout matches a capture run; each baseline uses one it can open.
-  const mapPath = resolveMap(baseline === 'complete' ? 'Arrogance.h3m' : 'test_map_hota.h3m', cfg.mapSearchDirs)
+  const mapPath = resolveMap(baseline === 'complete' ? 'Arrogance.h3m' : 'test_map_hota.h3m', mapSearchDirs(cfg))
   const root = stagingRoot(cfg.stateDir, baseline)
   applyStaging(planStaging(profile, bundleDir, mapPath), root)
   const hashes = await stagedHashes(cfg, baseline)

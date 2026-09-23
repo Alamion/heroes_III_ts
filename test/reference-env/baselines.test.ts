@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { baselineBundleDir, baselineForMapVersion, baselineProfile, parseBaseline, recordBaseline } from '../../tools/reference-env/data/baselines.ts'
+import { baselineBundleDir, baselineForMapVersion, baselineProfile, mapSearchDirs, parseBaseline, recordBaseline } from '../../tools/reference-env/data/baselines.ts'
 import { amendmentState, requireAmendment } from '../../tools/reference-env/env/amendment.ts'
 import { stagingRoot } from '../../tools/reference-env/env/session.ts'
 import { calibrationPath } from '../../tools/reference-env/env/calibration.ts'
@@ -64,6 +64,14 @@ describe('baselines', () => {
     expect(baselineBundleDir(cfg, 'complete')).toBe('/games/complete')
     expect(() => baselineBundleDir(cfg, 'hota')).toThrow(expect.objectContaining({ code: ERROR_CODES.PREREQ_MISSING }))
     expect(baselineBundleDir({ ...cfg, hotaBundleDir: '/games/hota' }, 'hota')).toBe('/games/hota')
+  })
+
+  it('looks maps up in every configured install, so a HotA-only map is found', () => {
+    const cfg = { mapSearchDirs: ['/repo/public/dev-assets'], bundleDir: '/games/complete', hotaBundleDir: '/games/hota' } as unknown as ReferenceConfig
+    expect(mapSearchDirs(cfg)).toEqual(['/repo/public/dev-assets', '/games/complete/Maps', '/games/hota/Maps'])
+    // Without a HotA install configured its folder is simply absent, and nothing is duplicated.
+    expect(mapSearchDirs({ ...cfg, hotaBundleDir: undefined } as unknown as ReferenceConfig)).toEqual(['/repo/public/dev-assets', '/games/complete/Maps'])
+    expect(mapSearchDirs({ ...cfg, mapSearchDirs: ['/games/hota/Maps'] } as unknown as ReferenceConfig)).toEqual(['/games/hota/Maps', '/games/complete/Maps'])
   })
 
   it('derives the baseline from the map format: only HotA opens a HotA map', () => {

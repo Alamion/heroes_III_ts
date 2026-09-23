@@ -1,4 +1,5 @@
 import type { Command } from '../cli.ts'
+import { mapSearchDirs } from '../data/baselines.ts'
 import { listCaptures, mapHashChecker, scanRecords } from '../store/lookup.ts'
 import { baselineOf, config, opt } from './common.ts'
 import { parseKind, parseSource } from './find.ts'
@@ -16,7 +17,7 @@ export const listCommand: Command = async (args) => {
     ...(before !== undefined ? { before } : {}),
     ...(args.flags.has('baseline') ? { baseline: baselineOf(args) } : {}),
   })
-  const hashMatches = mapHashChecker(cfg.mapSearchDirs)
+  const hashMatches = mapHashChecker(mapSearchDirs(cfg))
   const byId = new Map(scanRecords(cfg.capturesDir).map((c) => [c.record.id, c.record]))
   return { ok: true, captures: captures.map((c) => {
     const record = byId.get(c.id)
