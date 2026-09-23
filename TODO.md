@@ -85,10 +85,18 @@ After the open fixes of item 2, the order is (owner, 2026-09-22):
    reasoning behind each decision are in that spec's research.md; the constitution was amended
    (1.3.0) for the HotA reference baseline and the HotA budget case.
 
+   The reference environment gained its second baseline from `h3hota.exe` (US4): `yarn ref …
+   --baseline hota`, refused without the constitution clause, with its own game root, calibration,
+   probe masks and capture namespace. Eight HotA views are captured; the water clip matches pixel
+   for pixel over 17 frames.
+
    Left for later, each recorded with its evidence:
-   - **HotA fidelity captures** — the reference environment gains a second baseline from
-     `h3hota.exe` (spec 005 US4, tasks T066–T071). Until then HotA rendering is verified by data,
-     by the coverage check and by eye.
+   - **The HotA object-pixel difference** — seven of the eight HotA fidelity views differ on object
+     pixels by 0.4 %–14 % (terrain and water are exact). The shadow-index mapping and RGB565
+     quantisation are both tested and ruled out; the likely causes are a frame choice for objects
+     the checker does not know animate, and a HotA-specific shadow rule. Needs owner review with
+     the diff images before it can become an accepted deviation (005 research "The open
+     difference").
    - **A region-scoped object atlas** — object GPU memory still scales with the map, which
      contradicts constitution IV. HotA made it visible: `test_map_hota.h3m` needs 4610 frames and
      29.3 M sprite pixels, so the page size now follows the GPU's `MAX_TEXTURE_SIZE` (2048–4096)
