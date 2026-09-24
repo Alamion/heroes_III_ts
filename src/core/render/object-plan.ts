@@ -7,14 +7,18 @@ import { TILE_SIZE } from '../data/terrain.ts'
 import { className } from '../data/object-classes.ts'
 import type { ObjectIndex } from '../state/object-index.ts'
 import type { RenderObject } from '../state/render-objects.ts'
+import { SHADOW_TINT_WEIGHT } from '../data/animation.ts'
 import { frameOf } from './animation.ts'
 import type { TileRange } from './camera.ts'
 import type { ObjectAtlasLayout } from './object-atlas.ts'
 import { QUAD_CORNERS } from './draw-plan.ts'
 import { compareObjects } from './object-order.ts'
 
-/** Floats per vertex: the terrain layout (draw-plan.ts VERTEX_SIZE), then page and owner slot (0–7, 8 = neutral). */
-export const OBJECT_VERTEX_SIZE = 11
+/**
+ * Floats per vertex: the terrain layout (draw-plan.ts VERTEX_SIZE), then page, owner slot (0–7,
+ * 8 = neutral) and shadow tint weight (animation.ts SHADOW_TINT_WEIGHT).
+ */
+export const OBJECT_VERTEX_SIZE = 12
 export const OBJECT_VERTICES_PER_QUAD = 6
 
 export interface DrawListEntry {
@@ -97,6 +101,7 @@ export function buildObjectPlan(index: ObjectIndex, layout: ObjectAtlasLayout, l
     const x1 = x0 + cell.width
     const y1 = y0 + cell.height
     const owner = o.owner ?? NEUTRAL_SLOT
+    const tint = SHADOW_TINT_WEIGHT[o.shadowTint ?? 0]
     let p = q * OBJECT_VERTICES_PER_QUAD * OBJECT_VERTEX_SIZE
     for (let k = 0; k < 12; k += 2) {
       const lx = QUAD_CORNERS[k] as number
@@ -112,6 +117,7 @@ export function buildObjectPlan(index: ObjectIndex, layout: ObjectAtlasLayout, l
       vertices[p++] = sprite.row
       vertices[p++] = cell.page
       vertices[p++] = owner
+      vertices[p++] = tint
     }
     quadObjects[q] = i
     q++

@@ -22,7 +22,8 @@ extra archive (`HotA.lod`) next to their base archives; every layer learns HotA 
   124 tiles each; towns move from three forms to five per faction with an explicit table of
   irregular stems; hero classes extend to `ah23_`; a name-keyed table carries HotA's two DEF
   conventions (shadows at palette 2/3, flag colour at index 255), verified by our own sweep before
-  it is committed. `Objects.txt` learns the 12-wide terrain mask.
+  it is committed. (Later measurement replaced the 2/3 table: the palette marker decides, and 2 and
+  3 are shadow strengths of their own; research "Four shadow strengths".) `Objects.txt` learns the 12-wide terrain mask.
 - **Verification** — a coverage check classifies the available maps and opens one of every class
   plus the named edge cases; the reference environment gains a second baseline captured from
   `h3hota.exe` with its own calibration and capture namespace, and the constitution is amended for

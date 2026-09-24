@@ -40,7 +40,8 @@ Facts measured against the original game that code must respect (details in
 - Map border (`edg.def`) is a deterministic 4×4 pattern drawn over objects; roads are drawn 16 px down.
 - Objects: bottom-right anchor; order flat → non-visitable → visitable → row → heroes (flag, then body) → map order;
   flag pixels (index 5) use `game.pal` entries 64–71 (players) and 72 (neutral); shadow index 1
-  keeps `(c>>1)+(c>>2)`, index 4 `c>>1` of each 5/6-bit channel; object frames advance every 180 ms
+  keeps `(c>>1)+(c>>2)`, index 4 `c>>1` of each 5/6-bit channel (HotA adds 3 → `+(c>>3)` on top of
+  index 1's, 2 → `(c>>1)+(c>>3)`); object frames advance every 180 ms
   with a random phase per object per launch (seeded here); towns use `AVC?0` without fort, `AVC?x0`
   with one.
 - Heroes: `ah00_.def`–`ah17_.def` body + `af0?.def` flag (colour baked in); not in `Objects.txt`.
@@ -67,8 +68,12 @@ are HotA 1.8.1):
   as 124 numbered PCX tiles each, one palette per tile.
 - Sprites: a special palette index (1–4, 6, 7) is a shadow **only when the palette holds a marker
   colour there**; otherwise it is an opaque colour (`isShadowMarker`). Base sprites always mark
-  them; most HotA sprites keep real colours at 2, 3, 6 and 7 (up to 955 of 1227), and some mark 2/3
-  as shadows (3 like base 1, 2 like base 4). A short ported list
+  them; most HotA sprites keep real colours at 2, 3, 6 and 7 (up to 955 of 1227). Marked shadows have
+  **four strengths**: 3 faint (keeps 7/8), 1 light (3/4), 2 medium (5/8), 4 dark (1/2) — not "3 like
+  1, 2 like 4" as MMArchiveCLI says. On HotA maps shadows are **tinted by the soil under the object**
+  (entrance, else lowest blocked tile; never the shadow pixel): sand adds `(3,1,0)`/`(1,0,0)` to the
+  shifts, wasteland blends towards `(3,2,0)` with α = 38/77/115/154 / 256 (`shadowChannel`,
+  `RenderObject.shadowTint`); base-game maps stay black. A short ported list
   covers the sprites whose flag colour sits at index 255, and one sprite name in HotA's tables is a
   typo (`avwcoat.def` → `avwccoat.def`). 74 D32F and 269 P32F truecolour entries exist, some under
   `.def`/`.pcx` names, but none is an adventure-map sprite. 30 DEFs declare a last frame whose size
@@ -344,16 +349,15 @@ Facts measured on HotA 1.8.1 (2026-09-23, details in [005 research](specs/005-ho
 - The adventure-map pixel mapping is identical to the Complete edition's (verified to 0.21 % of
   228 226 pixels). Only the minimap's view rectangle differs: HotA draws it 19×18 tiles where the
   base game draws 19×17, while the view itself is still 17 rows.
-- Fidelity: the water clip matches pixel for pixel over 17 frames. The stills' object pixels differ
-  by 0.4 %–8.6 % after two town-form rules were found and fixed with these captures. What is left is
-  **object shadows on two terrains**, and the cause is known: HotA recolours shadows by soil type (its
-  1.7.2 changelog). Measured on the owner's probe map `test_shadows.h3m` (in the HotA install's `Maps`):
-  black at 50 % everywhere except **sand** (50 % towards a dark brown, `S` about `(6,2,0)` in 5/6/5,
-  exact) and **wasteland** (8-bit blend, α ≈ 0.6 towards `(22,6,0)`, near-exact). The terrain is read
-  **under the object** (its entrance/occupied tile, not the anchor), never under the shadow pixel.
-  The Complete edition draws black on sand, so the rule is HotA-only. Not implemented yet.
-  `rasterizeScene` takes an optional `layers` output with the shadow steps per pixel, which is what
-  makes this measurable.
+- Fidelity: the water clip matches pixel for pixel over 17 frames. HotA recolours shadows by soil
+  (its 1.7.2 changelog) and has four shadow strengths; both are implemented (rules under "Facts about
+  HotA" above, measurements in 005 research "Recolouring implemented", "Four shadow strengths"). The
+  owner's probe map `test_shadows.h3m` (in the HotA install's `Maps`) matches to the pixel; the eight
+  `test_map_hota.h3m` views went from 84 475 to 23 393 differing pixels. What is left is draw order
+  and overlap in dense highland forests and town bodies — single-step shadows over bare terrain
+  match on 99 %+ of pixels on every terrain. Not measured: the tinting tile of objects without an
+  entrance, medium/faint shadows on sand. `rasterizeScene` takes an optional `layers` output
+  (`shadowLayers()`: steps per kind and tint weight per pixel), which is what makes this measurable.
 
 ---
 

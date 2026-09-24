@@ -55,7 +55,7 @@ interface ObjectResources {
   vertexBuffer: WebGLBuffer
   bufferQuads: number
   gpuBytes: number
-  attrs: { position: number; local: number; cell: number; row: number; page: number; owner: number }
+  attrs: { position: number; local: number; cell: number; row: number; page: number; owner: number; tint: number }
   loc: { translate: WebGLUniformLocation; viewport: WebGLUniformLocation; scale: WebGLUniformLocation; flags: WebGLUniformLocation; mode: WebGLUniformLocation }
   /** Surface-sized colour and shadow-count targets and the resolve program (research.md T046). */
   targets: { width: number; height: number; color: WebGLTexture; colorFb: WebGLFramebuffer; shadow: WebGLTexture; shadowFb: WebGLFramebuffer } | undefined
@@ -345,6 +345,7 @@ export class TerrainRenderer {
     attr(a.row, 1, 32)
     attr(a.page, 1, 36)
     attr(a.owner, 1, 40)
+    attr(a.tint, 1, 44)
     gl.uniform2f(res.loc.translate, translate[0], translate[1])
     gl.uniform2f(res.loc.viewport, cam.width, cam.height)
     gl.uniform1f(res.loc.scale, cam.scale)
@@ -472,6 +473,7 @@ export class TerrainRenderer {
         row: gl.getAttribLocation(program, 'a_row'),
         page: gl.getAttribLocation(program, 'a_page'),
         owner: gl.getAttribLocation(program, 'a_owner'),
+        tint: gl.getAttribLocation(program, 'a_tint'),
       },
       loc: { translate: uniform('u_translate'), viewport: uniform('u_viewport'), scale: uniform('u_scale'), flags: uniform('u_flags[0]'), mode: uniform('u_mode') },
       targets: undefined,

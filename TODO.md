@@ -91,12 +91,12 @@ After the open fixes of item 2, the order is (owner, 2026-09-22):
    for pixel over 17 frames.
 
    Left for later, each recorded with its evidence:
-   - **The HotA object-pixel difference** — seven of the eight HotA fidelity views differ on object
-     pixels by 0.4 %–14 % (terrain and water are exact). The shadow-index mapping and RGB565
-     quantisation are both tested and ruled out; the likely causes are a frame choice for objects
-     the checker does not know animate, and a HotA-specific shadow rule. Needs owner review with
-     the diff images before it can become an accepted deviation (005 research "The open
-     difference").
+   - ~~**The HotA object-pixel difference**~~ — mostly solved (2026-09-24, 005 research "Four
+     shadow strengths"): special indices are shadows only when marked, HotA tints shadows by the
+     object's soil (sand, wasteland), and indices 2/3 are shadow strengths of their own. The eight
+     views went from 84 475 to 23 393 differing pixels, the probe map to 0. The rest is draw order
+     and overlap in dense highland forests and town bodies; needs owner review with the diff images
+     before it can become an accepted deviation.
    - **A region-scoped object atlas** — object GPU memory still scales with the map, which
      contradicts constitution IV. HotA made it visible: `test_map_hota.h3m` needs 4610 frames and
      29.3 M sprite pixels, so the page size now follows the GPU's `MAX_TEXTURE_SIZE` (2048–4096)
@@ -186,7 +186,7 @@ Research questions:
   harness now measures 1.8–2.7 s on test_map.h3m, Pandora's Box and the synthetic 252×252 map, the same as
   on `testing` before spec 004 — over the limit on some runs; the packages stay under it (web 0.6–1.1 s,
   Wallpaper Engine 1.6–1.7 s on test_map.h3m).
-- Frame cost after the fractional-scale fix (spec 004 T074/T075): object vertices grew from 7 to 11 floats
+- Frame cost after the fractional-scale fix (spec 004 T074/T075): object vertices grew from 7 to 11 floats (12 since the HotA shadow tint)
   and are uploaded every object tick, +5–9 % main-thread time per frame under 4× CPU throttling; the
   budget idle-cadence limit was relaxed by one frame instead. When optimising performance, slim the vertex
   format (per-quad data once per quad) or upload only changed quads, then consider removing the slack.

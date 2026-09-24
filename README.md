@@ -15,10 +15,13 @@ as a plain web page.
 ## What it does
 
 - Reads the original game files directly: `H3sprite.lod`, `H3bitmap.lod` and any `.h3m` map of
-  Restoration of Erathia, Armageddon's Blade or Shadow of Death.
-- Draws the map the way the Complete edition does: the same tiles, mirroring, draw order, flag
-  colours, shadows, 16-bit colour, and water, lava and river animation at the game's 180 ms step.
-  Checks compare the output pixel by pixel with screenshots taken from the original game.
+  Restoration of Erathia, Armageddon's Blade, Shadow of Death or **Horn of the Abyss** (with
+  `HotA.lod` from a HotA installation).
+- Draws the map the way the game does: the same tiles, mirroring, draw order, flag colours,
+  shadows, 16-bit colour, and water, lava and river animation at the game's 180 ms step. HotA maps
+  get HotA's own look: Highlands and Wasteland, five town forms per faction, and shadows tinted by
+  the soil an object stands on. Checks compare the output pixel by pixel with screenshots taken
+  from the original game (the Complete edition, and HotA for HotA maps).
 - Animates everything the game animates: palette cycling for water and rivers, frames for
   windmills, whirlpools, flags and creatures.
 - Shows a random place on the map, the map centre or chosen coordinates. It can move to a new
@@ -40,8 +43,8 @@ as a plain web page.
 
 ## Status
 
-This is an early release (proof of concept). Base-game maps render; save games, HotA and
-interactive extras are planned (see [Roadmap](#roadmap)).
+This is an early release. Base-game and HotA maps render; save games and interactive extras are
+planned (see [Roadmap](#roadmap)).
 
 | Host | State |
 | --- | --- |
@@ -53,23 +56,25 @@ interactive extras are planned (see [Roadmap](#roadmap)).
 ## You need the game
 
 You need an installed copy of **Heroes of Might and Magic III Complete**.
-The wallpaper needs three files from it:
+The wallpaper needs three files from it, and a fourth for HotA maps:
 
 | File | Where | What for |
 | --- | --- | --- |
 | `H3sprite.lod` | `Data` folder of the game | terrain, object, hero and town sprites |
 | `H3bitmap.lod` | `Data` folder of the game | object table and colours; without it only the terrain is drawn |
 | a map `*.h3m` | `Maps` folder of the game (or any downloaded map) | the map to show |
+| `HotA.lod` | `Data` folder of a **Horn of the Abyss** installation (1.8) | only for HotA maps: HotA terrains, towns and objects |
 
-File names do not matter: files are recognised by their contents. HotA, WoG and Chronicles maps
-are not supported yet and show a message.
+File names do not matter: files are recognised by their contents. A HotA map without `HotA.lod`
+still opens, but without HotA's terrains and objects. WoG and Chronicles maps are not supported yet
+and show a message.
 
 ## Getting started
 
 ### In the browser
 
-Open **<https://alamion.github.io/heroes_III_ts/>**, then click **Choose files…** or drop the two
-archives and a map anywhere on the page. The files are read locally; nothing is uploaded. The
+Open **<https://alamion.github.io/heroes_III_ts/>**, then click **Choose files…** or drop the
+archives and a map anywhere on the page (several files at once are fine). The files are read locally; nothing is uploaded. The
 browser remembers them for your next visit, and **Forget files** removes them.
 
 | Key | Action |
@@ -91,12 +96,12 @@ Prebuilt packages are not published yet. Build them from source (see
 1. Copy `dist/packages/wallpaper-engine/` into `Wallpaper Engine/projects/myprojects/`, or open
    its `project.json` in the Wallpaper Engine editor.
 2. Select the wallpaper, open its properties and choose the files in **Sprite archive**, **Data
-   archive** and **Map**.
+   archive** and **Map** (and **HotA archive** for a HotA map).
 
 **Lively Wallpaper** (Windows)
 1. Drag `dist/packages/heroes3-living-map-lively-<version>.zip` into Lively.
-2. Open **Customise** for the wallpaper and use **Browse** in the three file settings. Lively copies
-   the chosen files into the wallpaper's folder.
+2. Open **Customise** for the wallpaper and use **Browse** in the file settings. Lively copies
+   the chosen files into the wallpaper's folder. The HotA archive is only needed for HotA maps.
 
 **KDE Plasma 6** (Linux)
 1. Install the plugin:
@@ -105,7 +110,7 @@ Prebuilt packages are not published yet. Build them from source (see
    # later updates: -u instead of -i
    ```
 2. Right-click the desktop → **Configure Desktop and Wallpaper** → wallpaper type **Heroes 3 Living Map**.
-3. Choose the three files and press **Apply**.
+3. Choose the files (the HotA archive only for HotA maps) and press **Apply**.
 
 The map pauses while a maximised or full-screen window covers the screen. The lock screen shows a
 plain dark background.
@@ -154,7 +159,7 @@ is git-ignored). [AGENTS.md](AGENTS.md) lists every command, including inspectio
 - [specs/](specs/): feature specifications with research notes and measurements:
   [reference environment](specs/001-reference-environment/),
   [foundation](specs/002-foundation-rewrite/), [map objects](specs/003-map-objects/),
-  [platform adapters](specs/004-platform-adapters/).
+  [platform adapters](specs/004-platform-adapters/), [HotA support](specs/005-hota-support/).
 - [TODO.md](TODO.md): roadmap and open items.
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md): attribution.
 
@@ -164,7 +169,8 @@ is git-ignored). [AGENTS.md](AGENTS.md) lists every command, including inspectio
 2. A folder of maps with a random map per start or on a timer; one map across several screens.
 3. Save games of the Complete edition.
 4. Interactive extras: scrolling on idle, battles, captured towns and mines.
-5. Horn of the Abyss maps and archives.
+
+Horn of the Abyss maps and archives are done ([spec 005](specs/005-hota-support/)).
 
 ## Credits and prior work
 
@@ -182,6 +188,13 @@ This project stands on the work of others:
 - **[VCMI](https://github.com/vcmi/vcmi)**, the open-source Heroes III engine (GPL). Its source was
   consulted to cross-check map layouts and object behaviour. **No VCMI code was copied**, which the
   GPL would not allow in an MIT project.
+- For Horn of the Abyss: **[hota-lod-convert](https://codeberg.org/DarkAtom/hota-lod-convert)**
+  (MIT/Apache) for the HotA 1.8 archive layout, **[FreeHeroes](https://github.com/mapron/FreeHeroes)**
+  (MIT) and **[h3m2json](https://github.com/HeroWO-js/h3m2json)** (public domain) for the HotA map
+  format, **[MMArchiveCLI](https://github.com/imahero1492/MMArchiveCLI)** (MIT) for HotA sprite
+  quirks, and the configuration of VCMI's HotA mod (CC BY-SA). Details and attribution are in
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). HotA's shadow tints were measured against the
+  game itself.
 - The [Wallpaper Engine documentation](https://docs.wallpaperengine.io/) for web wallpapers.
 
 Every visual rule was then measured against the original game running under Wine (see

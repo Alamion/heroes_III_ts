@@ -427,15 +427,34 @@ green, orange, purple, teal, pink) **and 72 for neutral**, shown through RGB565.
 
 ### Shadows need 16-bit arithmetic
 
-Shadow pixels (indices 1–4, 6, 7) darken what is below them. The measured formula works on the
-5/6-bit RGB565 channels, with integer floors:
+Shadow pixels (indices 1–4, 6, 7, when the sprite's palette holds a shadow marker there) darken what
+is below them. The measured formulas work on the 5/6-bit RGB565 channels, with integer floors
+([animation.ts](../src/core/data/animation.ts) `shadowChannel`):
 
-| Index | Per channel `c` | Example (red, 5-bit) |
-| --- | --- | --- |
-| 4 (dark) | `c >> 1` | 8→4, 9→4, 10→5 |
-| 1 (light) | `(c >> 1) + (c >> 2)` | 8→6, 20→15 |
+| Index (marker) | Kind | Per channel `c` | Keeps |
+| --- | --- | --- | --- |
+| 3 `(255,50,255)` | faint | `(c >> 1) + (c >> 2) + (c >> 3)` | 7/8 |
+| 1 `(255,150,255)` | light | `(c >> 1) + (c >> 2)` | 3/4 |
+| 2 `(255,100,255)` | medium | `(c >> 1) + (c >> 3)` | 5/8 |
+| 4 `(255,0,255)` | dark | `c >> 1` | 1/2 |
 
-Indices 2, 3, 6 and 7 never occurred in captures; 2 and 7 are assumed light, 3 and 6 dark.
+Indices 1 and 4 were measured on the Complete edition; 2 and 3 only occur in HotA sprites and were
+measured on HotA. 6 and 7 never occurred and are assumed dark and light.
+
+**HotA tints shadows by soil.** On a HotA map the shadow is not always black: an object standing on
+sand casts a brownish shadow, one on wasteland a stronger reddish-brown one
+([005 research](../specs/005-hota-support/research.md)). The soil is read under the object — its
+entrance, else its lowest blocked tile — never under the shadow pixel, so a tower on swamp casts a
+black shadow across sand. Per channel, in 5/6/5 units:
+
+| Soil | Rule |
+| --- | --- |
+| everything else | the table above (black) |
+| sand | the table above plus `(3,1,0)` for dark, `(1,0,0)` for medium and light, nothing for faint |
+| wasteland | `(c × (256 − α) + (3,2,0) × α) >> 8`, α = 38, 77, 115, 154 from faint to dark |
+
+The render object carries the tint (`shadowTint`, [render-objects.ts](../src/core/state/render-objects.ts)),
+only on HotA maps: the Complete edition draws black shadows on sand.
 
 Fixed-function alpha blending cannot reproduce these floors, so shadows take a separate pass
 ([webgl-renderer.ts](../src/core/render/webgl-renderer.ts)):
@@ -443,15 +462,17 @@ Fixed-function alpha blending cannot reproduce these floors, so shadows take a s
 ```mermaid
 flowchart LR
   A["terrain + object bodies<br/>→ colour framebuffer"] --> C
-  B["object quads again<br/>→ shadow-count target<br/>body pixel: reset · shadow pixel: +1 dark or light"] --> C
-  C["resolve pass<br/>colour → 5/6/5 bits<br/>apply dark steps, then light steps, with floor"] --> D["screen"]
+  B["object quads again<br/>→ shadow-count target<br/>body pixel: reset · shadow pixel: +1 of its kind, + tint weight"] --> C
+  C["resolve pass<br/>colour → 5/6/5 bits<br/>apply steps strongest kind first, with floor"] --> D["screen"]
   D --> E["map border on top"]
 ```
 
 The shadow target uses `blendFunc(ONE, ONE_MINUS_SRC_ALPHA)`. A body pixel writes alpha 1, which
-clears the counts below it; a shadow pixel adds 1/255 to R (dark) or G (light). One known
-imprecision remains: where two kinds of shadow stack on one pixel, they are applied dark-then-light
-rather than in draw order.
+clears the counts below it; a shadow pixel adds to the counts: R holds dark + 16 × medium, G light +
+16 × faint (each 1/255 per step), and B the tint weight (1 per sand step, 16 per wasteland step;
+wasteland wins where tints overlap). Two known imprecisions remain: stacked shadows are applied
+strongest kind first rather than in draw order, and overlapping shadows of different tints (not
+measured) all take the strongest tint.
 
 A **software rasterizer** ([software.ts](../src/core/render/software.ts)) implements the same
 model on the CPU. The WebGL output is bit-equal to it in every check, which separates "the rule is
@@ -685,7 +706,8 @@ Accepted by the owner (2026-09-17); the fidelity check still reports them as `fa
 - **One pixel** of a hero flag cloth.
 
 Not yet confirmed by captures: capitol town sprites, boats, moving-hero directions, shadow indices
-2/3/6/7, flag colours of some players. Wallpaper Engine and Lively have not run on real Windows yet;
+6/7, the medium and faint shadows on sand, which tile tints the shadow of an object without an
+entrance, flag colours of some players. Wallpaper Engine and Lively have not run on real Windows yet;
 the open questions are listed in [004 research](../specs/004-platform-adapters/research.md).
 Warm start of the dev harness on large maps sometimes exceeds 2 s (the packages stay under it).
 

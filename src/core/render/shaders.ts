@@ -84,15 +84,18 @@ attribute float a_row;
 attribute float a_page;
 attribute float a_owner;
 uniform vec3 u_flags[9];
+attribute float a_tint;
 varying float v_row;
 varying float v_page;
 varying vec3 v_flag;
+varying float v_tint;
 ${QUAD_VERTEX}
 void main() {
   placeQuad();
   v_row = a_row;
   v_page = a_page;
   v_flag = u_flags[int(a_owner + 0.5)];
+  v_tint = a_tint;
 }
 `
 
@@ -111,6 +114,7 @@ uniform int u_mode;
 varying float v_row;
 varying float v_page;
 varying vec3 v_flag;
+varying float v_tint;
 void main() {
   vec2 uv = (cellTexel() + 0.5) / u_pageSize;
   vec4 t;
@@ -130,10 +134,15 @@ void main() {
     if (!body) discard;
     gl_FragColor = index == 5.0 ? vec4(v_flag, 1.0) : color;
   } else {
-    // Shadow-count target (blend ONE, ONE_MINUS_SRC_ALPHA): body resets, shadows add one step.
+    // Shadow-count target (blend ONE, ONE_MINUS_SRC_ALPHA): body resets, shadows add one step of
+    // their kind (animation.ts SHADOW_MARKER_ALPHA; R = dark + 16 × medium, G = light + 16 × faint)
+    // and their tint weight (B).
+    float tint = floor(v_tint + 0.5) / 255.0;
     if (body) gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-    else if (alpha == 128.0) gl_FragColor = vec4(1.0 / 255.0, 0.0, 0.0, 0.0);
-    else gl_FragColor = vec4(0.0, 1.0 / 255.0, 0.0, 0.0);
+    else if (alpha == 128.0) gl_FragColor = vec4(1.0 / 255.0, 0.0, tint, 0.0);
+    else if (alpha == 96.0) gl_FragColor = vec4(16.0 / 255.0, 0.0, tint, 0.0);
+    else if (alpha == 32.0) gl_FragColor = vec4(0.0, 16.0 / 255.0, tint, 0.0);
+    else gl_FragColor = vec4(0.0, 1.0 / 255.0, tint, 0.0);
   }
 }
 `
@@ -148,18 +157,34 @@ void main() {
 `
 
 export const RESOLVE_FRAGMENT_SHADER = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
 precision mediump float;
+#endif
 uniform sampler2D u_color;
 uniform sampler2D u_shadow;
 uniform vec2 u_size;
-vec3 darken(vec3 c, float dark, float light) {
-  for (int i = 0; i < 8; i++) {
-    if (float(i) >= dark) break;
-    c = floor(c / 2.0);
+// One shadow step (animation.ts shadowChannel) on 5/6/5 units. Strength: 1 faint, 2 light, 3 medium,
+// 4 dark. Tint: 0 black, 1 sand, 2 wasteland.
+vec3 shadowStep(vec3 c, float strength, float tint) {
+  if (tint > 1.5) {
+    float a = floor(strength * 77.0 / 2.0);
+    return floor((c * (256.0 - a) + vec3(3.0, 2.0, 0.0) * a) / 256.0);
   }
-  for (int i = 0; i < 8; i++) {
-    if (float(i) >= light) break;
-    c = floor(c / 2.0) + floor(c / 4.0);
+  vec3 black = floor(c / 2.0);
+  if (strength < 3.5) black += floor(c / 8.0);
+  if (strength < 2.5) black += floor(c / 4.0) - floor(c / 8.0);
+  if (strength < 1.5) black += floor(c / 8.0);
+  if (tint < 0.5) return black;
+  if (strength > 3.5) return black + vec3(3.0, 1.0, 0.0);
+  if (strength > 1.5) return black + vec3(1.0, 0.0, 0.0);
+  return black;
+}
+vec3 apply(vec3 c, float steps, float strength, float tint) {
+  for (int i = 0; i < 15; i++) {
+    if (float(i) >= steps) break;
+    c = shadowStep(c, strength, tint);
   }
   return c;
 }
@@ -167,14 +192,23 @@ void main() {
   vec2 uv = gl_FragCoord.xy / u_size;
   vec3 color = texture2D(u_color, uv).rgb;
   vec4 counts = texture2D(u_shadow, uv);
-  float dark = floor(counts.r * 255.0 + 0.5);
-  float light = floor(counts.g * 255.0 + 0.5);
-  if (dark == 0.0 && light == 0.0) {
+  float r = floor(counts.r * 255.0 + 0.5);
+  float g = floor(counts.g * 255.0 + 0.5);
+  if (r == 0.0 && g == 0.0) {
     gl_FragColor = vec4(color, 1.0);
     return;
   }
+  // Tint weight (animation.ts SHADOW_TINT_WEIGHT): 16 per wasteland step, 1 per sand step.
+  float weight = floor(counts.b * 255.0 + 0.5);
+  float tint = weight >= 16.0 ? 2.0 : (weight > 0.0 ? 1.0 : 0.0);
   vec3 bits = vec3(31.0, 63.0, 31.0);
-  vec3 c = darken(floor(color * bits + 0.5), dark, light);
+  float medium = floor(r / 16.0);
+  float faint = floor(g / 16.0);
+  vec3 c = floor(color * bits + 0.5);
+  c = apply(c, r - medium * 16.0, 4.0, tint);
+  c = apply(c, medium, 3.0, tint);
+  c = apply(c, g - faint * 16.0, 2.0, tint);
+  c = apply(c, faint, 1.0, tint);
   gl_FragColor = vec4(c / bits, 1.0);
 }
 `

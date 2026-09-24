@@ -3,6 +3,8 @@
 
 import { HERO_FLAG_DEFS, HERO_MAP_DEFS, HERO_VISIT_OFFSET, HIDDEN_CLASSES, OBJECT_CLASS, TOWN_SPRITES } from '../data/object-classes.ts'
 import { BOAT_HERO_DEFS, HERO_DEFAULT_IDLE, heroClassOfType } from '../data/heroes.ts'
+import { shadowTintOfTerrain } from '../data/animation.ts'
+import type { ShadowTint } from '../data/animation.ts'
 import { maskOffsets } from '../formats/h3m/types.ts'
 import type { Rng } from '../util/rng.ts'
 import { hashInts } from '../util/rng.ts'
@@ -36,6 +38,8 @@ export interface RenderObject {
   readonly floating: boolean
   /** Animation phase offset in ticks (per object, from the seed; research.md §7). */
   readonly phase: number
+  /** HotA maps: how the object's shadows are tinted, from the soil under it (absent = black). */
+  readonly shadowTint?: ShadowTint
 }
 
 const WATER = 8
@@ -48,6 +52,23 @@ const BUILDING_BIT_CASTLE = 5
 function terrainAt(state: WorldState, x: number, y: number, z: number): number {
   if (x < 0 || y < 0 || x >= state.size || y >= state.size) return -1
   return state.terrain[(z * state.size * state.size + y * state.size + x) * 7] ?? -1
+}
+
+/**
+ * The tile whose soil tints an object's shadows on a HotA map (spec 005 research "Shadow recolouring
+ * follows the object"): the entrance, else the lowest, rightmost blocked tile, else the anchor. The
+ * towers of the probe map show the entrance and blocked tiles decide, not the anchor or the pixel;
+ * objects without an entrance are not measured.
+ */
+function standingTile(passable: Uint8Array, active: Uint8Array): { dx: number; dy: number } {
+  // Rows from the object's row (5) upwards, columns from the object's column (bit 7) leftwards.
+  for (const blocked of [false, true]) {
+    for (let row = 5; row >= 0; row--) {
+      const bits = blocked ? ~(passable[row] as number) & 0xff : (active[row] as number)
+      for (let bit = 7; bit >= 0; bit--) if (bits & (1 << bit)) return { dx: bit - 7, dy: row - 5 }
+    }
+  }
+  return { dx: 0, dy: 0 }
 }
 
 /**
@@ -81,11 +102,19 @@ function townDef(faction: number, state: WorldState, id: ObjectId, fallback: str
   return sprites.village
 }
 
+/** The shadow tint field of an entry: HotA maps only, since the Complete edition draws black on sand. */
+function tintOn(state: WorldState, soil: number): { shadowTint?: ShadowTint } {
+  if (state.map.version !== 'HotA') return {}
+  const tint = shadowTintOfTerrain(soil)
+  return tint === 0 ? {} : { shadowTint: tint }
+}
+
 function heroEntries(base: { id: ObjectId; x: number; y: number; z: number; owner: number | null; order: number; random: RandomOutcome | null; floating: boolean }, type: number, state: WorldState): Omit<RenderObject, 'phase'>[] {
   const heroClass = heroClassOfType(type)
   if (heroClass === undefined) return []
-  const onWater = terrainAt(state, base.x + HERO_VISIT_OFFSET.dx, base.y + HERO_VISIT_OFFSET.dy, base.z) === WATER
-  const common = { ...base, classId: OBJECT_CLASS.HERO, group: HERO_DEFAULT_IDLE.group, mirror: HERO_DEFAULT_IDLE.mirror, flat: false, visitable: true }
+  const soil = terrainAt(state, base.x + HERO_VISIT_OFFSET.dx, base.y + HERO_VISIT_OFFSET.dy, base.z)
+  const onWater = soil === WATER
+  const common = { ...base, classId: OBJECT_CLASS.HERO, group: HERO_DEFAULT_IDLE.group, mirror: HERO_DEFAULT_IDLE.mirror, flat: false, visitable: true, ...tintOn(state, soil) }
   const body: Omit<RenderObject, 'phase'> = { ...common, kind: 'heroBody', def: onWater ? (BOAT_HERO_DEFS[0] as string) : (HERO_MAP_DEFS[heroClass] as string) }
   const flagDef = base.owner === null ? undefined : HERO_FLAG_DEFS[base.owner]
   return flagDef === undefined ? [body] : [body, { ...common, kind: 'heroFlag', def: flagDef }]
@@ -98,6 +127,7 @@ function heroEntries(base: { id: ObjectId; x: number; y: number; z: number; owne
 export function buildRenderObjects(state: WorldState, tables: GameTables, rng: Rng): { objects: RenderObject[]; outcomes: Map<ObjectId, RandomOutcome> } {
   const outcomes = resolveRandomObjects(state, tables, rng)
   const out: Omit<RenderObject, 'phase'>[] = []
+  const hota = state.map.version === 'HotA'
   const ids = [...state.objects.keys()].sort((a, b) => a - b)
   for (const id of ids) {
     if (state.removed.has(id)) continue
@@ -120,7 +150,13 @@ export function buildRenderObjects(state: WorldState, tables: GameTables, rng: R
       def = townDef(faction, state, id, def)
       classId = OBJECT_CLASS.TOWN
     }
-    out.push({ ...base, kind: 'object', classId, def, group: 0, mirror: false, flat, visitable })
+    const entry: Omit<RenderObject, 'phase'> = { ...base, kind: 'object', classId, def, group: 0, mirror: false, flat, visitable }
+    if (hota) {
+      const stand = standingTile(o.template.passable, o.template.active)
+      const tint = shadowTintOfTerrain(terrainAt(state, o.x + stand.dx, o.y + stand.dy, o.z))
+      if (tint !== 0) (entry as { shadowTint?: ShadowTint }).shadowTint = tint
+    }
+    out.push(entry)
   }
 
   // Heroes the game generates at players' main towns (not in the object list).

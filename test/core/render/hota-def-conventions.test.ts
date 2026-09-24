@@ -5,18 +5,20 @@ import { SHADOW_KINDS, shadowChannel } from '../../../src/core/data/animation.ts
 import { flagIndexFor, HOTA_FLAG_AT_255 } from '../../../src/core/data/hota-def-conventions.ts'
 
 describe('HotA shadow indices', () => {
-  it('treats index 3 like the base light shadow and index 2 like the base dark one', () => {
-    // Measured: HotA sprites shade with indices 2 and 3, where 3 behaves like base index 1 and 2
-    // like base index 4 (spec 005 T041 sweep).
-    expect(SHADOW_KINDS.get(3)).toBe(SHADOW_KINDS.get(1))
-    expect(SHADOW_KINDS.get(2)).toBe(SHADOW_KINDS.get(4))
+  it('gives indices 3 and 2 their own strengths, between and around the base ones', () => {
+    // Measured on HotA captures (spec 005 research "Four shadow strengths"): 3 is the faintest,
+    // then 1, 2 and 4, which matches the markers (255,50,255), (255,150,255), (255,100,255), (255,0,255).
+    expect(SHADOW_KINDS.get(3)).toBe('faint')
     expect(SHADOW_KINDS.get(1)).toBe('light')
+    expect(SHADOW_KINDS.get(2)).toBe('medium')
     expect(SHADOW_KINDS.get(4)).toBe('dark')
   })
 
   it('keeps the measured darkening of each kind', () => {
-    // light → (c >> 1) + (c >> 2), dark → c >> 1, on 5/6-bit channels.
+    // Black keeps 7/8, 3/4, 5/8 and 1/2 through shifts, on 5/6-bit channels.
+    expect(shadowChannel(31, 'faint')).toBe(15 + 7 + 3)
     expect(shadowChannel(31, 'light')).toBe(15 + 7)
+    expect(shadowChannel(31, 'medium')).toBe(15 + 3)
     expect(shadowChannel(31, 'dark')).toBe(15)
     expect(shadowChannel(63, 'light')).toBe(31 + 15)
     expect(shadowChannel(63, 'dark')).toBe(31)

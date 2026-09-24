@@ -5,8 +5,8 @@ import { cameraForMapping, visibleRange } from '../../../src/core/render/camera.
 import { buildDrawPlan } from '../../../src/core/render/draw-plan.ts'
 import { buildObjectPlan } from '../../../src/core/render/object-plan.ts'
 import { palettesAt } from '../../../src/core/render/palette.ts'
-import { drawObjects, rasterize, rasterizeScene, shadowColor } from '../../../src/core/render/software.ts'
-import { FLAG_INDEX, SHADOW_KINDS } from '../../../src/core/data/animation.ts'
+import { drawObjects, rasterize, rasterizeScene, shadowColor, shadowLayers, stepsAt } from '../../../src/core/render/software.ts'
+import { FLAG_INDEX, SHADOW_KINDS, SHADOW_TINT } from '../../../src/core/data/animation.ts'
 import { NEUTRAL_SLOT } from '../../../src/core/data/players.ts'
 import { terrainLayerDefs, TERRAINS } from '../../../src/core/data/terrain.ts'
 import { objectScene } from './objects-helpers.ts'
@@ -25,26 +25,49 @@ describe('software rasterizer with objects', async () => {
   const scene = { plan: objectPlan, atlas: s.atlas, flagColors: s.colors }
 
   it('reports the shadow layers it applied, so a check can tell shadow from body', () => {
-    const layers = { dark: new Uint8Array(cam.width * cam.height), light: new Uint8Array(cam.width * cam.height) }
+    const layers = shadowLayers(cam.width * cam.height)
     const img = rasterizeScene(plan, terrainAtlas, palettes, cam, scene, undefined, layers)
     const plain = rasterize(plan, terrainAtlas, palettes, cam)
     let shadowed = 0
     let onTerrain = 0
     for (let i = 0; i < cam.width * cam.height; i++) {
-      const d = layers.dark[i] as number
-      const l = layers.light[i] as number
-      if (d === 0 && l === 0) continue
+      const steps = stepsAt(layers, i)
+      if (Object.values(steps).every((v) => v === 0)) continue
       shadowed++
       // A shadow falls on the terrain or on a body drawn before it. Where it fell on the terrain,
       // the drawn pixel is exactly that terrain shaded by the reported layers — which is what lets
       // a check compare the game's shadow with ours (spec 005 research, the HotA shadow question).
-      const [r, g, b] = shadowColor(plain[i * 4] as number, plain[i * 4 + 1] as number, plain[i * 4 + 2] as number, d, l)
+      const [r, g, b] = shadowColor(plain[i * 4] as number, plain[i * 4 + 1] as number, plain[i * 4 + 2] as number, steps)
       if (img[i * 4] === r && img[i * 4 + 1] === g && img[i * 4 + 2] === b) onTerrain++
     }
     expect(shadowed).toBeGreaterThan(0)
     expect(onTerrain).toBeGreaterThan(0)
     // No layers reported where nothing shaded the pixel: those pixels are the plain scene.
     expect(layers.dark.some((v, i) => v === 0 && (layers.light[i] as number) === 0)).toBe(true)
+  })
+
+  it('tints shadows by the object\'s soil when a render object carries a tint', () => {
+    for (const tint of [SHADOW_TINT.sand, SHADOW_TINT.wasteland]) {
+      const tinted = new ObjectIndex(s.objects.map((o) => ({ ...o, shadowTint: tint })), 36, 2)
+      const tintedScene = { ...scene, plan: buildObjectPlan(tinted, s.atlas.layout, 0, range, 2) }
+      const layers = shadowLayers(cam.width * cam.height, true)
+      const img = rasterizeScene(plan, terrainAtlas, palettes, cam, tintedScene, undefined, layers)
+      const plain = rasterize(plan, terrainAtlas, palettes, cam)
+      let onTerrain = 0
+      let unlikeBlack = 0
+      for (let i = 0; i < cam.width * cam.height; i++) {
+        const steps = stepsAt(layers, i)
+        if (Object.values(steps).every((v) => v === 0)) continue
+        expect(layers.tint?.[i]).toBeGreaterThan(0)
+        const [r, g, b] = shadowColor(plain[i * 4] as number, plain[i * 4 + 1] as number, plain[i * 4 + 2] as number, steps, tint)
+        if (img[i * 4] !== r || img[i * 4 + 1] !== g || img[i * 4 + 2] !== b) continue
+        onTerrain++
+        const black = shadowColor(plain[i * 4] as number, plain[i * 4 + 1] as number, plain[i * 4 + 2] as number, steps)
+        if (black[0] !== r || black[1] !== g || black[2] !== b) unlikeBlack++
+      }
+      expect(onTerrain).toBeGreaterThan(0)
+      expect(unlikeBlack).toBeGreaterThan(0)
+    }
   })
 
   it('draws owner colours on flag pixels and records the topmost object per pixel', () => {
@@ -92,7 +115,7 @@ describe('software rasterizer with objects', async () => {
         const sy = tree.screenY + cell.y + y + range.y0 * 32 - cam.offsetY
         if (sx < 0 || sy < 0 || sx >= cam.width || sy >= cam.height || owners[sy * cam.width + sx] !== tree.index) continue
         const o = (sy * cam.width + sx) * 4
-        const expected = shadowColor(terrainOnly[o] as number, terrainOnly[o + 1] as number, terrainOnly[o + 2] as number, kind === 'dark' ? 1 : 0, kind === 'light' ? 1 : 0)
+        const expected = shadowColor(terrainOnly[o] as number, terrainOnly[o + 1] as number, terrainOnly[o + 2] as number, { [kind]: 1 })
         expect([withObjects[o], withObjects[o + 1], withObjects[o + 2]]).toEqual(expected)
         checked++
       }

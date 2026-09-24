@@ -81,6 +81,31 @@ describe('render objects', () => {
   })
 })
 
+describe('shadow tint (spec 005 research "Shadow recolouring follows the object")', () => {
+  const base = world(36)
+  const withSoil = (version: string, soil: (x: number, y: number) => number | undefined): WorldState => {
+    const terrain = base.terrain.slice()
+    for (let y = 0; y < base.size; y++) for (let x = 0; x < base.size; x++) {
+      const t = soil(x, y)
+      if (t !== undefined) terrain[(y * base.size + x) * 7] = t
+    }
+    return { ...base, terrain, map: { ...base.map, version } } as WorldState
+  }
+  const mine = [...base.objects.values()].find((o) => o.classId !== OBJECT_CLASS.HERO && o.template.active.some((b) => b !== 0) && o.z === 0) as NonNullable<ReturnType<typeof base.objects.get>>
+  const entrance = { x: mine.x, y: mine.y } // the synthetic visitable templates use the anchor tile (bit 7, row 5)
+  const tintOf = (state: WorldState) => buildRenderObjects(state, tables, createRng(state.seed)).objects.find((o) => o.id === mine.id)?.shadowTint
+
+  it('follows the soil under the entrance on HotA maps', () => {
+    expect(tintOf(withSoil('HotA', (x, y) => (x === entrance.x && y === entrance.y ? 11 : undefined)))).toBe(2)
+    expect(tintOf(withSoil('HotA', (x, y) => (x === entrance.x && y === entrance.y ? 1 : 11)))).toBe(1)
+    expect(tintOf(withSoil('HotA', () => 4))).toBeUndefined()
+  })
+
+  it('is never set on base-game maps, where the Complete edition draws black on sand', () => {
+    expect(buildRenderObjects(withSoil('SoD', () => 1), tables, createRng(1)).objects.some((o) => o.shadowTint !== undefined)).toBe(false)
+  })
+})
+
 describe('object index', () => {
   it('returns exactly the objects whose sprite can reach a range', () => {
     const state = world(252)

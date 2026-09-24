@@ -178,7 +178,7 @@ A typed, name-keyed table:
 
 | Set | Effect |
 | --- | --- |
-| Shadows at palette 2/3 | For these DEFs, palette index 3 behaves like base index 1 (`(c>>1)+(c>>2)`) and index 2 like base index 4 (`c>>1`), in addition to the base indices. |
+| ~~Shadows at palette 2/3~~ | **Superseded 2026-09-24** (research "Four shadow strengths"): no table. A special index is a shadow when its palette holds a marker; index 3 is its own *faint* strength (`(c>>1)+(c>>2)+(c>>3)`) and index 2 a *medium* one (`(c>>1)+(c>>3)`), not copies of base 1 and 4. |
 | Flag colour at index 255 | For these DEFs, the player-flag slot is index 255 instead of 5. |
 | Keep selection palette | For the one listed DEF, index 5 is not made transparent. |
 

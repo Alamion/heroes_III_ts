@@ -214,7 +214,8 @@ while the copy in the install's `Maps` folder is sub-version 10.
   class. Flags are unchanged: the same eight `af0?.def` with the colour baked in; HotA repaints only
   `af01`.
 - **DEF conventions**: `context/mmarchive-cli/defConfig.json` lists 41 DEF stems whose shadows live
-  in palette indices 2 and 3 (index 3 behaving like base index 1, index 2 like base index 4) and 11
+  in palette indices 2 and 3 (index 3 behaving like base index 1, index 2 like base index 4 — that
+  source's claim; measured otherwise, see "Four shadow strengths") and 11
   DEFs whose player-flag colour sits at index 255 instead of 5, plus one DEF whose index 5 must not
   be made transparent. The tool keys these by **file name**, not by archive or heuristic.
 - **D32/P32**: corrected while implementing (2026-09-23). Counting by *extension* undercounts
@@ -389,8 +390,9 @@ it:
 - ~~Shadows at 2/3 are not an exception, they are how HotA draws.~~ **Corrected 2026-09-24**: this
   sweep counted sprites whose pixels *use* indices 2 or 3, not what the palette holds there. Most of
   them hold ordinary colours, which the game draws opaque (see "Special indices are shadows only
-  when marked" below). The mapping stands for the sprites that do mark them: index 3 behaves like
-  base index 1 (light) and index 2 like base index 4 (dark).
+  when marked" below). ~~The mapping stands for the sprites that do mark them: index 3 behaves like
+  base index 1 (light) and index 2 like base index 4 (dark).~~ Also corrected 2026-09-24: 3 and 2
+  are strengths of their own, faint (7/8) and medium (5/8) — see "Four shadow strengths".
 - **The flag colour at index 255 cannot be measured.** Index 255 is an ordinary colour elsewhere
   (1052 of 1369 base-game adventure sprites use it), and the sprites that follow the rule use index
   5 as well, so nothing in the pixels separates them. That list stays a short, ported,
@@ -765,7 +767,7 @@ Measured on the probe captures (both layers, every pixel of every hut):
   the usual 16-bit 50 % blend, towards brown instead of black.
 - **Wasteland** — stronger and coloured: a blend `T × (1 − α) + α × S` with **α ≈ 0.6** for the dark
   layer (0.61 / 0.60 / 0.61 per channel) and α/2 for the edge, `S ≈ (3, 1, 0)`, explains red and blue
-  on all 1 086 pixels and green on 94 %; the exact arithmetic is not pinned yet.
+  on all 1 086 pixels and green on 94 %. Pinned exactly later (see "Recolouring implemented").
 - **Base game**: a Complete-edition capture of `test_map.h3m`'s sand zone (x 109–127, y 72–88) has
   black shadows on sand — 2 694 of 3 228 single-dark pixels agree with `T >> 1`, and none of the rest
   shows the `(+3, +1, 0)` offset (they are draw-order and double-shadow cases in a dense cluster). The
@@ -818,7 +820,68 @@ With the fake shadows gone, the wasteland rule is close to exact and linear in e
 `(T8 × 101 + S8 × 155) >> 8` with `S8 ≈ (22, 6, 0)` (α ≈ 0.6; red 99.9 %, green 98.6 %, blue 100 % of
 2 488 pixels), light edge α ≈ 0.32 towards the same colour (red and blue 100 %, green 96 % of 714). The
 earlier "no linear model" result came from those fake shadows. Sand stays exact in 5/6/5 shift
-arithmetic (see above). Not implemented yet.
+arithmetic (see above). Superseded by the exact 5/6/5 form in "Recolouring implemented".
+
+### Recolouring implemented (2026-09-24)
+
+A search over integer blends on 5/6/5 units (`G = (T × M + K) / D`) instead of 8-bit display values
+found an exact rule for wasteland, one α for all three channels: dark `(T × 51 + S × 77) >> 7`, light
+edge `(T × 179 + S × 77) >> 8`, with **S = (3, 2, 0)** — 100 % of 2 488 dark and 714 light pixels.
+The per-channel alphas of the 8-bit fit were an artefact of quantisation. Sand is exact as dark
+`(T >> 1) + (3, 1, 0)` and light `(T >> 1) + (T >> 2) + (1, 0, 0)` on every sand pixel of both probe
+captures (417 dark, 126 light, twice).
+
+The implementation (`shadowChannel` and `shadowTintOfTerrain` in `src/core/data/animation.ts`):
+
+- `buildRenderObjects` gives every entry of a HotA map a `shadowTint` from the soil of its standing
+  tile: the lowest, rightmost entrance tile, else the lowest, rightmost blocked tile, else the
+  anchor; heroes use the tile they stand on. Base-game maps get none.
+- The object plan carries the tint as a twelfth vertex float. The software rasterizer and the WebGL
+  shadow-count target add a tint weight per shadow step (1 sand, 16 wasteland; the count target's B
+  channel) and the resolve pass picks wasteland over sand over black. Overlapping shadows of
+  different tints are not measured; that choice is ours.
+- The GL resolve shader moved to `highp` where available: `c × 179` exceeds what `mediump` holds
+  exactly.
+- Objects without an entrance take the blocked tile; the probe towers all have entrances, so that
+  part is **not measured**.
+
+### Four shadow strengths (found with the recolouring, 2026-09-24)
+
+With the tints in place, a wasteland mountain (`avlmtwl7.def`) still differed on its shadow — only on
+the pixels drawn with indices 2 and 3, while 1 and 4 matched exactly. Its palette holds the four
+markers `(255,150,255)`, `(255,100,255)`, `(255,50,255)` and `(255,0,255)` at indices 1–4. Collecting
+every single-step shadow pixel over bare terrain from all ten HotA views (63 815 pixels) and fitting
+per index and tint:
+
+| Index (marker) | Black: kept of each channel | Formula | Pixels | Wasteland α (/256) |
+| --- | --- | --- | --- | --- |
+| 3 `(255,50,255)` | 7/8 | `(c >> 1) + (c >> 2) + (c >> 3)` | 99.3 % of 3 086 | 38 (98.8 % of 243) |
+| 1 `(255,150,255)` | 3/4 | `(c >> 1) + (c >> 2)` | 99.7 % of 6 824 | 77 (100 % of 4 137) |
+| 2 `(255,100,255)` | 5/8 | `(c >> 1) + (c >> 3)` | 99.2 % of 7 233 | 115 (100 % of 199) |
+| 4 `(255,0,255)` | 1/2 | `c >> 1` | 99.5 % of 20 940 | 154 (100 % of 6 835) |
+
+So HotA has four strengths, and the wasteland alphas are k × 0.15 of full. The mapping taken from
+MMArchiveCLI ("3 like base 1, 2 like base 4") and used until now was wrong for both. On sand no index
+2 or 3 pixel occurs in the captures; the renderer extrapolates the same 16-bit blend (medium adds
+`(1, 0, 0)`, faint nothing). Base-game sprites barely use 2 and 3 (two sprites use 2), so the rule
+applies to both baselines; every Complete view is unchanged.
+
+The shadow-count target now packs four counts: R = dark + 16 × medium, G = light + 16 × faint
+(15 steps each). Object cache schema 8.
+
+Effect on fidelity (differing pixels; every GPU render equals the software rasterizer):
+
+| Views | Before these changes | Markers only | + tints | + four strengths |
+| --- | --- | --- | --- | --- |
+| Probe `test_shadows.h3m` (2) | 2 697 / 2 022 | 2 271 / 1 367 | **0 / 0** | 0 / 0 |
+| `test_map_hota.h3m` (8) | 84 475 | 57 596 | 36 760 | **23 393** |
+| `test_map.h3m` (Complete, 11 stills + 2 clips) | — | unchanged | unchanged | unchanged |
+
+What is left on the HotA views is not the shadow rule: single-step shadows over bare terrain match
+on 99 %+ of pixels on every terrain (highlands pines included). The rest is where a shadow meets a
+neighbouring body in the dense underground forests and hills of highlands (21 649 of the 23 393, two
+views) and town sprites' bodies (about 500 pixels a town) — draw order and overlap, the same class as
+the base game's accepted dense-cluster deviation.
 
 ### Hosts: the HotA archive must be loaded first (found on a real KDE session, 2026-09-23)
 
