@@ -507,6 +507,22 @@ events plus `document.hidden`. To verify or correct there:
   `check-reports/windows-session/cdp-eval.mjs` and runs on Windows-side Node (`Runtime.evaluate` over
   `/devtools/page/<id>`); nothing Windows-only entered shared tooling.
 
+### 2026-09-24 — KDE: black wallpaper after a monitor was plugged in
+
+The owner plugged in the large monitor (the primary screen), the wallpaper moved to it and stayed
+black; a plasmashell restart fixed it, and a second unplug/replug did not reproduce it. A DevTools
+watcher over the replug showed the page itself healthy (context never lost, frames drawn) but
+toggling `hostPaused` and `document.visibilityState` together for up to 26 s per move: the QML shell
+pauses the page and hides the `WebEngineView` (black background below) while `WindowWatcher` reports
+the screen covered by a maximized window. `WindowWatcher` recomputed `covered` only on the tasks
+model's `dataChanged` and `countChanged`; a move to another screen refilters the model, and when the
+filtered count stays the same neither signal fires, so `covered` can keep the old screen's answer —
+a black wallpaper until the shell restarts. Fixed by recomputing on screen-geometry, desktop and
+activity changes and on the model's row, reset and layout signals (static test in
+`test/tools/manifests-kde.test.ts`). The cause is inferred from the code and the observed pausing;
+the original black state could not be inspected, so a repeat after the fix should be looked at
+with the DevTools port open (AGENTS.md, KDE notes).
+
 ### Deviations from the plan
 
 - Host builds are produced by `tools/package/build.ts` through the Vite API (IIFE library builds, worker built

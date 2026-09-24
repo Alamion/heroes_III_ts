@@ -40,6 +40,14 @@ describe('KDE manifests (spec 004 FR-017)', () => {
     for (const def of [...SETTINGS, ...ACTIONS]) expect(shell, def.key).toContain(`"${def.key}": c.${def.key}`)
   })
 
+  it('recomputes window coverage whenever the tasks model may refilter', () => {
+    // A wallpaper moved to a newly plugged-in monitor stayed black: the model refiltered for the new
+    // screen with the same count, so `covered` kept the old screen's answer (2026-09-24).
+    const watcher = readFileSync(resolve(import.meta.dirname, '../../packaging/kde/contents/ui/WindowWatcher.qml'), 'utf8')
+    for (const handler of ['onScreenGeometryChanged', 'onCurrentDesktopChanged', 'onCurrentActivityChanged', 'onDataChanged', 'onCountChanged', 'onRowsInserted', 'onRowsRemoved', 'onModelReset', 'onLayoutChanged'])
+      expect(watcher, handler).toMatch(new RegExp(`${handler}: Qt\\.callLater\\(watcher\\.update\\)`))
+  })
+
   it('ships both string tables for the settings page', () => {
     const js = stringsJs()
     expect(js).toMatch(/\ben: \{/)
