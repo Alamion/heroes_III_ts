@@ -29,7 +29,9 @@ export interface Panel {
   element: HTMLElement
 }
 
-const FILE_SLOTS: readonly FileSlot[] = ['spriteArchive', 'dataArchive', 'map']
+const FILE_SLOTS: readonly FileSlot[] = ['spriteArchive', 'dataArchive', 'hotaArchive', 'map']
+/** Slots listed only once a file fills them: the HotA archive is optional. */
+const OPTIONAL_SLOTS: ReadonlySet<FileSlot> = new Set(['hotaArchive'])
 
 export function createPanel(root: HTMLElement, handlers: PanelHandlers): Panel {
   const doc = root.ownerDocument
@@ -137,6 +139,7 @@ export function createPanel(root: HTMLElement, handlers: PanelHandlers): Panel {
     el.append(el_('h3', undefined, format(lang, 'panel_files')))
     for (const slot of FILE_SLOTS) {
       const s = state.slots[slot]
+      if (OPTIONAL_SLOTS.has(slot) && s.status !== 'loaded') continue
       const row = el_('div', `h3p-file${s.status === 'loaded' ? '' : ' h3p-missing'}`)
       row.dataset.slot = slot
       row.append(el_('span', undefined, format(lang, SLOT_KIND_KEYS[slot])), el_('span', undefined, s.name ?? format(lang, 'panel_none')))

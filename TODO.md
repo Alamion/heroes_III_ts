@@ -96,7 +96,24 @@ After the open fixes of item 2, the order is (owner, 2026-09-22):
      object's soil (sand, wasteland), and indices 2/3 are shadow strengths of their own. The eight
      views went from 84 475 to 23 393 differing pixels, the probe map to 0. The rest is draw order
      and overlap in dense highland forests and town bodies; needs owner review with the diff images
-     before it can become an accepted deviation.
+     before it can become an accepted deviation. To come back to, with the shadow rules:
+     - **Overlapping objects** (not fixed): where a shadow meets a neighbouring object's body, or
+       shadows stack, the game's result differs from ours — 21 649 of the 23 393 pixels are in the two
+       underground highland views (`x1-19_y110-126`, `x3-21_y118-134`), about 500 per town in the
+       town views. Single-step shadows over bare terrain match on 99 %+ everywhere, so this is draw
+       order or stacking, not the shadow formula.
+     - **Stacking order** (not measured): stacked steps are applied strongest kind first
+       (`SHADOW_KIND_ORDER`), not in draw order.
+     - **Overlapping tints** (not measured): shadows of objects on different soils over one pixel
+       take the strongest tint (wasteland > sand > black).
+     - **Tinting tile of objects without an entrance** (not measured): the lowest, rightmost blocked
+       tile is used (`standingTile` in `render-objects.ts`); the probe towers all had entrances. A
+       probe: decorations (trees, rocks) standing across a sand/wasteland border.
+     - **Medium and faint shadows on sand** (not measured): indices 2 and 3 never fell on sand in the
+       captures; the sand addition for them is extrapolated (`SAND_ADD` in `animation.ts`).
+     - **Shadow indices 6 and 7** (not measured): assumed dark and light.
+     - **Cyan markers** at special indices (19 HotA sprites): not understood, read as shadows.
+     Details: 005 research "Recolouring implemented", "Four shadow strengths".
    - **A region-scoped object atlas** — object GPU memory still scales with the map, which
      contradicts constitution IV. HotA made it visible: `test_map_hota.h3m` needs 4610 frames and
      29.3 M sprite pixels, so the page size now follows the GPU's `MAX_TEXTURE_SIZE` (2048–4096)

@@ -7,7 +7,7 @@ with the animation the original game uses.
 It runs as a live wallpaper in **Wallpaper Engine**, **Lively Wallpaper** and **KDE Plasma 6**, and
 as a plain web page.
 
-![The browser version with its settings panel, showing Merchant Princes](docs/img/web-version.jpg)
+![The browser version with its settings panel, showing the Wasteland of the HotA map Paradise Lost](docs/img/web-version.jpg)
 
 > Fan project, not affiliated with the game's publishers. **No game files are included:** you
 > supply them from your own installation, and they never leave your computer.
