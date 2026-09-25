@@ -17,6 +17,8 @@ export class FakeEngine implements ControllerEngine {
   placements: { level: number | { random: number }; placement: unknown }[] = []
   forgot = 0
   loadDelay = 0
+  /** Per-slot overrides of `loadDelay`, so a check can force one archive to finish before another. */
+  slotDelays: Partial<Record<'archive' | 'data' | 'hota' | 'map', number>> = {}
   /** Names that fail to load. */
   failing = new Set<string>()
   private statusListener: ((s: EngineStatus) => void) | undefined
@@ -25,7 +27,7 @@ export class FakeEngine implements ControllerEngine {
   private async load(slot: 'archive' | 'data' | 'hota' | 'map', name: string): Promise<LoadResult> {
     const g = ++this.gen[slot]
     this.calls.push(`${slot}:${name}`)
-    await new Promise((r) => setTimeout(r, this.loadDelay))
+    await new Promise((r) => setTimeout(r, this.slotDelays[slot] ?? this.loadDelay))
     if (g !== this.gen[slot]) return { ok: false, error: { level: 'warn', code: 'SUPERSEDED', message: 'superseded' } }
     if (this.failing.has(name)) return { ok: false, error: { level: 'error', code: 'TRUNCATED', message: 'unexpected end of data' } }
     return { ok: true, identity: `id-${name}`, fromCache: false, warnings: [] }

@@ -246,6 +246,8 @@ export function createController(deps: ControllerDeps): WallpaperController {
   /** A map is in the engine: the single map, or a map of the folder (spec 007). */
   const mapShown = (): boolean => displayed === 'folder' || slots.map.status === 'loaded'
   const showing = (): boolean => slots.spriteArchive.status === 'loaded' && mapShown()
+  /** Any archive still being read or decoded, so a folder pick would use incomplete archives. */
+  const archivesLoading = (): boolean => (['spriteArchive', 'dataArchive', 'hotaArchive'] as const).some((s) => slots[s].status === 'reading' || slots[s].status === 'loading')
   const folderBusy = (): boolean => folder !== null && (folder.entries === null || folder.switching)
   const phase = (): ControllerSnapshot['phase'] => {
     if (showing()) return 'showing'
@@ -471,7 +473,22 @@ export function createController(deps: ControllerDeps): WallpaperController {
       applyView(true)
     }
     // HotA maps of the folder that were waiting for the archive become eligible (spec 007 edge case).
-    if (slot === 'hotaArchive' && settings.mapsource === 'folder' && folder !== null && folder.shown === null && folder.entries !== null && folder.entries.length > 0) void track(pickNext())
+    // Only once the archives they are decoded against have settled: when HotA and the other files
+    // arrive together, its load returns while the sprite archive is still reading, and picking then
+    // would show the first map without objects and the normal pick would immediately replace it with
+    // the next one (measured on the real Wallpaper Engine host, 2026-09-25). The `pick` path of
+    // applyPatch covers that case after Promise.all.
+    if (
+      slot === 'hotaArchive' &&
+      settings.mapsource === 'folder' &&
+      folder !== null &&
+      folder.shown === null &&
+      folder.entries !== null &&
+      folder.entries.length > 0 &&
+      slots.spriteArchive.status === 'loaded' &&
+      !archivesLoading()
+    )
+      void track(pickNext())
     if (showing()) {
       engine.setUserScale(settings.scale as UserScale)
       engine.setObjectsVisible(settings.objects)

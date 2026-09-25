@@ -17,6 +17,7 @@ const FOLDERS: Record<string, readonly FolderMapSpec[]> = {
   broken: BROKEN_ONLY_FOLDER,
   empty: [{ path: 'readme.txt', raw: 'no maps here' }],
   hota: [{ path: 'hota-only.h3m', version: 'HotA', size: 36 }],
+  hotafive: ['a', 'b', 'c', 'd', 'e'].map((n, i) => ({ path: `${n}.h3m`, version: 'HotA' as const, size: 36 + i })),
   five: ['a', 'b', 'c', 'd', 'e'].map((n, i) => ({ path: `${n}.h3m`, size: 36 + i })),
   sizes: [
     { path: 's1.h3m', size: 36 },
@@ -122,6 +123,19 @@ describe('folder source: start (spec 007 US1)', () => {
     await c.idle()
     expect(shownPath(c)).toBe('hota-only.h3m')
     expect(codes(c)).toEqual([])
+  })
+
+  it('HotA arriving with the other archives does not pick before they are loaded', async () => {
+    // The sprite archive is the slow one, so HotA's load returns while it is still reading; a pick at
+    // that moment would show the map without objects and the normal pick would replace it (WE 2026-09-25).
+    const { c, engine } = folderSetup()
+    engine.slotDelays = { archive: 40, data: 5, hota: 0 }
+    await c.start()
+    c.applySettings({ ...ARCHIVES, mapsource: 'folder', mapfolder: 'hotafive', hotaarchive: 'HotA.lod' })
+    await c.idle()
+    expect(['a.h3m', 'b.h3m', 'c.h3m', 'd.h3m', 'e.h3m']).toContain(shownPath(c))
+    expect(engine.calls.filter((x) => x.startsWith('prepare:'))).toHaveLength(1)
+    expect(engine.calls.filter((x) => x.startsWith('show:'))).toHaveLength(1)
   })
 
   it('switching back to "single" loads the single map again', async () => {
