@@ -8,8 +8,18 @@ const encodeSegments = (path: string): string =>
     .map((seg) => encodeURIComponent(seg))
     .join('/')
 
-/** Wallpaper Engine file property value → file:// URL (null when the setting is empty). */
-export function weFileUrl(value: string | null | undefined): string | null {
+/**
+ * Wallpaper Engine file property value → file:// URL (null when the setting is empty).
+ *
+ * WE settings hold paths relative to the wallpaper folder (the CEF reads only inside it, 2026-09-19
+ * session). They are resolved to an absolute `file:` URL here, so `readUserFile` reads them with XHR
+ * `responseType = 'blob'` (keeps large archives out of the JS heap, 004 Measurements); a relative
+ * value would otherwise go through `fetch`, which WE's CEF rejects for a directory with
+ * `TypeError: Failed to fetch` and never answers for a directory over XHR either (2026-09-25) — the
+ * map folder therefore falls back to a `.zip` on WE. The base is already percent-encoded by the
+ * browser; the relative segments are encoded here so a `#` cannot become a fragment.
+ */
+export function weFileUrl(value: string | null | undefined, base?: string): string | null {
   if (typeof value !== 'string' || value.trim() === '') return null
   const v = value.trim()
   if (/^file:/i.test(v)) return v
@@ -21,9 +31,19 @@ export function weFileUrl(value: string | null | undefined): string | null {
   }
   const drive = /^([A-Za-z]):\/(.*)$/.exec(slashed)
   if (drive !== null) return `file:///${drive[1]}:/${encodeSegments(drive[2] ?? '')}`
-  // POSIX absolute path (Wallpaper Engine on Linux via Proton, or checks).
+  // POSIX absolute path outside a browser (checks) is already rooted.
   if (slashed.startsWith('/')) return `file://${encodeSegments(slashed)}`
-  return encodeSegments(slashed)
+  // Relative to the wallpaper folder (the folder of the page). `base` is injectable for tests.
+  const root = base ?? (typeof location !== 'undefined' ? locationFolder() : '')
+  return `${root === '' ? 'file://' : root}/${encodeSegments(slashed)}`
+}
+
+/** The encoded file:// folder of the page (the wallpaper folder), without a trailing slash. */
+function locationFolder(): string {
+  // Location is not touched at module scope so the function stays testable without a DOM.
+  const href = typeof location !== 'undefined' ? location.href : ''
+  const cut = href.replace(/[?#].*$/, '').replace(/[^/]*$/, '')
+  return cut.replace(/\/$/, '')
 }
 
 /** Lively folderDropdown value (`userfiles\name`) → URL relative to the page. */
