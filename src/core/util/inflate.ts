@@ -11,12 +11,12 @@ export interface InflateContext {
 }
 
 /**
- * Decompresses zlib ('deflate', LOD entries) or gzip (H3M) data with the platform's
+ * Decompresses zlib ('deflate', LOD entries), gzip (H3M) or raw deflate (ZIP members) data with the platform's
  * DecompressionStream. When `expectedSize` is given the output length must match exactly.
  */
 export async function inflate(
   bytes: Uint8Array,
-  format: 'deflate' | 'gzip',
+  format: 'deflate' | 'gzip' | 'deflate-raw',
   ctx: InflateContext,
   expectedSize?: number,
 ): Promise<Uint8Array> {

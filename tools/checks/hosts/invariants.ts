@@ -1,15 +1,17 @@
 /// <reference lib="dom" />
-// Host invariants 1–10 (spec 004 contracts/host-bridge.md): checked through a host driver against a
-// built package in headless Chromium.
+// Host invariants (spec 004 contracts/host-bridge.md 1–13, spec 007 contracts/host-bridge.md 14–20):
+// checked through a host driver against a built package in headless Chromium.
 
-import { writeFileSync } from 'node:fs'
+import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Page } from 'playwright-core'
 import { en, format } from '../../../src/adapters/shared/strings.ts'
 import { log } from '../../../src/core/util/log.ts'
 import { encodePng } from '../../shared/png.ts'
+import { mapBytes } from '../../../test/fixtures/synthetic/map-folder.ts'
 import type { HeadlessRenderer } from '../../shared/render-page.ts'
-import type { HostDriver, HostFiles, HostPage } from './drivers.ts'
+import type { HostDriver, HostFiles, HostFolder, HostPage } from './drivers.ts'
 import { setHidden } from './drivers.ts'
 
 export interface InvariantResult {
@@ -26,6 +28,8 @@ export interface FileSet {
   hotaArchive?: string
   map: string
   bad: { wogMap: string; truncatedMap: string; randomBytes: string; missing: string }
+  /** Spec 007: synthetic map folders (test/fixtures/synthetic/map-folder.ts HOST_FOLDERS). */
+  folders: Record<'mixed' | 'five' | 'sizes' | 'half' | 'broken' | 'empty', HostFolder>
 }
 
 interface Snapshot {
@@ -35,7 +39,9 @@ interface Snapshot {
   messages: { code: string }[]
   language: string
   view: { fx: number; fy: number } | null
-  engine: { scheduledFrames: number; pendingCallbacks: number; surface: { width: number; height: number }; camera: { level: number; offsetX: number; offsetY: number; scale: number; width: number; height: number }; visible: boolean; paused: boolean } | null
+  source?: string
+  folder?: { name: string; entries: number | null; shown: { path: string; title: string } | null; failed: number; switching: boolean } | null
+  engine: { scheduledFrames: number; pendingCallbacks: number; gpuBytes?: number; preparedMaps?: number; surface: { width: number; height: number }; camera: { level: number; offsetX: number; offsetY: number; scale: number; width: number; height: number }; visible: boolean; paused: boolean } | null
 }
 
 type Wallpaper = { __h3wallpaper: { controller: { state(): Snapshot; idle(): Promise<void> }; engine(): { renderNow(a: { step: number }): boolean; setPaused(p: boolean): void } | undefined; clock: { advance(ms: number): void } | undefined }; __cspViolations: string[] }
@@ -87,6 +93,8 @@ export interface InvariantContext {
   files: FileSet
   renderer: HeadlessRenderer | undefined
   reportDir: string
+  /** Invariant ids to run (`--only`); all when undefined. */
+  only?: ReadonlySet<number>
 }
 
 type Check = (ctx: InvariantContext, hp: HostPage, fail: (msg: string) => void) => Promise<void>
@@ -108,7 +116,43 @@ async function loaded(ctx: InvariantContext, hp: HostPage, fail: (m: string) => 
   return s
 }
 
-const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[]; opts?: { locale?: string; noCache?: boolean; readDelays?: Record<string, number> } }[] = [
+/** Spec 007: archives only, then a folder the host way; waits until a map of it is shown. */
+async function folderShown(ctx: InvariantContext, hp: HostPage, folder: HostFolder, fail: (m: string) => void, expectShown = true): Promise<Snapshot> {
+  await ctx.driver.supplyFiles(hp, { spriteArchive: ctx.files.spriteArchive, dataArchive: ctx.files.dataArchive })
+  await ctx.driver.supplyFolder(hp, folder)
+  await hp.page
+    .waitForFunction(
+      (want) => {
+        const st = (window as unknown as Wallpaper).__h3wallpaper.controller.state()
+        return want ? st.phase === 'showing' && st.folder?.shown != null && st.folder.switching === false : st.phase === 'problem'
+      },
+      expectShown,
+      { timeout: 60_000 },
+    )
+    .catch(() => undefined)
+  await idle(hp.page)
+  const s = await state(hp.page)
+  if (expectShown && s.folder?.shown == null) fail(`no map of the folder shown: phase ${s.phase}, folder ${JSON.stringify(s.folder)}, messages ${JSON.stringify(s.messages)}`)
+  return s
+}
+
+/** Uses the host's "next map" control and waits for another map (or the same, for a one-map folder). */
+async function nextShown(ctx: InvariantContext, hp: HostPage): Promise<string | undefined> {
+  const before = (await state(hp.page)).folder?.shown?.path
+  await ctx.driver.nextMap(hp)
+  await hp.page
+    .waitForFunction((b) => {
+      const f = (window as unknown as Wallpaper).__h3wallpaper.controller.state().folder
+      return f?.shown != null && f.shown.path !== b && !f.switching
+    }, before, { timeout: 15_000 })
+    .catch(() => undefined)
+  await idle(hp.page)
+  return (await state(hp.page)).folder?.shown?.path
+}
+
+const MIXED_USABLE = ['small.h3m', 'medium two.h3m', 'Карты/Большая.h3m', 'nested/deeper/xl.H3M', 'nested/odd.h3m']
+
+const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[]; opts?: { locale?: string; noCache?: boolean; readDelays?: Record<string, number>; timeScale?: number } }[] = [
   {
     id: 1,
     name: 'placeholder without files, no frames',
@@ -336,6 +380,31 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
     },
   },
   {
+    id: 11.1,
+    name: 'spec 007: browser: the chosen map folder survives a reload; forget clears it',
+    hosts: ['web'],
+    run: async (ctx, hp, fail) => {
+      const s = await folderShown(ctx, hp, ctx.files.folders.five, fail)
+      if (s.folder?.entries !== 5) fail(`${s.folder?.entries} maps`)
+      // Remembering happens in the background after the pick.
+      await hp.page.waitForTimeout(500)
+      await hp.page.reload()
+      await hp.page.waitForFunction(() => (window as unknown as { __h3wallpaper?: unknown }).__h3wallpaper !== undefined)
+      await hp.page
+        .waitForFunction(() => (window as unknown as Wallpaper).__h3wallpaper.controller.state().folder?.shown != null, null, { timeout: 30_000 })
+        .catch(() => undefined)
+      const r = await state(hp.page)
+      if (r.source !== 'folder' || r.folder?.entries !== 5 || r.phase !== 'showing') fail(`after reload: source ${String(r.source)}, folder ${JSON.stringify(r.folder)}, phase ${r.phase}`)
+      await hp.page.click('#h3p-forget', { force: true })
+      await waitPhase(hp.page, 'waiting', 5_000)
+      await hp.page.reload()
+      await hp.page.waitForFunction(() => (window as unknown as { __h3wallpaper?: unknown }).__h3wallpaper !== undefined)
+      await hp.page.waitForTimeout(800)
+      const f = await state(hp.page)
+      if (f.folder?.entries != null && f.folder.entries > 0) fail(`the folder came back after forget: ${JSON.stringify(f.folder)}`)
+    },
+  },
+  {
     id: 12,
     name: 'the optional HotA archive loads, and is never asked for when unset (spec 005 FR-025, FR-026)',
     run: async (ctx, hp, fail) => {
@@ -388,12 +457,233 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
       if (missing.length > 0) fail(`sprites unresolved although the HotA archive is loaded: ${missing[0] as string}`)
     },
   },
+  {
+    id: 14,
+    name: 'spec 007: a map folder (or .zip) shows a random map of it; other files are ignored',
+    run: async (ctx, hp, fail) => {
+      const s = await folderShown(ctx, hp, ctx.files.folders.mixed, fail)
+      if (s.source !== 'folder') fail(`source ${String(s.source)}`)
+      if (s.folder?.entries !== MIXED_USABLE.length) fail(`${s.folder?.entries} maps listed, expected ${MIXED_USABLE.length}`)
+      const shown = s.folder?.shown?.path
+      if (shown === undefined || !MIXED_USABLE.includes(shown)) fail(`shown ${String(shown)} is not a usable map of the folder`)
+      if (s.messages.length > 0) fail(`messages ${JSON.stringify(s.messages)}`)
+      // The same seed picks the same map on a fresh page.
+      const again = await ctx.driver.open({ seed: SEED, clockMs: CLOCK_START, locale: 'en-US' })
+      try {
+        const s2 = await folderShown(ctx, again, ctx.files.folders.mixed, fail)
+        if (s2.folder?.shown?.path !== shown) fail(`same seed showed ${String(s2.folder?.shown?.path)}, first ${String(shown)}`)
+      } finally {
+        await again.close()
+      }
+    },
+  },
+  {
+    id: 14.1,
+    name: 'spec 007: a map added to the folder is a candidate after a restart',
+    hosts: ['wallpaper-engine', 'kde'],
+    run: async (ctx, hp, fail) => {
+      const dir = mkdtempSync(join(tmpdir(), 'h3-folder-'))
+      try {
+        cpSync(ctx.files.folders.five.dir, dir, { recursive: true })
+        const s = await folderShown(ctx, hp, { dir, zip: ctx.files.folders.five.zip }, fail)
+        if (s.folder?.entries !== 5) fail(`${s.folder?.entries} maps before adding one`)
+        writeFileSync(join(dir, 'added.h3m'), mapBytes({ path: 'added.h3m', size: 40 }))
+        const again = await ctx.driver.open({ seed: SEED, clockMs: CLOCK_START, locale: 'en-US' })
+        try {
+          const s2 = await folderShown(ctx, again, { dir, zip: ctx.files.folders.five.zip }, fail)
+          if (s2.folder?.entries !== 6) fail(`${s2.folder?.entries} maps after adding one and restarting`)
+        } finally {
+          await again.close()
+        }
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    },
+  },
+  {
+    id: 14.2,
+    name: 'spec 007: two screens rotate independently and share the decode cache without errors',
+    hosts: ['kde', 'wallpaper-engine'],
+    run: async (ctx, hp, fail) => {
+      const errors: string[] = []
+      const second = await ctx.driver.open({ seed: SEED + 1, clockMs: CLOCK_START, locale: 'en-US' })
+      try {
+        for (const p of [hp, second]) p.page.on('pageerror', (e) => errors.push(e.message))
+        // Both screens start together, as Plasma starts one page per screen.
+        const [a, b] = await Promise.all([folderShown(ctx, hp, ctx.files.folders.five, fail), folderShown(ctx, second, ctx.files.folders.five, fail)])
+        if (a.phase !== 'showing' || b.phase !== 'showing') fail(`phases ${a.phase} / ${b.phase}`)
+        const seqA = [a.folder?.shown?.path]
+        const seqB = [b.folder?.shown?.path]
+        for (let i = 0; i < 3; i++) {
+          seqA.push(await nextShown(ctx, hp))
+          seqB.push(await nextShown(ctx, second))
+        }
+        if (JSON.stringify(seqA) === JSON.stringify(seqB)) fail(`both screens showed the same sequence: ${JSON.stringify(seqA)}`)
+        if (errors.length > 0) fail(`page errors: ${errors.join('; ')}`)
+      } finally {
+        await second.close()
+      }
+    },
+  },
+  {
+    id: 15,
+    name: 'spec 007: "next map" shows every map once per cycle, never twice in a row',
+    run: async (ctx, hp, fail) => {
+      const s = await folderShown(ctx, hp, ctx.files.folders.five, fail)
+      const seq = [s.folder?.shown?.path]
+      for (let i = 0; i < 9; i++) seq.push(await nextShown(ctx, hp))
+      for (const cycle of [seq.slice(0, 5), seq.slice(5, 10)]) if (new Set(cycle).size !== 5) fail(`a cycle repeated a map: ${JSON.stringify(seq)}`)
+      for (let i = 1; i < seq.length; i++) if (seq[i] === seq[i - 1]) fail(`the same map twice in a row: ${JSON.stringify(seq)}`)
+    },
+  },
+  {
+    id: 16,
+    name: 'spec 007: map switches never show an empty frame; memory stays flat',
+    run: async (ctx, hp, fail) => {
+      await folderShown(ctx, hp, ctx.files.folders.five, fail)
+      // Samples every animation frame: the phase and the centre of the canvas (preserved drawing buffer).
+      await hp.page.evaluate(() => {
+        const w = window as unknown as Wallpaper & { __switchSamples: { phase: string; hidden: boolean; black: boolean }[] }
+        w.__switchSamples = []
+        const canvas = document.getElementById('map') as HTMLCanvasElement
+        const gl = canvas.getContext('webgl') as WebGLRenderingContext
+        const px = new Uint8Array(8 * 8 * 4)
+        const tick = () => {
+          gl.readPixels(Math.floor(canvas.width / 2) - 4, Math.floor(canvas.height / 2) - 4, 8, 8, gl.RGBA, gl.UNSIGNED_BYTE, px)
+          let sum = 0
+          for (let i = 0; i < px.length; i += 4) sum += (px[i] as number) + (px[i + 1] as number) + (px[i + 2] as number)
+          w.__switchSamples.push({ phase: w.__h3wallpaper.controller.state().phase, hidden: canvas.hidden, black: sum === 0 })
+          requestAnimationFrame(tick)
+        }
+        requestAnimationFrame(tick)
+      })
+      const measure = () =>
+        hp.page.evaluate(async () => {
+          // Retained memory: collect first (the check's browser exposes gc), then let the collector finish.
+          const gc = (globalThis as unknown as { gc?: () => void }).gc
+          for (let i = 0; i < 3; i++) {
+            gc?.()
+            await new Promise((r) => setTimeout(r, 50))
+          }
+          const st = (window as unknown as Wallpaper).__h3wallpaper.controller.state()
+          const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory
+          return { gpu: st.engine?.gpuBytes ?? 0, heap: mem?.usedJSHeapSize ?? 0, prepared: st.engine?.preparedMaps ?? 0 }
+        })
+      let first: { gpu: number; heap: number } | undefined
+      for (let i = 0; i < 100; i++) {
+        await nextShown(ctx, hp)
+        if (i === 9) first = await measure()
+      }
+      const last = await measure()
+      const samples = await hp.page.evaluate(() => (window as unknown as { __switchSamples: { phase: string; hidden: boolean; black: boolean }[] }).__switchSamples)
+      const bad = samples.filter((x) => x.phase !== 'showing' || x.hidden || x.black)
+      if (samples.length < 100) fail(`only ${samples.length} frame samples`)
+      if (bad.length > 0) fail(`${bad.length} of ${samples.length} sampled frames were empty or the placeholder: ${JSON.stringify(bad.slice(0, 3))}`)
+      if (last.prepared !== 0) fail(`${last.prepared} prepared maps left over`)
+      if (first !== undefined && first.gpu > 0 && Math.abs(last.gpu - first.gpu) > first.gpu * 0.1) fail(`GPU memory ${first.gpu} → ${last.gpu} bytes over 90 switches`)
+      if (first !== undefined && first.heap > 0 && last.heap > first.heap * 1.1) fail(`JS heap ${first.heap} → ${last.heap} bytes over 90 switches`)
+    },
+  },
+  {
+    id: 17,
+    name: 'spec 007: size and underground filters; an impossible filter says so',
+    run: async (ctx, hp, fail) => {
+      // The browser panel shows the filters only with the folder source, so the source comes first.
+      await ctx.driver.setSettings(hp, { mapsource: 'folder' })
+      await ctx.driver.setSettings(hp, { mapsizemax: 's' })
+      await folderShown(ctx, hp, ctx.files.folders.sizes, fail)
+      const seen = new Set<string>()
+      seen.add((await state(hp.page)).folder?.shown?.path ?? '')
+      for (let i = 0; i < 4; i++) seen.add((await nextShown(ctx, hp)) ?? '')
+      if ([...seen].some((p) => !['s1.h3m', 's2.h3m'].includes(p))) fail(`maps outside the S filter: ${[...seen].join(', ')}`)
+      const other = await ctx.driver.open({ seed: SEED, clockMs: CLOCK_START, locale: 'en-US' })
+      try {
+        await ctx.driver.setSettings(other, { mapsource: 'folder' })
+        await ctx.driver.setSettings(other, { mapsizemin: 'h' })
+        await folderShown(ctx, other, ctx.files.folders.sizes, fail, false)
+        if (!(await waitMessage(other.page, 'FOLDER_FILTERED', 10_000))) fail(`no FOLDER_FILTERED: ${JSON.stringify((await state(other.page)).messages)}`)
+        await ctx.driver.setSettings(other, { mapsizemin: 's' })
+        const s = await waitPhase(other.page, 'showing', 30_000)
+        if (s.phase !== 'showing') fail(`relaxing the filter did not show a map: ${s.phase}`)
+      } finally {
+        await other.close()
+      }
+    },
+  },
+  {
+    id: 18,
+    name: 'spec 007: broken maps are skipped silently; broken-only and empty folders say so',
+    run: async (ctx, hp, fail) => {
+      await folderShown(ctx, hp, ctx.files.folders.half, fail)
+      for (let i = 0; i < 5; i++) {
+        const p = await nextShown(ctx, hp)
+        if (p === undefined || !p.startsWith('good')) fail(`showed ${String(p)}`)
+      }
+      const msgs = (await state(hp.page)).messages
+      if (msgs.length > 0) fail(`messages for skipped maps: ${JSON.stringify(msgs)}`)
+      for (const [name, code] of [['broken', 'FOLDER_UNREADABLE'], ['empty', 'FOLDER_EMPTY']] as const) {
+        const other = await ctx.driver.open({ seed: SEED, clockMs: CLOCK_START, locale: 'en-US' })
+        try {
+          await folderShown(ctx, other, ctx.files.folders[name], fail, false)
+          if (!(await waitMessage(other.page, code, 15_000))) fail(`${name}: no ${code}: ${JSON.stringify((await state(other.page)).messages)}`)
+        } finally {
+          await other.close()
+        }
+      }
+    },
+  },
+  {
+    id: 19,
+    name: 'spec 007: the map interval counts visible time only',
+    // One controller minute = 100 ms, so the interval of 1 minute can be watched.
+    opts: { timeScale: 1 / 600 },
+    run: async (ctx, hp, fail) => {
+      await folderShown(ctx, hp, ctx.files.folders.five, fail)
+      await ctx.driver.setSettings(hp, { maprotation: 1 })
+      await hp.page.evaluate(() => {
+        const w = window as unknown as Wallpaper & { __shownLog: string[] }
+        w.__shownLog = []
+        setInterval(() => {
+          const p = w.__h3wallpaper.controller.state().folder?.shown?.path ?? ''
+          if (w.__shownLog.at(-1) !== p) w.__shownLog.push(p)
+        }, 10)
+      })
+      await hp.page.waitForTimeout(1200)
+      const visible = await hp.page.evaluate(() => (window as unknown as { __shownLog: string[] }).__shownLog.length)
+      if (visible < 3) fail(`only ${visible - 1} map changes in 1.2 s at a 100 ms interval`)
+      for (const how of ['host', 'hidden'] as const) {
+        if (how === 'host') await ctx.driver.setPaused(hp, true)
+        else await setHidden(hp.page, true)
+        await hp.page.waitForTimeout(150)
+        const a = await hp.page.evaluate(() => (window as unknown as { __shownLog: string[] }).__shownLog.length)
+        await hp.page.waitForTimeout(1000)
+        const b = await hp.page.evaluate(() => (window as unknown as { __shownLog: string[] }).__shownLog.length)
+        if (b !== a) fail(`${how}: ${b - a} map change(s) while not visible`)
+        if (how === 'host') await ctx.driver.setPaused(hp, false)
+        else await setHidden(hp.page, false)
+        await hp.page.waitForTimeout(600)
+        const c = await hp.page.evaluate(() => (window as unknown as { __shownLog: string[] }).__shownLog.length)
+        if (c <= b) fail(`${how}: no map change after becoming visible again`)
+      }
+    },
+  },
+  {
+    id: 20,
+    name: 'spec 007: settings of the previous version keep the single map',
+    run: async (ctx, hp, fail) => {
+      const s = await loaded(ctx, hp, fail)
+      if (s.source !== 'single') fail(`source ${String(s.source)}`)
+      if (s.folder !== null && s.folder !== undefined) fail(`a folder is open: ${JSON.stringify(s.folder)}`)
+      if (s.slots.map?.status !== 'loaded') fail(`map ${JSON.stringify(s.slots.map)}`)
+    },
+  },
 ]
 
 export async function runInvariants(ctx: InvariantContext): Promise<InvariantResult[]> {
   const results: InvariantResult[] = []
   for (const check of CHECKS) {
     if (check.hosts !== undefined && !check.hosts.includes(ctx.driver.host)) continue
+    if (ctx.only !== undefined && !ctx.only.has(check.id)) continue
     const details: string[] = []
     let hp: HostPage | undefined
     try {
@@ -403,6 +693,7 @@ export async function runInvariants(ctx: InvariantContext): Promise<InvariantRes
         locale: check.opts?.locale ?? 'en-US',
         ...(check.opts?.noCache === true ? { noCache: true } : {}),
         ...(check.opts?.readDelays !== undefined ? { readDelays: check.opts.readDelays } : {}),
+        ...(check.opts?.timeScale !== undefined ? { timeScale: check.opts.timeScale } : {}),
       })
       await check.run(ctx, hp, (m) => details.push(m))
       const csp = await hp.page.evaluate(() => (window as unknown as Wallpaper).__cspViolations)

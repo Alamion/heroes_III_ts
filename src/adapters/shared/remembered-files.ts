@@ -73,3 +73,103 @@ export function indexedDbRememberedFiles(factory: IDBFactory | undefined = typeo
     },
   }
 }
+
+/** Limits of a remembered map folder (spec 007 research R9); above them it lasts for the visit only. */
+export const REMEMBERED_FOLDER_LIMITS = { maxEntries: 5000, maxBytes: 256 * 1024 * 1024 } as const
+const FOLDER_KEY = 'folder'
+const FOLDER_PREFIX = 'folder:'
+
+export interface RememberedFolderFiles {
+  name: string
+  files: { path: string; blob: Blob }[]
+}
+
+/** The browser's remembered map folder (spec 007 FR-019), next to the remembered files. */
+export interface RememberedFolder {
+  load(): Promise<RememberedFolderFiles | null>
+  /** Replaces the remembered folder; false when it is over the limits or storage fails. */
+  save(folder: RememberedFolderFiles): Promise<boolean>
+  clear(): Promise<void>
+}
+
+/**
+ * Stored in the same database and store as the remembered files, under `folder` (name, count) and
+ * `folder:<path>` (one map each), so "Forget files" clears it with them.
+ */
+export function indexedDbRememberedFolder(factory: IDBFactory | undefined = typeof indexedDB === 'undefined' ? undefined : indexedDB): RememberedFolder {
+  let db: Promise<IDBDatabase | undefined> | undefined
+  const open = (): Promise<IDBDatabase | undefined> => {
+    db ??= new Promise((resolve) => {
+      if (factory === undefined) {
+        resolve(undefined)
+        return
+      }
+      try {
+        const req = factory.open(FILES_DB, 1)
+        req.onupgradeneeded = () => req.result.createObjectStore(STORE)
+        req.onsuccess = () => resolve(req.result)
+        req.onerror = () => {
+          log.warn('remembered folder unavailable', String(req.error))
+          resolve(undefined)
+        }
+      } catch (err) {
+        log.warn('remembered folder unavailable', String(err))
+        resolve(undefined)
+      }
+    })
+    return db
+  }
+  const folderKeys = async (store: IDBObjectStore): Promise<string[]> =>
+    ((await request(store.getAllKeys())) as IDBValidKey[]).filter((k): k is string => typeof k === 'string' && (k === FOLDER_KEY || k.startsWith(FOLDER_PREFIX)))
+  return {
+    async load() {
+      const d = await open()
+      if (d === undefined) return null
+      try {
+        const store = d.transaction(STORE, 'readonly').objectStore(STORE)
+        const meta = (await request(store.get(FOLDER_KEY))) as { name: string } | undefined
+        if (meta === undefined) return null
+        const files: { path: string; blob: Blob }[] = []
+        for (const key of await folderKeys(store)) {
+          if (key === FOLDER_KEY) continue
+          const v = (await request(store.get(key))) as { path: string; blob: Blob } | undefined
+          if (v !== undefined && v.blob instanceof Blob) files.push({ path: v.path, blob: v.blob })
+        }
+        return { name: meta.name, files }
+      } catch (err) {
+        log.warn('reading the remembered folder failed', String(err))
+        return null
+      }
+    },
+    async save(folder) {
+      const bytes = folder.files.reduce((n, f) => n + f.blob.size, 0)
+      if (folder.files.length > REMEMBERED_FOLDER_LIMITS.maxEntries || bytes > REMEMBERED_FOLDER_LIMITS.maxBytes) {
+        log.warn(`map folder ${folder.name} is not remembered: ${folder.files.length} maps, ${Math.round(bytes / 1048576)} MB (limits ${REMEMBERED_FOLDER_LIMITS.maxEntries}, ${REMEMBERED_FOLDER_LIMITS.maxBytes / 1048576} MB)`)
+        return false
+      }
+      const d = await open()
+      if (d === undefined) return false
+      try {
+        const tx = d.transaction(STORE, 'readwrite')
+        const store = tx.objectStore(STORE)
+        for (const key of await folderKeys(store)) await request(store.delete(key))
+        for (const f of folder.files) await request(store.put({ path: f.path, blob: f.blob }, `${FOLDER_PREFIX}${f.path}`))
+        await request(store.put({ name: folder.name, count: folder.files.length, savedAt: Date.now() }, FOLDER_KEY))
+        return true
+      } catch (err) {
+        log.warn(`could not remember map folder ${folder.name}`, String(err))
+        return false
+      }
+    },
+    async clear() {
+      const d = await open()
+      if (d === undefined) return
+      try {
+        const store = d.transaction(STORE, 'readwrite').objectStore(STORE)
+        for (const key of await folderKeys(store)) await request(store.delete(key))
+      } catch (err) {
+        log.warn('could not forget the map folder', String(err))
+      }
+    },
+  }
+}

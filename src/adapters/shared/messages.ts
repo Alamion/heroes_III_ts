@@ -17,6 +17,12 @@ export type MessageCode =
   | 'WEBGL_UNAVAILABLE'
   | 'CONTEXT_LOST'
   | 'CACHE_UNAVAILABLE'
+  /** Spec 007: the map folder has no .h3m or cannot be listed ({file} = the folder). */
+  | 'FOLDER_EMPTY'
+  /** Spec 007: maps exist but none passes the filters ({detail} = the filters). */
+  | 'FOLDER_FILTERED'
+  /** Spec 007: every map of the folder failed ({detail} = count and first failure). */
+  | 'FOLDER_UNREADABLE'
 
 export interface UserMessage {
   code: MessageCode

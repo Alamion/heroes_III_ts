@@ -13,7 +13,8 @@ import { SMALL_MAP, STRESS_MAP, writeStressFiles } from '../../../test/fixtures/
 import { HOTA_LIMITS, evaluateMap, evaluateSc007 } from './evaluate.ts'
 import type { BudgetEntry } from './evaluate.ts'
 import { measureFrameWork, measureMap } from './metrics.ts'
-import { packageSizeEntries, packageStartEntries } from './packages.ts'
+import { folderStartEntries, packageSizeEntries, packageStartEntries } from './packages.ts'
+import { writeHostFolders } from '../../../test/fixtures/synthetic/map-folder.ts'
 import { assemble, packageVersion, writePackage } from '../../package/cli.ts'
 import { HOSTS } from '../../package/build.ts'
 
@@ -115,6 +116,14 @@ export async function budgetCommand(args: ParsedArgs): Promise<CommandResult> {
         ? { archive, dataArchive, map: startMap }
         : { archive: synthetic.archive, dataArchive: synthetic.dataArchive, map: synthetic.maps[STRESS_MAP] as string }
     budgets.push(...(await packageStartEntries(browser, fileBrowser, packagesDir, startFiles, basename(startFiles.map), viewport, throttle)))
+
+    // Spec 007: the folder source — the owner's Maps folder when the install is there, a synthetic folder always.
+    const folderArchives = archive !== null && dataArchive !== undefined ? { archive, dataArchive } : { archive: synthetic.archive, dataArchive: synthetic.dataArchive }
+    const bundleDir = gameDirs().bundleDir
+    const installFolder = bundleDir !== undefined && existsSync(join(bundleDir, 'Maps')) && archive !== null ? join(bundleDir, 'Maps') : undefined
+    if (installFolder !== undefined) budgets.push(...(await folderStartEntries(fileBrowser, packagesDir, folderArchives, installFolder, 'install Maps folder', viewport, throttle)))
+    const syntheticFolders = writeHostFolders(join(synthetic.dir, 'folders'))
+    budgets.push(...(await folderStartEntries(fileBrowser, packagesDir, { archive: synthetic.archive, dataArchive: synthetic.dataArchive }, syntheticFolders.mixed.dir, 'synthetic folder', viewport, throttle)))
 
     // The synthetic 252×252×2 map runs within the same budgets (SC-006 for the largest map size).
     const stressPath = synthetic.maps[STRESS_MAP] as string

@@ -57,3 +57,14 @@ describe('KDE manifests (spec 004 FR-017)', () => {
     expect(table('de_DE').setting_level).toBe('Level')
   })
 })
+
+describe('KDE map folder (spec 007)', () => {
+  it('offers a folder dialog, a .zip dialog and a typed path, shown only with the folder source', () => {
+    const qml = configQml()
+    expect(qml).toContain('FolderDialog {\n            id: folderDialog_mapfolder')
+    expect(qml).toContain('nameFilters: ["*.zip"]')
+    expect(qml).toContain('visible: page.cfg_mapsource === "folder"')
+    expect(qml).toContain('visible: page.cfg_mapsource === "single"')
+    expect(mainXml()).toContain('<entry name="maprotation" type="Int">\n      <default>0</default>\n      <min>0</min>\n      <max>1440</max>')
+  })
+})

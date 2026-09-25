@@ -30,6 +30,10 @@ hostEvents<LivelyEvent>().attach((event) => {
     void controller.flushSettings().then(() => controller.newRandomPlace())
     return
   }
+  if (event.name === 'mapnext') {
+    void controller.flushSettings().then(() => controller.nextMap())
+    return
+  }
   const def = SETTINGS.find((d) => d.key === event.name)
   if (def === undefined) return
   let value: unknown = event.value

@@ -151,8 +151,14 @@ After the open fixes of item 2, the order is (owner, 2026-09-22):
      (e.g. frames rendered by the desktop wallpaper into the user cache). Windows: the lock screen accepts
      only a static image (Wallpaper Engine/Lively cannot animate it) — at most a periodically exported
      still; confirm in the Windows session.
-   - **Map rotation** — a map folder with a random map per start or timed rotation (settings keys
-     `mapsource`/`mapfolder`/`maprotation` are reserved in `src/adapters/shared/settings.ts`).
+   - ~~**Map rotation**~~ — implemented in [specs/007-map-folder/](specs/007-map-folder/): a folder (or
+     `.zip`) of maps, a random map per start, a new map every N minutes of visible time, "next map now",
+     size and underground filters, a swap without an empty frame, an 8-map bound of the decode cache.
+     Open: WE-F1/WE-F2/LV-F1 in the Windows session (004 research, "Map folder").
+     **Follow-up (owner, 2026-09-25):** choosing files and folders differs per host (a path on Wallpaper
+     Engine, picker/drop in the browser, a `.zip` on Lively, a folder dialog on KDE); look for a more
+     uniform way (007 research R1 "Owner review"). Everything host-specific sits in each bridge's
+     catalogue function, so a uniform method replaces only those.
    - **Complete edition save files** — research spike first (format is only partly documented);
      load into the existing world-state model.
    - **Interactive extras** — idle/mouse map scrolling, defeating monsters/heroes, capturing towns

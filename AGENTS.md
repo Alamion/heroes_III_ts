@@ -11,6 +11,23 @@ Read it first. If this file conflicts with it, the constitution wins — fix thi
 
 ## Current State
 
+A folder of maps ([specs/007-map-folder/](specs/007-map-folder/)) is implemented: `mapsource` =
+`single|folder`, `mapfolder` (a folder, or a `.zip` standing for one), `maprotation` (minutes of
+visible time, 0–1440), size and underground filters, the `mapnext` action (`N` in the browser). Facts
+it relies on:
+- Chromium answers an XHR of a `file://` folder with an HTML listing of `addRow(name, url, isDir,
+  size, …)` calls (JSON-escaped arguments; measured 2026-09-25); `catalogue.ts` parses it. Wallpaper
+  Engine keeps the maps in `game/maps/` inside the wallpaper folder, Lively takes a `.zip`, KDE a
+  folder dialog, the browser a picked or dropped folder (remembered in IndexedDB). All host differences
+  stay in the catalogue functions; the owner wants a more uniform way later (TODO item 5).
+- `engine.loadMap` shows the new terrain before its objects are built; a folder switch therefore uses
+  `prepareMap` (off-screen, the worker keeps shown + prepared worlds) and `showPreparedMap` (one-step
+  swap). The single-map path still uses `loadMap`.
+- The decode cache keeps worlds and object atlases of the 8 most recently used maps (`recent` store,
+  `CACHE_SCHEMA` 9).
+- Host simulations accept the test option `timeScale` (real ms per controller ms) so a check can watch
+  the one-minute map interval.
+
 HotA support ([specs/005-hota-support/](specs/005-hota-support/)) is implemented, including its own
 capture baseline (`yarn ref … --baseline hota`): the obfuscated
 HotA 1.8 archive, the `0x20` map format (sub-versions 6, 7, 9 and 10, including the event-system
@@ -100,11 +117,11 @@ are HotA 1.8.1):
 ```text
 src/core/util      ByteReader, FormatError, logger, clock, seeded RNG, web globals
 src/core/data      typed game tables (terrain, palette rotation, object classes, thresholds)
-src/core/formats   lod/ def/ pcx/ pal/ h3m/ text/ (Objects.txt, artraits.txt)
+src/core/formats   lod/ def/ pcx/ pal/ h3m/ text/ (Objects.txt, artraits.txt) zip/ (map folders as .zip)
 src/core/state     world state, sprite footprints, floating tiles, random outcomes, render objects, object index
 src/core/sim       simulation events
 src/core/render    atlas, object atlas, camera, draw plans, draw order, animation, palette, software rasterizer, WebGL renderer
-src/runtime        engine facade, decode worker, IndexedDB cache, frame scheduler
+src/runtime        engine facade, decode worker, IndexedDB cache, frame scheduler, map catalogue + rotation (spec 007)
 src/adapters/shared        wallpaper controller, settings + strings (en/ru, DOM-free), overlay, file URLs, remembered files
 src/adapters/web           browser version (panel, drop, remembered files; ESM build)
 src/adapters/wallpaper-engine|lively|kde   host bridges (classic build: listener.js + main.js)
@@ -137,7 +154,7 @@ yarn test:watch     # Vitest, watch mode
 yarn test:coverage  # coverage of src/core
 yarn package [--host web|wallpaper-engine|lively|kde|all]   # dist/packages/<host>, Lively .zip, KDE .tar.gz
 yarn preview:web    # serve dist/packages/web under /heroes_III_ts/ (as GitHub Pages)
-yarn accept kde [--apply] [--screen 0] [--keep] [--no-restart]   # install; restarts plasmashell after an upgrade; --apply switches a screen and restores plugin and settings
+yarn accept kde [--apply] [--screen 0] [--folder DIR] [--keep] [--no-restart]   # install; restarts plasmashell after an upgrade; --apply switches a screen and restores plugin and settings
 ```
 
 Inspection (one JSON document on stdout; exit 0 ok, 1 failure, 2 usage, 3 missing files).
@@ -153,6 +170,8 @@ yarn h3 map info|tiles|tile|objects|object|parse-all MAP [--level Z --region x0,
 yarn h3 map floating MAP [--level 0] [--region ...] [--format list|json]   # for yarn ref selfcheck --floating-tiles
 yarn h3 map draw-list MAP --level Z --region x0,y0,x1,y1 (--tick N | --time MS) [--seed S]
 yarn h3 map random MAP [--seed S] [--level Z]
+yarn h3 map summary MAP                                   # what the folder filters read (spec 007)
+yarn h3 map catalogue DIR|ZIP [--size-min s --size-max g --underground any|two|one --hota HotA.lod]
 yarn h3 render MAP --level Z --region x0,y0,x1,y1 (--palette-step N | --time MS) [--tick N] [--seed S] [--no-objects] [--draw-list] [--scale F] [--hota HotA.lod] --out F.png
 ```
 
@@ -172,7 +191,7 @@ yarn verify fidelity --map test_map.h3m --all-regions [--kind still|clip] [--cap
 yarn verify fidelity --map M --level Z --region x0,y0,x1,y1
 yarn verify budget [--no-build] [--throttle 4] [--viewport 1920x1080]   # + package sizes and package start-up
 yarn verify packages [--host …] [--no-build] [--reproducible]
-yarn verify hosts [--host …] [--files synthetic|real] [--map NAME] [--no-build]    # host simulations, invariants 1–13
+yarn verify hosts [--host …] [--files synthetic|real] [--map NAME] [--only 14,16] [--no-build]    # host simulations, invariants 1–20
 yarn verify all
 ```
 

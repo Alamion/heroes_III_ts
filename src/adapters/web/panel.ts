@@ -19,6 +19,9 @@ export interface PanelHandlers {
   onForget(): void
   onNewPlace(): void
   onLanguage(choice: LanguageChoice): void
+  /** Spec 007: a folder chosen with the folder picker (files carry webkitRelativePath). */
+  onFolder(files: File[]): void
+  onNextMap(): void
 }
 
 export interface Panel {
@@ -53,6 +56,17 @@ export function createPanel(root: HTMLElement, handlers: PanelHandlers): Panel {
     input.value = ''
   })
   root.append(input)
+  // Spec 007: a folder of maps; the browser hands over every file with its relative path.
+  const folderInput = doc.createElement('input')
+  folderInput.type = 'file'
+  folderInput.id = 'h3p-folder-input'
+  folderInput.hidden = true
+  folderInput.setAttribute('webkitdirectory', '')
+  folderInput.addEventListener('change', () => {
+    handlers.onFolder(Array.from(folderInput.files ?? []))
+    folderInput.value = ''
+  })
+  root.append(folderInput)
 
   const el_ = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] => {
     const e = doc.createElement(tag)
@@ -71,6 +85,7 @@ export function createPanel(root: HTMLElement, handlers: PanelHandlers): Panel {
   const settingRow = (lang: Language, settings: WallpaperSettings, key: SettingKey): HTMLElement | undefined => {
     const def = SETTINGS.find((d) => d.key === key)
     if (def === undefined || def.type === 'file') return undefined
+    if (def.visibleWhen !== undefined && String(settings[def.visibleWhen.key]) !== def.visibleWhen.equals) return undefined
     const row = el_('div', 'h3p-row')
     const id = `h3p-${key}`
     const label = el_('label', undefined, format(lang, def.label))
@@ -88,7 +103,6 @@ export function createPanel(root: HTMLElement, handlers: PanelHandlers): Panel {
       select.addEventListener('change', () => handlers.onSetting(key, select.value))
       row.append(select)
     } else if (def.type === 'int') {
-      if (def.visibleWhen !== undefined && String(settings[def.visibleWhen.key]) !== def.visibleWhen.equals) return undefined
       if (def.input === 'number') {
         const field = el_('input')
         field.id = id
@@ -155,6 +169,44 @@ export function createPanel(root: HTMLElement, handlers: PanelHandlers): Panel {
     actions.append(choose, forget)
     el.append(actions, el_('div', 'h3p-hint', format(lang, 'panel_drop')))
 
+    // Spec 007: the map source; with a folder its summary, the map shown, filters and "next map".
+    el.append(el_('h3', undefined, format(lang, 'setting_mapsource')))
+    const sourceRow = settingRow(lang, state.settings, 'mapsource')
+    if (sourceRow !== undefined) el.append(sourceRow)
+    if (state.settings.mapsource === 'folder') {
+      const f = state.folder
+      const folderRow = el_('div', 'h3p-row')
+      const chooseFolder = el_('button', undefined, format(lang, 'panel_choose_folder'))
+      chooseFolder.id = 'h3p-choose-folder'
+      chooseFolder.addEventListener('click', () => folderInput.click())
+      folderRow.append(chooseFolder)
+      el.append(folderRow)
+      if (f !== null && f.entries !== null) {
+        const summary = el_('div', 'h3p-hint', format(lang, 'panel_folder_summary', { file: f.name, detail: String(f.entries) }))
+        summary.id = 'h3p-folder-summary'
+        el.append(summary)
+      } else {
+        el.append(el_('div', 'h3p-hint', format(lang, 'panel_drop_folder')))
+      }
+      if (f?.shown != null) {
+        const title = f.shown.title !== '' ? `${f.shown.title} (${f.shown.path})` : f.shown.path
+        const now = el_('div', 'h3p-current', format(lang, 'panel_current_map', { file: title }))
+        now.id = 'h3p-current-map'
+        el.append(now)
+      }
+      for (const key of ['maprotation', 'mapsizemin', 'mapsizemax', 'mapunderground'] as const) {
+        const row = settingRow(lang, state.settings, key)
+        if (row !== undefined) el.append(row)
+      }
+      const nextRow = el_('div', 'h3p-row')
+      const next = el_('button', undefined, format(lang, 'action_mapnext'))
+      next.id = 'h3p-mapnext'
+      next.title = 'N'
+      next.addEventListener('click', () => handlers.onNextMap())
+      nextRow.append(next)
+      el.append(nextRow)
+    }
+
     el.append(el_('h3', undefined, format(lang, 'setting_viewmode')))
     for (const key of ['level', 'viewmode', 'viewx', 'viewy', 'viewinterval', 'viewreroll', 'scale', 'objects'] as const) {
       if (key === 'viewreroll') {
@@ -197,7 +249,8 @@ export function createPanel(root: HTMLElement, handlers: PanelHandlers): Panel {
     update(state, choice) {
       last = { state, choice }
       // Rebuild only when something shown in the panel changed (keeps focus while dragging sliders).
-      const key = JSON.stringify([state.language, choice, state.slots, state.settings.viewmode, state.phase === 'showing', ...(doc.activeElement instanceof HTMLInputElement && el.contains(doc.activeElement) ? [] : [state.settings])])
+      const folder = state.folder === null ? null : { name: state.folder.name, entries: state.folder.entries, shown: state.folder.shown?.path ?? null }
+      const key = JSON.stringify([state.language, choice, state.slots, state.settings.viewmode, state.settings.mapsource, folder, state.phase === 'showing', ...(doc.activeElement instanceof HTMLInputElement && el.contains(doc.activeElement) ? [] : [state.settings])])
       if (key !== renderedKey) {
         renderedKey = key
         render(state, choice)

@@ -8,8 +8,10 @@ install's `Maps` folder); checks that need them skip with a message when they ar
 ```bash
 yarn test                         # listing parser, ZIP reader, map summary, size classes, rotation, controller rules
 yarn verify packages              # manifests carry the new settings; KDE configJson lists every key
-yarn verify hosts                 # invariants 1–13 of spec 004/005 plus 14–20 (contracts/host-bridge.md)
+yarn verify hosts                 # invariants 1–13 of spec 004/005 plus 11.1, 14–20 (contracts/host-bridge.md)
+yarn verify hosts --only 14,16    # just some invariants (spec 007 added --only)
 yarn verify budget                # includes the folder case: first map ≤ 2 s warm, peak memory across a switch ≤ 300 MB
+                                  # (the dev-harness warm starts and sc007-frame-cpu are noisy on testing too; research.md)
 yarn verify layers
 ```
 
@@ -22,10 +24,12 @@ samples around the switches of invariant 16.
 yarn h3 map summary "public/dev-assets/test_map.h3m"                   # { version, size: 144, sizeClass: "xl", levels: 2, title, needsHota: false }
 yarn h3 map catalogue "<bundleDir>/Maps" --size-min l --underground two  # every entry with its summary and verdict
 yarn h3 map catalogue maps.zip                                           # the same for an archive
+yarn h3 map catalogue "<hotaBundleDir>/Maps" --hota "<hotaBundleDir>/Data/HotA.lod"   # HotA maps count as eligible
 ```
 
-Expected: the catalogue of the owner's Complete `Maps` folder lists 225 entries (453 with the HotA maps folder);
-failed entries name their reason; verdicts match the filters.
+Expected (measured 2026-09-25): the owner's Complete `Maps` folder lists 216 maps (10 of them XL+ with an
+underground level), the HotA install's `Maps` folder 231 maps, all eligible with `--hota`; failed entries name
+their reason; verdicts match the filters.
 
 ## 3. Browser version by hand (optional)
 

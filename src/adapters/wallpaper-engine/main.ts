@@ -21,6 +21,7 @@ let firstUserEvent = true
 hostEvents<WeEvent>().attach((event) => {
   if (event.kind === 'user') {
     const acted = !firstUserEvent && event.properties.viewreroll !== undefined
+    const nextMap = !firstUserEvent && event.properties.mapnext !== undefined
     firstUserEvent = false
     const raw: Record<string, unknown> = {}
     for (const def of SETTINGS) {
@@ -29,6 +30,7 @@ hostEvents<WeEvent>().attach((event) => {
     }
     controller.applySettings(raw)
     if (acted) void controller.flushSettings().then(() => controller.newRandomPlace())
+    if (nextMap) void controller.flushSettings().then(() => controller.nextMap())
   } else if (event.kind === 'general') {
     const fps = event.properties.fps
     controller.setFrameLimit(typeof fps === 'number' ? fps : 0)

@@ -72,7 +72,7 @@ give a cheap identity for the "folder changed" check (R9).
 
 **Open questions** (answered by the Windows session and `yarn accept kde`, not blocking the plan):
 - **WE-F1**: does Wallpaper Engine's CEF return the same listing for a folder inside the wallpaper folder?
-- **KDE-F1**: does QtWebEngine 6.10 (Chromium 13x) return it for a `file://` page? Checked during implementation
+- **KDE-F1** (answered yes, see "Measurements during implementation"): does QtWebEngine 6.10 (Chromium 13x) return it for a `file://` page? Checked during implementation
   over the DevTools port (AGENTS.md "KDE live debugging"); fallback in R1.
 - **LV-F1**: does WebView2's virtual host list a folder? Expected no; the `.zip` path does not depend on it.
 - **WE-F2**: does a `directory` property in `fetchall` mode report `.h3m` files at all?
@@ -148,7 +148,7 @@ cross-fade — rejected by the owner (instant switch); keeping two GPU atlases �
 
 ## R7. Rotation order and randomness
 
-**Decision**: rotation lives in a DOM-free module `src/adapters/shared/rotation.ts`: a Fisher–Yates shuffle of
+**Decision**: rotation lives in a DOM-free module `src/runtime/rotation.ts`: a Fisher–Yates shuffle of
 catalogue indices driven by the project's seeded RNG (`src/core/util`), seed derived from the controller seed and
 a cycle counter (as `nextSeed` does for places). When a new cycle starts with the entry that ended the previous
 one, it is swapped with the next entry (FR-011). Entries that failed stay excluded for the session; a filter
@@ -241,3 +241,43 @@ with its title and file (clarification "map name").
 - **Real maps** (`test/real`, skip without files): a full rotation cycle over the local map folders with every
   filter combination shows only matching maps (SC-004); a folder with injected broken files still rotates through
   the good ones (SC-005).
+
+## Measurements during implementation (2026-09-25)
+
+- **R2 in the host simulations**: the Wallpaper Engine and KDE drivers open the packages from `file://`
+  in headless Chromium (`--allow-file-access-from-files`) and list real folders (sub-folders, a
+  Cyrillic folder name) through the parser; invariants 14–20 pass there. WE-F1 and KDE-F1 still need
+  the real hosts (CEF, QtWebEngine).
+- **R6**: the swapped frame equals a fresh `loadMap` of the same map bit for bit and `gpuBytes` within
+  1 % (test/browser/engine-prepare.test.ts). Invariant 16 samples every animation frame around 100
+  switches on every host: no empty or placeholder frame; GPU memory flat.
+- **JS heap over 100 switches**: without a forced collection Lively's heap grew 38 → 56 MB (maps read
+  out of the `.zip` leave garbage the collector had not reached); with `gc()` before each measurement
+  (the check's browser runs with `--expose-gc`) it stays within 10 % on every host. The check measures
+  retained memory since then.
+- **R10**: after ten maps the IndexedDB stores hold exactly 8 worlds and 8 object atlases (browser test).
+- **Real maps**: the owner's Complete `Maps` folder lists 216 maps (`yarn h3 map catalogue`); full
+  rotation cycles over it and the HotA maps with five filter combinations showed only matching maps
+  (test/real/map-folder.test.ts).
+- **Deviations from the contracts**: `mapfolder` is a `file` setting with `pick: 'folder'` instead of a
+  new `folder` type (validation, Wallpaper Engine text inputs and Lively's `folderDropdown` needed no
+  change); `supplyFolder(name, entries)` takes a catalogue function; the remembered folder lives in the
+  browser adapter, the only host that needs it. The contracts were updated accordingly.
+- **Budget, folder case** (`yarn verify budget`, 4× CPU throttling, 1920×1080, two runs): the owner's
+  Complete `Maps` folder through the Wallpaper Engine package — cold start 3.1 / 4.1 s (limit 10 s),
+  warm start 1.70 / 1.77 s (limit 2 s), peak JS heap + GPU over five switches 63 MB (limit 300 MB); the
+  synthetic folder 1.0–1.2 s warm, 59 MB. The R6 memory fallback (T040) is therefore not needed.
+- **Budget failures that are not this feature's**: the dev-harness warm starts (Arrogance, test_map,
+  Pandora's Box, the synthetic 252×252) fail on `testing` as well (2.2–3.0 s there, 1.8–2.8 s here;
+  TODO "Housekeeping" already lists them), and `sc007-frame-cpu` is noise at the 0.1 ms timer
+  resolution: five paired samples gave small/large medians of 1.2–3.9 / 2.0–3.1 ms on this branch and
+  1.8–2.4 / 2.0–3.5 ms on `testing`, with identical draw calls, quads, vertices and GPU bytes.
+- **KDE-F1 answered (real Plasma 6 session, QtWebEngine 6.10, 2026-09-25)**: `yarn accept kde --apply
+  --folder "<bundleDir>/Maps"` with the DevTools port open: the page listed the Complete `Maps` folder
+  through the `file://` listing (216 maps, 0 failed) and showed "Вперед, Викинги!" (144×144); three "next
+  map" switches took 3.7 s, 1.1 s and 2.1 s (cold decodes of 144/36/72 maps) with `phase` `showing`
+  throughout and the old map on screen until the swap. The QML `FolderListModel` fallback is not needed.
+  `yarn accept kde` gained `--folder DIR` for this.
+- **Windows**: the remaining questions (WE-F1, WE-F2, LV-F1) and a first HotA check on the real Windows
+  hosts are handed over in [windows-handoff.md](windows-handoff.md).
+

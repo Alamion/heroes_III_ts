@@ -14,7 +14,7 @@ export const FORMAT_ERROR_CODES = {
 
 export type FormatErrorCode = (typeof FORMAT_ERROR_CODES)[keyof typeof FORMAT_ERROR_CODES]
 
-export type FormatName = 'lod' | 'def' | 'pcx' | 'h3m' | 'text' | 'data' | 'pal'
+export type FormatName = 'lod' | 'def' | 'pcx' | 'h3m' | 'text' | 'data' | 'pal' | 'zip'
 
 export interface FormatErrorInit {
   code: FormatErrorCode

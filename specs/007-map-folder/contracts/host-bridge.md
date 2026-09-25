@@ -8,16 +8,18 @@ Extends [spec 004 contracts/host-bridge.md](../../004-platform-adapters/contract
 ```ts
 interface ControllerDeps {
   // … existing …
-  /** Builds the catalogue for a `mapfolder` value (host-specific: listing, zip). */
-  openCatalogue?: (value: string) => Promise<CatalogueEntry[]>
-  /** Browser: the remembered folder. */
-  rememberedFolder?: RememberedFolderStore
+  /** Builds the catalogue for a `mapfolder` value already turned into a URL (listing or zip). */
+  openCatalogue?: (url: string, name: string) => Promise<CatalogueEntry[]>
+  /** Map summaries for the filters (default summarizeMapFile). */
+  summarize?: (blob: Blob, name: string) => Promise<MapSummary>
 }
+// The remembered folder stays in the browser adapter (src/adapters/web/main.ts with
+// indexedDbRememberedFolder), which calls supplyFolder at start: only the browser needs it.
 
 interface WallpaperController {
   // … existing …
-  /** Browser: a folder chosen or dropped; switches the source to "folder". */
-  supplyFolder(files: readonly { path: string; file: Blob }[], name: string): Promise<void>
+  /** Browser: a folder chosen, dropped or remembered, or a dropped .zip; switches the source to "folder". */
+  supplyFolder(name: string, entries: () => Promise<CatalogueEntry[]>): Promise<void>
   /** "Next map now": only with the folder source; ignored while a switch is in progress. */
   nextMap(): void
 }

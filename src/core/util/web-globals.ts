@@ -47,7 +47,7 @@ export function textDecoder(label: string): TextDecoderLike {
   return new (globals().TextDecoder)(label)
 }
 
-export function decompressionStream(format: 'deflate' | 'gzip'): TransformStreamLike {
+export function decompressionStream(format: 'deflate' | 'gzip' | 'deflate-raw'): TransformStreamLike {
   return new (globals().DecompressionStream)(format)
 }
 

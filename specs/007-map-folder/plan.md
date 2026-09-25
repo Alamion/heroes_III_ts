@@ -109,8 +109,8 @@ src/core/render/webgl-renderer.ts       # swap terrain + objects in one call, re
 src/adapters/shared/settings.ts         # new keys, 'folder' def type, mapnext action, viewinterval max 1440
 src/adapters/shared/strings.ts          # en/ru strings (contracts/settings.md)
 src/adapters/shared/messages.ts         # FOLDER_EMPTY, FOLDER_FILTERED, FOLDER_UNREADABLE
-src/adapters/shared/catalogue.ts        # NEW listing parser, recursive file:// listing, ZIP catalogue, file-list catalogue
-src/adapters/shared/rotation.ts         # NEW seeded cycle, filter evaluation (DOM-free)
+src/runtime/catalogue.ts        # NEW listing parser, recursive file:// listing, ZIP catalogue, file-list catalogue
+src/runtime/rotation.ts         # NEW seeded cycle, filter evaluation (DOM-free)
 src/adapters/shared/controller.ts       # folder source, picker, map timer (active time), nextMap, snapshot.folder
 src/adapters/shared/remembered-files.ts # remembered folder (browser)
 src/adapters/wallpaper-engine/main.ts   # mapfolder, mapnext
@@ -124,7 +124,7 @@ tools/checks/hosts/                     # drivers: folders, zip, directory input
 tools/checks/budget/                    # folder case (synthetic always, owner's Maps folder when present)
 tools/checks/packages/                  # KDE configJson key coverage
 test/core/formats/zip.test.ts, h3m-summary.test.ts, data/map-sizes.test.ts
-test/adapters/catalogue.test.ts, rotation.test.ts, controller-folder.test.ts, settings.test.ts (updated)
+test/runtime/catalogue.test.ts, rotation.test.ts, controller-folder.test.ts, settings.test.ts (updated)
 test/browser/engine-prepare.test.ts     # prepare/show guarantees, no empty frame, gpuBytes stable
 test/real/map-folder.test.ts            # full cycles over local folders with filters (skips without files)
 test/fixtures/synthetic/                # map-folder generator (sizes/levels/broken files), zip via writeZip

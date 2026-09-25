@@ -506,8 +506,11 @@ after taking the lock.
 
 ### Cache — [cache.ts](../src/runtime/cache.ts), [cache-key.ts](../src/runtime/cache-key.ts)
 
-IndexedDB database `h3dynam` with `atlas`, `world` and `objects` stores. Keys are
-`kind:schema:identity`, and a schema bump drops everything.
+IndexedDB database `h3dynam` with `atlas`, `world`, `objects` and `recent` stores. Keys are
+`kind:schema:identity`, and a schema bump drops everything. Worlds and object atlases are kept for
+the **8 most recently used maps** only (`recent` records each map's keys and last use): a folder of
+maps would otherwise leave a world and an 8–128 MB object atlas behind for every map it ever showed
+([spec 007](../specs/007-map-folder/) research R10). Archive entries are not bounded.
 
 The key question is file identity:
 
@@ -536,6 +539,17 @@ A wallpaper that renders at 60 fps all day wastes power. Here:
 
 On WebGL context loss the CPU copies of the atlases are re-uploaded.
 
+### Switching maps without an empty frame — [engine.ts](../src/runtime/engine.ts)
+
+`loadMap` replaces the world as soon as the map is parsed and builds its objects afterwards, so a
+map change through it shows the new terrain without objects, at the map centre, for the whole object
+build. The folder source ([spec 007](../specs/007-map-folder/)) uses two other calls instead:
+`prepareMap` parses the map and builds its object layer in the worker without touching the renderer
+(the worker keeps the shown and the prepared world side by side), and `showPreparedMap` replaces
+terrain, objects and camera in one synchronous step (`renderer.replaceMap`) and releases the old map.
+The current map keeps animating until then. A prepare is superseded by a newer one or by an archive
+change. A browser test compares the swapped frame with a fresh `loadMap` of the same map, bit for bit.
+
 ---
 
 ## Wallpaper hosts
@@ -548,14 +562,36 @@ placement, pause, language. Host bridges only translate signals:
 
 | Host | Files arrive as | Pause signal | Action button ("new random place now") |
 | --- | --- | --- | --- |
-| Browser | picker or drop; kept as Blobs in IndexedDB | `visibilitychange` | panel button, key `R` |
-| Wallpaper Engine | `type: file` properties → local paths | `setPaused`, FPS limit | a checkbox; every toggle acts |
+| Browser | picker or drop; kept as Blobs in IndexedDB | `visibilitychange` | panel buttons, keys `R` and `N` |
+| Wallpaper Engine | text properties → paths inside the wallpaper folder | `setPaused`, FPS limit | a checkbox; every toggle acts |
 | Lively | `folderDropdown` → copied to `userfiles\name` | `livelyWallpaperPlaybackChanged` | button |
 | KDE Plasma | settings page file dialogs → paths | QML: covering windows, locked session | a counter the settings page increments |
 
 Files are recognised by content ([file-kind.ts](../src/runtime/file-kind.ts)): LOD magic and
 index entries (`Objects.txt` means the data archive, terrain DEFs the sprite archive), or the map's
 version code. Users do not have to match file names to slots.
+
+### A folder of maps — [catalogue.ts](../src/runtime/catalogue.ts), [rotation.ts](../src/runtime/rotation.ts)
+
+Every host turns its folder setting into the same *catalogue*: a sorted list of `.h3m` entries,
+each read on demand. How it gets there differs by host, and that difference stays inside the
+catalogue functions:
+
+| Host | Folder arrives as | Listed by |
+| --- | --- | --- |
+| Browser | folder picker (`webkitdirectory`), a dropped folder or `.zip` | the browser hands over the files; remembered in IndexedDB |
+| Wallpaper Engine | a text path inside the wallpaper folder (default `game/maps`) | Chromium's own `file://` directory listing |
+| KDE Plasma | a folder dialog (or a typed path, or a `.zip`) | the same `file://` listing |
+| Lively | a `.zip` copied by `folderDropdown` (Lively has no folder property) | the built-in ZIP reader ([zip.ts](../src/core/formats/zip/zip.ts)) |
+
+Chromium answers an XHR for a `file://` folder with an HTML page of `addRow(name, url, isDir,
+size, …)` calls whose arguments are JSON-escaped; the parser reads exactly those. A `.zip` works on
+every host. The controller then walks a seeded shuffle ([rotation.ts](../src/runtime/rotation.ts)):
+each entry is read, its summary (version, size, levels, title — the first 64 KB of the inflated map,
+[summary.ts](../src/core/formats/h3m/summary.ts)) decides the filters, and only then is it prepared
+and shown. Broken entries are skipped for the session; a message appears only when nothing can be
+shown. Every map is shown once per cycle, never twice in a row. The map timer counts only time the
+wallpaper is visible, so nothing is read or prepared while it is hidden.
 
 ### Settings are defined once
 

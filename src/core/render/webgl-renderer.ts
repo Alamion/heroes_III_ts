@@ -149,6 +149,15 @@ export class TerrainRenderer {
     this.freeObjectResources()
   }
 
+  /**
+   * Replaces the map in one call (spec 007): terrain and object layer change together and the previous
+   * map's object resources are released, so no frame can show one without the other.
+   */
+  replaceMap(terrain: TerrainSource, objects: ObjectLayer | undefined): void {
+    this.setTerrain(terrain)
+    this.setObjects(objects)
+  }
+
   setObjectsVisible(visible: boolean): void {
     this.objectsVisible = visible
   }

@@ -26,6 +26,8 @@ as a plain web page.
   windmills, whirlpools, flags and creatures.
 - Shows a random place on the map, the map centre or chosen coordinates. It can move to a new
   random place every N minutes, on either level.
+- Takes one map or a whole **folder of maps** (or a `.zip` of them): a random map at every start,
+  optionally a new one every N minutes, filtered by map size and by underground.
 - Uses little of your computer. It draws a frame only when something on screen changes (about 5
   times a second) and stops completely when the wallpaper is covered, paused or hidden. Decoded
   data is cached, so later starts take one to two seconds.
@@ -82,10 +84,15 @@ browser remembers them for your next visit, and **Forget files** removes them.
 | Arrows, mouse drag | scroll |
 | `U` | switch level (surface / underground) |
 | `R` | new random place |
+| `N` | next map (with a folder of maps) |
 | `O` | show or hide objects |
 | `H` | hide or show the panel |
 
 The panel hides itself after a few seconds without mouse movement.
+
+For a **folder of maps**, set **Map source** to *Folder of maps* and click **Choose folder…**, or drop
+a folder (or a `.zip` of maps) onto the page. Only the `.h3m` files are used, sub-folders included;
+the browser remembers them like the other files.
 
 ### Wallpaper Engine, Lively, KDE Plasma
 
@@ -97,11 +104,16 @@ Prebuilt packages are not published yet. Build them from source (see
    its `project.json` in the Wallpaper Engine editor.
 2. Select the wallpaper, open its properties and choose the files in **Sprite archive**, **Data
    archive** and **Map** (and **HotA archive** for a HotA map).
+3. For a folder of maps: copy the maps into `game/maps/` inside the wallpaper's folder (Wallpaper
+   Engine reads files only there), set **Map source** to *Folder of maps*; **Folder of maps** already
+   says `game/maps`. A `.zip` of maps inside the wallpaper folder works too.
 
 **Lively Wallpaper** (Windows)
 1. Drag `dist/packages/heroes3-living-map-lively-<version>.zip` into Lively.
 2. Open **Customise** for the wallpaper and use **Browse** in the file settings. Lively copies
    the chosen files into the wallpaper's folder. The HotA archive is only needed for HotA maps.
+3. For a folder of maps: Lively copies single files only, so zip the maps (for example the game's
+   `Maps` folder) and choose the `.zip` in **Folder of maps**, with **Map source** set to *Folder of maps*.
 
 **KDE Plasma 6** (Linux)
 1. Install the plugin:
@@ -111,6 +123,8 @@ Prebuilt packages are not published yet. Build them from source (see
    ```
 2. Right-click the desktop → **Configure Desktop and Wallpaper** → wallpaper type **Heroes 3 Living Map**.
 3. Choose the files (the HotA archive only for HotA maps) and press **Apply**.
+4. For a folder of maps: set **Map source** to *Folder of maps* and choose the folder (for example
+   the game's `Maps` folder) or a `.zip` of maps.
 
 The map pauses while a maximised or full-screen window covers the screen. The lock screen shows a
 plain dark background.
@@ -121,14 +135,22 @@ Every host shows the same settings, in English or Russian:
 
 | Setting | Values | Default |
 | --- | --- | --- |
+| Map source | one map, folder of maps | one map |
+| New map every N minutes | 0–1440, 0 = only at start; counts only while the wallpaper is visible | 0 |
+| Smallest / largest map size | S (36×36) … G (252×252) | S / G |
+| Underground | any map, only with underground, only without | any |
+| Next map now | button | — |
 | Level | random, surface, underground | random |
 | Starting view | random place, map centre, coordinates (X/Y in % of the map) | random place |
-| New random place every N minutes | 0–120, 0 = never | 0 |
+| New random place every N minutes | 0–1440, 0 = never | 0 |
 | New random place now | button | — |
 | Scale | ×1 pixel for pixel, ×2 (as in the original game), ×3 | ×1 |
 | Show objects | on / off | on |
 
-Changes apply immediately, without reloading the files.
+Changes apply immediately, without reloading the files. The folder settings are shown only with the
+folder source (Lively shows them always and says so). A map switch keeps the old map on screen until
+the new one is ready; maps do not repeat until every map of the folder was shown, and maps that
+cannot be read are skipped.
 
 ## Building from source
 
@@ -159,18 +181,20 @@ is git-ignored). [AGENTS.md](AGENTS.md) lists every command, including inspectio
 - [specs/](specs/): feature specifications with research notes and measurements:
   [reference environment](specs/001-reference-environment/),
   [foundation](specs/002-foundation-rewrite/), [map objects](specs/003-map-objects/),
-  [platform adapters](specs/004-platform-adapters/), [HotA support](specs/005-hota-support/).
+  [platform adapters](specs/004-platform-adapters/), [HotA support](specs/005-hota-support/),
+  [map folder](specs/007-map-folder/).
 - [TODO.md](TODO.md): roadmap and open items.
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md): attribution.
 
 ## Roadmap
 
 1. Check Wallpaper Engine and Lively on Windows.
-2. A folder of maps with a random map per start or on a timer; one map across several screens.
+2. One map across several screens; the lock screen.
 3. Save games of the Complete edition.
 4. Interactive extras: scrolling on idle, battles, captured towns and mines.
 
-Horn of the Abyss maps and archives are done ([spec 005](specs/005-hota-support/)).
+Horn of the Abyss maps and archives are done ([spec 005](specs/005-hota-support/)), and so is a
+folder of maps with rotation and filters ([spec 007](specs/007-map-folder/)).
 
 ## Credits and prior work
 

@@ -4,16 +4,22 @@
 // parsing or game logic (FR-008). All platform dependencies are injected, so it runs in Node tests
 // with a fake engine; browser defaults are wired in browser-controller.ts.
 
+import type { MapSummary } from '../../core/formats/h3m/summary.ts'
 import type { LevelChoice, ViewPlacement } from '../../core/render/view-placement.ts'
 import { log } from '../../core/util/log.ts'
+import { hashInts } from '../../core/util/rng.ts'
 import type { Engine, EngineStats, EngineStatus, LoadResult, UserScale } from '../../runtime/engine.ts'
+import { summarizeMapFile } from '../../runtime/file-kind.ts'
 import type { FileKind } from '../../runtime/file-kind.ts'
+import type { CatalogueEntry } from '../../runtime/catalogue.ts'
 import { displayName, UserFileError } from './file-url.ts'
 import type { FileSlot, MessageCode, UserMessage } from './messages.ts'
 import type { Overlay } from './overlay.ts'
+import { mapFilter, passesFilter, Rotation } from '../../runtime/rotation.ts'
 import { defaultSettings, FILE_SETTING_KEYS, validateSettings } from './settings.ts'
 import type { SettingKey, WallpaperSettings } from './settings.ts'
-import { pickLanguage } from './strings.ts'
+import { format, pickLanguage } from './strings.ts'
+import type { StringKey } from './strings.ts'
 import type { Language } from './strings.ts'
 
 export const COALESCE_MS = 150
@@ -30,6 +36,9 @@ export type ControllerEngine = Pick<
   | 'loadDataArchive'
   | 'loadHotaArchive'
   | 'loadMap'
+  | 'prepareMap'
+  | 'showPreparedMap'
+  | 'discardPreparedMap'
   | 'setObjectsVisible'
   | 'setUserScale'
   | 'placeView'
@@ -78,6 +87,13 @@ export interface ControllerDeps {
   cacheAvailable?: () => Promise<boolean>
   /** Hides or shows the canvas while the placeholder is up. */
   setCanvasHidden?: (hidden: boolean) => void
+  /**
+   * Spec 007: the maps of a `mapfolder` value (already turned into a URL by `fileUrl`) — a listed folder
+   * or a .zip. Hosts without it cannot use a folder from their settings.
+   */
+  openCatalogue?: (url: string, name: string) => Promise<CatalogueEntry[]>
+  /** Reads a map's summary for the folder filters (default: summarizeMapFile). */
+  summarize?: (blob: Blob, name: string) => Promise<MapSummary>
 }
 
 export interface SlotState {
@@ -96,6 +112,19 @@ export interface ControllerSnapshot {
   hidden: boolean
   view: { fx: number; fy: number; level: number } | null
   engine: EngineStats | null
+  /** Where the map comes from (spec 007). */
+  source: WallpaperSettings['mapsource']
+  folder: FolderSnapshot | null
+}
+
+export interface FolderSnapshot {
+  name: string
+  /** Maps found; null while the folder is being listed. */
+  entries: number | null
+  shown: { path: string; title: string; size: number; levels: number } | null
+  failed: number
+  filtered: number
+  switching: boolean
 }
 
 export interface WallpaperController {
@@ -110,6 +139,13 @@ export interface WallpaperController {
   setLanguage(tag: string | null): void
   /** Draws a new random place (and random level) now; only in the random view mode. */
   newRandomPlace(): void
+  /** "Next map now" (spec 007): only with the folder source; ignored while a switch is in progress. */
+  nextMap(): void
+  /**
+   * Browser (spec 007): a folder or .zip the user picked or dropped, or the remembered folder. Switches
+   * the source to the folder and shows a map from it.
+   */
+  supplyFolder(name: string, entries: () => Promise<CatalogueEntry[]>): Promise<void>
   resize(cssWidth: number, cssHeight: number, dpr: number): void
   forgetFiles(): Promise<void>
   state(): ControllerSnapshot
@@ -143,6 +179,24 @@ function errorDetail(r: Extract<LoadResult, { ok: false }>): string {
   return r.error.message
 }
 
+/** A map folder of this session (spec 007 data-model "Rotation", "CatalogueEntry"). */
+interface FolderState {
+  gen: number
+  /** The `mapfolder` value it came from, or null for a folder the browser supplied. */
+  value: string | null
+  name: string
+  /** null while the folder is being listed. */
+  entries: CatalogueEntry[] | null
+  rotation: Rotation | null
+  summaries: Map<number, MapSummary>
+  /** Entries that cannot be shown this session, with the reason. */
+  failed: Map<number, string>
+  shown: { id: number; path: string; summary: MapSummary } | null
+  switching: boolean
+}
+
+const FOLDER_CODES: readonly MessageCode[] = ['FOLDER_EMPTY', 'FOLDER_FILTERED', 'FOLDER_UNREADABLE']
+
 export function createController(deps: ControllerDeps): WallpaperController {
   let engine: ControllerEngine | undefined
   let settings = defaultSettings()
@@ -171,16 +225,32 @@ export function createController(deps: ControllerDeps): WallpaperController {
   let slowStartChecked = false
   let nextMessageId = 1
   let messages: { id: number; message: UserMessage; sticky: boolean; slot: FileSlot | null }[] = []
+  /** Spec 007: the map folder, which source the engine shows, and the map timer (active time only). */
+  let folder: FolderState | null = null
+  let folderGen = 0
+  let displayed: 'single' | 'folder' | null = null
+  /** The single map as last loaded, so switching back from a folder needs no new read. */
+  let singleMap: { blob: Blob; name: string } | undefined
+  let mapTimer: { handle: number; minutes: number } | undefined
+  let activeSince: number | null = null
+  let activeMs = 0
+  const summarize = deps.summarize ?? summarizeMapFile
+  /** Resolves once start() has applied the first settings (a folder supplied earlier waits for it). */
+  let markStarted: () => void = () => {}
+  const started = new Promise<void>((resolve) => (markStarted = resolve))
   const seenDiagnostics = new WeakSet<object>()
   const work = new Set<Promise<unknown>>()
   const listeners = new Set<(s: ControllerSnapshot) => void>()
 
   const language = (): Language => pickLanguage(hostLanguage ?? deps.environmentLanguage())
-  const showing = (): boolean => REQUIRED_SLOTS.every((s) => slots[s].status === 'loaded')
+  /** A map is in the engine: the single map, or a map of the folder (spec 007). */
+  const mapShown = (): boolean => displayed === 'folder' || slots.map.status === 'loaded'
+  const showing = (): boolean => slots.spriteArchive.status === 'loaded' && mapShown()
+  const folderBusy = (): boolean => folder !== null && (folder.entries === null || folder.switching)
   const phase = (): ControllerSnapshot['phase'] => {
     if (showing()) return 'showing'
-    if (ALL_SLOTS.some((s) => slots[s].status === 'reading' || slots[s].status === 'loading')) return 'loading'
-    if (REQUIRED_SLOTS.some((s) => slots[s].status === 'failed') || messages.some((m) => m.message.code === 'WEBGL_UNAVAILABLE')) return 'problem'
+    if (ALL_SLOTS.some((s) => slots[s].status === 'reading' || slots[s].status === 'loading') || folderBusy()) return 'loading'
+    if (REQUIRED_SLOTS.some((s) => slots[s].status === 'failed') || messages.some((m) => m.message.code === 'WEBGL_UNAVAILABLE' || FOLDER_CODES.includes(m.message.code))) return 'problem'
     return 'waiting'
   }
 
@@ -200,7 +270,23 @@ export function createController(deps: ControllerDeps): WallpaperController {
     hidden,
     view: view === null ? null : { ...view },
     engine: engine === undefined ? null : engine.stats(),
+    source: settings.mapsource,
+    folder: folderSnapshot(),
   })
+
+  const folderSnapshot = (): FolderSnapshot | null => {
+    if (folder === null) return null
+    const f = folder
+    const filtered = f.entries === null ? 0 : f.entries.filter((e) => !f.failed.has(e.id) && f.summaries.has(e.id) && !eligible(f)(e.id)).length
+    return {
+      name: f.name,
+      entries: f.entries === null ? null : f.entries.length,
+      shown: f.shown === null ? null : { path: f.shown.path, title: f.shown.summary.title, size: f.shown.summary.size, levels: f.shown.summary.levels },
+      failed: f.failed.size,
+      filtered,
+      switching: f.switching,
+    }
+  }
 
   const syncEngineActivity = (): void => {
     if (engine === undefined) return
@@ -208,6 +294,38 @@ export function createController(deps: ControllerDeps): WallpaperController {
     engine.setPaused(hostPaused || !showing())
     engine.setVisible(!hidden)
     syncRerollTimer()
+    syncMapTimer()
+  }
+
+  /**
+   * Spec 007 research R8: the map timer counts active time only — shown, not paused, not hidden — so
+   * nothing is read or prepared while the wallpaper cannot be seen. Elapsed time is banked when it stops.
+   */
+  const mapTimerWanted = (): boolean =>
+    engine !== undefined && settings.mapsource === 'folder' && displayed === 'folder' && folder !== null && folder.shown !== null && !folder.switching && !hostPaused && !hidden && settings.maprotation > 0
+  const syncMapTimer = (): void => {
+    const minutes = settings.maprotation
+    const wanted = mapTimerWanted()
+    if (mapTimer !== undefined && (!wanted || mapTimer.minutes !== minutes)) {
+      deps.timers.clear(mapTimer.handle)
+      mapTimer = undefined
+    }
+    if (!wanted || mapTimer === undefined) {
+      if (activeSince !== null) activeMs += deps.now() - activeSince
+      activeSince = null
+    }
+    if (!wanted || mapTimer !== undefined) return
+    activeSince = deps.now()
+    mapTimer = {
+      minutes,
+      handle: deps.timers.set(
+        () => {
+          mapTimer = undefined
+          void track(pickNext())
+        },
+        Math.max(0, minutes * 60_000 - activeMs),
+      ),
+    }
   }
 
   /**
@@ -273,12 +391,11 @@ export function createController(deps: ControllerDeps): WallpaperController {
   const nextSeed = (): number => (deps.seed + draws++ * 0x9e3779b1) >>> 0
 
   /**
-   * Positions the view: on start, map change, switching to a random place and timer (`reroll`), or
-   * keeping the current fractions. A random level is drawn on the same occasions and when the level
-   * setting changes to "random" (`levelChanged`); otherwise the drawn level stays.
+   * Chooses the view for a placement: on start, map change, switching to a random place and timer
+   * (`reroll`), or keeping the current fractions. A random level is drawn on the same occasions and when
+   * the level setting changes to "random" (`levelChanged`); otherwise the drawn level stays.
    */
-  const applyView = (reroll: boolean, levelChanged = false): void => {
-    if (engine === undefined || slots.map.status !== 'loaded') return
+  const choosePlacement = (reroll: boolean, levelChanged: boolean): { level: LevelChoice; placement: ViewPlacement; drawPlace: boolean } => {
     const drawPlace = settings.viewmode === 'random' && (reroll || view === null)
     let placement: ViewPlacement
     if (settings.viewmode === 'coords') placement = { mode: 'coords', fx: settings.viewx / 100, fy: settings.viewy / 100 }
@@ -289,7 +406,10 @@ export function createController(deps: ControllerDeps): WallpaperController {
     if (settings.level === 'surface') level = 0
     else if (settings.level === 'underground') level = 1
     else level = reroll || levelChanged || view === null ? { random: nextSeed() } : view.level
-    const r = engine.placeView(level, placement)
+    return { level, placement, drawPlace }
+  }
+
+  const commitView = (r: { fx: number; fy: number; level: number } | undefined, drawPlace: boolean): void => {
     if (r === undefined) return
     view = { fx: r.fx, fy: r.fy, level: r.level }
     if (drawPlace) {
@@ -300,6 +420,13 @@ export function createController(deps: ControllerDeps): WallpaperController {
         rerollTimer = undefined
       }
     }
+  }
+
+  /** Positions the view on the map the engine shows (see choosePlacement). */
+  const applyView = (reroll: boolean, levelChanged = false): void => {
+    if (engine === undefined || !mapShown()) return
+    const c = choosePlacement(reroll, levelChanged)
+    commitView(engine.placeView(c.level, c.placement), c.drawPlace)
   }
 
   const checkSlowStart = (): void => {
@@ -339,8 +466,12 @@ export function createController(deps: ControllerDeps): WallpaperController {
     slots[slot] = { status: 'loaded', name, identity: r.identity }
     clearMessages((m) => m.slot === slot || (slot === 'dataArchive' && m.message.code === 'DATA_ARCHIVE_MISSING'))
     if (slot === 'map') {
+      displayed = 'single'
+      singleMap = { blob, name }
       applyView(true)
     }
+    // HotA maps of the folder that were waiting for the archive become eligible (spec 007 edge case).
+    if (slot === 'hotaArchive' && settings.mapsource === 'folder' && folder !== null && folder.shown === null && folder.entries !== null && folder.entries.length > 0) void track(pickNext())
     if (showing()) {
       engine.setUserScale(settings.scale as UserScale)
       engine.setObjectsVisible(settings.objects)
@@ -360,6 +491,189 @@ export function createController(deps: ControllerDeps): WallpaperController {
   const hotaFirst = async (loads: readonly { slot: FileSlot; load: () => Promise<unknown> }[]): Promise<void> => {
     for (const l of loads) if (l.slot === 'hotaArchive') await l.load()
     await Promise.all(loads.filter((l) => l.slot !== 'hotaArchive').map((l) => l.load()))
+  }
+
+  // --- Map folder (spec 007) ---------------------------------------------------------------------
+
+  const clearFolderMessages = (): void => clearMessages((m) => FOLDER_CODES.includes(m.message.code))
+
+  /** An entry may be picked: not failed and, once its summary is known, inside the filters. */
+  const eligible =
+    (f: FolderState) =>
+    (id: number): boolean => {
+      if (f.failed.has(id)) return false
+      const summary = f.summaries.get(id)
+      if (summary === undefined) return true
+      return passesFilter(summary, mapFilter(settings)) && (!summary.needsHota || slots.hotaArchive.status === 'loaded')
+    }
+
+  const markFailed = (f: FolderState, entry: CatalogueEntry, err: unknown): void => {
+    const reason = err instanceof Error ? err.message : typeof err === 'object' && err !== null && 'message' in err ? String((err as { message: unknown }).message) : String(err)
+    f.failed.set(entry.id, reason)
+    log.warn(`map skipped: ${entry.path}: ${reason}`)
+  }
+
+  const describeFilter = (): string => {
+    const f = mapFilter(settings)
+    const t = (k: string): string => format(language(), k as StringKey)
+    return `${t(`mapsize_${f.sizeMin}`)} – ${t(`mapsize_${f.sizeMax}`)}, ${t(`mapunderground_${f.underground}`)}`
+  }
+
+  /** No entry can be shown (after a full pass): a message while nothing shows, a log line otherwise. */
+  const reportNoMap = (f: FolderState): void => {
+    const entries = f.entries ?? []
+    const known = entries.filter((e) => !f.failed.has(e.id) && f.summaries.has(e.id))
+    const hotaOnly = known.length > 0 && known.every((e) => (f.summaries.get(e.id) as MapSummary).needsHota && passesFilter(f.summaries.get(e.id) as MapSummary, mapFilter(settings)))
+    let message: UserMessage
+    if (known.length > 0) {
+      message = { code: 'FOLDER_FILTERED', level: 'error', file: f.name, detail: hotaOnly ? format(language(), 'kind_hotaArchive') : describeFilter() }
+    } else {
+      const first = [...f.failed.values()][0] ?? ''
+      message = { code: 'FOLDER_UNREADABLE', level: 'error', file: f.name, detail: `${f.failed.size}/${entries.length}: ${first}` }
+    }
+    if (showing()) log.warn(`${message.code} ${f.name}: ${message.detail ?? ''}`)
+    else addMessage(message)
+  }
+
+  const dropFolder = (): void => {
+    folderGen++
+    folder = null
+    clearFolderMessages()
+  }
+
+  /** Lists a folder (or takes the browser's entries); the map is picked separately by pickNext. */
+  const openFolder = async (value: string | null, name: string, list: (() => Promise<CatalogueEntry[]>) | null): Promise<void> => {
+    const gen = ++folderGen
+    const f: FolderState = { gen, value, name, entries: null, rotation: null, summaries: new Map(), failed: new Map(), shown: null, switching: false }
+    folder = f
+    clearFolderMessages()
+    if (list === null) {
+      f.entries = []
+      refresh()
+      return
+    }
+    startedAt ??= deps.now()
+    refresh()
+    let entries: CatalogueEntry[]
+    try {
+      entries = await list()
+    } catch (err) {
+      if (gen !== folderGen) return
+      f.entries = []
+      addMessage({ code: 'FOLDER_EMPTY', level: 'error', file: name, detail: err instanceof Error ? err.message : String(err) })
+      refresh()
+      return
+    }
+    if (gen !== folderGen) return
+    f.entries = entries
+    // Its own seed stream, so the map order does not depend on how many places were drawn before.
+    f.rotation = new Rotation(entries.length, hashInts(deps.seed, 0x6d6170))
+    log.info(`map folder ${name}: ${entries.length} map(s)`)
+    if (entries.length === 0 && !showing()) addMessage({ code: 'FOLDER_EMPTY', level: 'error', file: name })
+    else if (entries.length === 0) log.warn(`FOLDER_EMPTY ${name}`)
+    refresh()
+  }
+
+  /** Opens the folder named by the settings (a URL through the host) or, without one, waits. */
+  const openFolderFromSettings = (): Promise<void> => {
+    const value = settings.mapfolder
+    const url = value === null ? null : deps.fileUrl(value)
+    if (value === null || url === null) return openFolder(null, '', null)
+    const name = displayName(value)
+    if (deps.openCatalogue === undefined) return openFolder(value, name, () => Promise.reject(new Error('this host cannot open map folders')))
+    const open = deps.openCatalogue
+    return openFolder(value, name, () => open(url, name))
+  }
+
+  /**
+   * Picks the next map of the folder and shows it (research R5, R6): read → summary → filters →
+   * prepare off-screen → one-step swap. Failures move on to the next entry; the current map keeps
+   * running until the new one is ready.
+   */
+  const pickNext = async (): Promise<void> => {
+    const f = folder
+    if (engine === undefined || f === null || f.entries === null || f.rotation === null || f.switching || f.entries.length === 0) return
+    const e = engine
+    const rotation = f.rotation
+    const entries = f.entries
+    f.switching = true
+    refresh()
+    let retry: number | undefined
+    try {
+      for (let attempt = 0; attempt < entries.length * 2 + 4; attempt++) {
+        if (f !== folder) return
+        const id = retry ?? rotation.next(eligible(f))
+        retry = undefined
+        if (id === undefined) {
+          reportNoMap(f)
+          return
+        }
+        // The only usable map is already shown: a new place instead of a reload.
+        if (f.shown !== null && id === f.shown.id && displayed === 'folder') {
+          rotation.markShown(id)
+          applyView(true)
+          return
+        }
+        const entry = entries[id] as CatalogueEntry
+        const name = displayName(entry.path)
+        let blob: Blob
+        try {
+          blob = await entry.read()
+        } catch (err) {
+          markFailed(f, entry, err)
+          continue
+        }
+        if (f !== folder) return
+        let summary = f.summaries.get(id)
+        if (summary === undefined) {
+          try {
+            summary = await summarize(blob, name)
+          } catch (err) {
+            markFailed(f, entry, err)
+            continue
+          }
+          f.summaries.set(id, summary)
+        }
+        if (!eligible(f)(id)) continue
+        const r = await e.prepareMap(blob, name)
+        if (f !== folder) {
+          if (r.ok) e.discardPreparedMap(r.prepared)
+          return
+        }
+        if (!r.ok) {
+          // Archives changed while preparing: the same map again, with the new archives.
+          if (r.error.code === 'SUPERSEDED') retry = id
+          else markFailed(f, entry, r.error)
+          continue
+        }
+        if (!eligible(f)(id)) {
+          e.discardPreparedMap(r.prepared)
+          continue
+        }
+        const c = choosePlacement(true, false)
+        const placed = e.showPreparedMap(r.prepared, c.level, c.placement)
+        if (placed === undefined) {
+          retry = id
+          continue
+        }
+        displayed = 'folder'
+        f.shown = { id, path: entry.path, summary }
+        rotation.markShown(id)
+        commitView(placed, c.drawPlace)
+        activeMs = 0
+        activeSince = null
+        clearFolderMessages()
+        e.setUserScale(settings.scale as UserScale)
+        e.setObjectsVisible(settings.objects)
+        log.info(`map shown: ${summary.title !== '' ? summary.title : name} (${entry.path}, ${summary.size}×${summary.size}, ${summary.levels} level(s))`)
+        checkSlowStart()
+        return
+      }
+      log.warn(`no map of ${f.name} could be prepared after several attempts`)
+    } finally {
+      f.switching = false
+      refresh()
+    }
   }
 
   /** Reads a file named by a host setting and loads it into its slot. */
@@ -409,10 +723,41 @@ export function createController(deps: ControllerDeps): WallpaperController {
     const prev = settings
     settings = { ...settings, ...patch }
     const loads: { slot: FileSlot; load: () => Promise<void> }[] = []
+    const folderSource = settings.mapsource === 'folder'
     for (const key of FILE_SETTING_KEYS) {
       if (!(key in patch) || patch[key] === prev[key]) continue
+      // With the folder source the single map waits until the source switches back (FR-021).
+      if (key === 'mapfile' && folderSource) continue
       const slot = SLOT_OF_SETTING[key]
       loads.push({ slot, load: () => loadFromSetting(slot, settings[key]) })
+    }
+    // Spec 007: the map source, the folder and its filters.
+    const sourceChanged = patch.mapsource !== undefined && patch.mapsource !== prev.mapsource
+    const folderChanged = patch.mapfolder !== undefined && patch.mapfolder !== prev.mapfolder
+    const filterChanged = (['mapsizemin', 'mapsizemax', 'mapunderground'] as const).some((k) => patch[k] !== undefined && patch[k] !== prev[k])
+    let folderWork: Promise<void> | undefined
+    let pick = false
+    if (folderSource) {
+      // A folder the browser supplied stays until another one is chosen.
+      const supplied = folder !== null && folder.value === null && folder.entries !== null && folder.entries.length > 0
+      if (folderChanged || folder === null || (sourceChanged && !supplied)) {
+        folderWork = openFolderFromSettings()
+        pick = true
+      } else if (sourceChanged || (filterChanged && folder.shown === null)) {
+        pick = true
+      } else if (filterChanged && folder.shown !== null && !passesFilter(folder.shown.summary, mapFilter(settings))) {
+        pick = true
+      }
+      if (filterChanged) clearFolderMessages()
+    } else if (sourceChanged) {
+      dropFolder()
+      if (displayed === 'folder') {
+        if (settings.mapfile !== null) loads.push({ slot: 'map', load: () => loadFromSetting('map', settings.mapfile) })
+        else if (singleMap !== undefined) {
+          const m = singleMap
+          loads.push({ slot: 'map', load: () => loadIntoSlot('map', m.blob, m.name, ++generation.map).then(() => undefined) })
+        }
+      }
     }
     if (engine !== undefined) {
       if (patch.scale !== undefined && patch.scale !== prev.scale) engine.setUserScale(settings.scale)
@@ -430,7 +775,9 @@ export function createController(deps: ControllerDeps): WallpaperController {
       }
     }
     refresh()
-    await hotaFirst(loads)
+    // The folder is listed while the archives load; a map is picked once both are done.
+    await Promise.all([hotaFirst(loads), folderWork])
+    if (pick) await pickNext()
   }
 
   const flush = (): Promise<void> => {
@@ -470,6 +817,7 @@ export function createController(deps: ControllerDeps): WallpaperController {
       } catch (err) {
         addMessage({ code: 'WEBGL_UNAVAILABLE', level: 'error', detail: err instanceof Error ? err.message : String(err) })
         refresh()
+        markStarted()
         return
       }
       engine.onStatus(onEngineStatus)
@@ -480,9 +828,15 @@ export function createController(deps: ControllerDeps): WallpaperController {
       if (deps.remembered !== undefined) {
         const files = await track(deps.remembered.load().catch((err: unknown) => (log.warn('remembered files unavailable', String(err)), [] as RememberedFile[])))
         if (files.length > 0) startedAt ??= deps.now()
-        await hotaFirst(files.map((f) => ({ slot: f.slot, load: () => loadIntoSlot(f.slot, f.blob, f.name, ++generation[f.slot]) })))
+        // With the folder source the remembered single map is kept for a later switch back, not shown.
+        const folderFirst = (pending.mapsource ?? settings.mapsource) === 'folder'
+        const map = files.find((f) => f.slot === 'map')
+        if (folderFirst && map !== undefined) singleMap = { blob: map.blob, name: map.name }
+        const now = folderFirst ? files.filter((f) => f.slot !== 'map') : files
+        await hotaFirst(now.map((f) => ({ slot: f.slot, load: () => loadIntoSlot(f.slot, f.blob, f.name, ++generation[f.slot]) })))
       }
       await flush()
+      markStarted()
     },
     applySettings(raw) {
       const { patch, ignored } = validateSettings(raw)
@@ -518,6 +872,11 @@ export function createController(deps: ControllerDeps): WallpaperController {
                 refresh()
                 return undefined
               }
+              // A single dropped map means "this map": the folder source gives way (spec 007).
+              if (slot === 'map' && settings.mapsource === 'folder') {
+                settings = { ...settings, mapsource: 'single' }
+                dropFolder()
+              }
               return {
                 slot,
                 load: async () => {
@@ -548,9 +907,25 @@ export function createController(deps: ControllerDeps): WallpaperController {
       refresh()
     },
     newRandomPlace() {
-      if (settings.viewmode !== 'random' || slots.map.status !== 'loaded') return
+      if (settings.viewmode !== 'random' || !mapShown()) return
       applyView(true)
       refresh()
+    },
+    nextMap() {
+      if (settings.mapsource !== 'folder' || folder === null || folder.switching) return
+      void track(pickNext())
+    },
+    async supplyFolder(name, entries) {
+      startedAt ??= deps.now()
+      await track(
+        (async () => {
+          await started
+          // After the first settings, so a stored "single" applied at start does not undo it.
+          settings = { ...settings, mapsource: 'folder' }
+          await openFolder(null, name, entries)
+          await pickNext()
+        })(),
+      )
     },
     resize(w, h, dpr) {
       if (engine === undefined) return
@@ -564,6 +939,10 @@ export function createController(deps: ControllerDeps): WallpaperController {
         generation[slot]++
         slots[slot] = { status: 'missing', name: null, identity: null }
       }
+      // A supplied folder is forgotten with the files; a folder from the settings is listed again.
+      if (folder !== null && folder.value === null) dropFolder()
+      displayed = null
+      singleMap = undefined
       messages = []
       view = null
       startedAt = null

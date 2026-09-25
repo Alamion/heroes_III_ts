@@ -9,6 +9,7 @@ import { writePcxIndexed } from '../fixtures/synthetic/pcx.ts'
 import { allBodiesMap, writeH3mGz } from '../fixtures/synthetic/h3m.ts'
 import { runTool } from '../fixtures/run-tool.ts'
 import { writeSyntheticFiles } from '../fixtures/synthetic/terrain-archive.ts'
+import { MIXED_FOLDER, mapFolderZip, writeMapFolder } from '../fixtures/synthetic/map-folder.ts'
 
 const dir = mkdtempSync(join(tmpdir(), 'inspect-'))
 afterAll(() => rmSync(dir, { recursive: true, force: true }))
@@ -102,5 +103,25 @@ describe('yarn h3 (synthetic files)', () => {
     expect(bad.json).toMatchObject({ ok: false, error: { name: 'FormatError', code: 'UNSUPPORTED_VERSION', file: 'broken.h3m' } })
     const unknown = await h3(['nope'])
     expect(unknown.code).toBe(2)
+  })
+})
+
+describe('yarn h3 map summary | catalogue (spec 007)', () => {
+  it('summarises a map and lists a folder and a .zip with verdicts', async () => {
+    const sum = await h3(['map', 'summary', mapPath])
+    expect(sum.json).toMatchObject({ ok: true, version: 'AB', levels: 2 })
+    const folder = join(dir, 'Карты')
+    writeMapFolder(folder, MIXED_FOLDER)
+    const zip = join(dir, 'maps.zip')
+    writeFileSync(zip, mapFolderZip(MIXED_FOLDER))
+    for (const target of [folder, zip]) {
+      const cat = await h3(['map', 'catalogue', target, '--size-max', 'l', '--underground', 'any'])
+      expect(cat.code).toBe(0)
+      const json = cat.json as { count: number; eligible: number; entries: { path: string; verdict: string }[] }
+      expect(json.count).toBe(5)
+      expect(json.eligible).toBe(4)
+      expect(json.entries.find((e) => e.path === 'nested/deeper/xl.H3M')?.verdict).toBe('filtered')
+    }
+    expect((await h3(['map', 'catalogue', folder, '--size-min', 'huge'])).code).toBe(2)
   })
 })

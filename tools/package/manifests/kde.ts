@@ -68,14 +68,18 @@ export function stringsJs(): string {
   ].join('\n')
 }
 
+/** `visible:` line for a setting shown only for one value of another (spec 007: the folder settings). */
+const visibleLine = (def: { visibleWhen?: { key: string; equals: string } }): string =>
+  def.visibleWhen !== undefined ? `\n        visible: page.cfg_${def.visibleWhen.key} === "${def.visibleWhen.equals}"` : ''
+
 function configRow(def: SettingDef | ActionDef): string {
   const k = def.key
+  const visible = visibleLine(def)
   if (def.type === 'action') {
-    const visible = def.visibleWhen !== undefined ? `\n        visible: page.cfg_${def.visibleWhen.key} === "${def.visibleWhen.equals}"` : ''
     // Written to the live configuration too, so the desktop reacts without "Apply".
     return `    QQC2.Button {
         Kirigami.FormData.label: " "${visible}
-        icon.name: "roll"
+        icon.name: "${k === 'mapnext' ? 'go-next' : 'roll'}"
         text: page.t.${def.label}
         onClicked: {
             page.cfg_${k} = (page.cfg_${k} + 1) % 1000000
@@ -83,9 +87,45 @@ function configRow(def: SettingDef | ActionDef): string {
         }
     }`
   }
+  if (def.type === 'file' && def.pick === 'folder') {
+    // Spec 007: a folder of maps (listed by the page), or a .zip standing for one; the path can be typed.
+    return `    RowLayout {
+        Kirigami.FormData.label: page.t.${def.label}${visible}
+        QQC2.TextField {
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 14
+            text: page.cfg_${k}
+            placeholderText: page.t.panel_none
+            onEditingFinished: page.cfg_${k} = text.trim()
+        }
+        QQC2.Button {
+            icon.name: "folder-open"
+            text: page.t.panel_choose_folder
+            onClicked: folderDialog_${k}.open()
+        }
+        QQC2.Button {
+            icon.name: "application-zip"
+            text: page.t.panel_choose_zip
+            onClicked: dialog_${k}.open()
+        }
+        QQC2.Button {
+            icon.name: "edit-clear"
+            visible: page.cfg_${k} !== ""
+            onClicked: page.cfg_${k} = ""
+        }
+        FolderDialog {
+            id: folderDialog_${k}
+            onAccepted: page.cfg_${k} = selectedFolder.toString()
+        }
+        FileDialog {
+            id: dialog_${k}
+            nameFilters: ["${def.fileFilter}"]
+            onAccepted: page.cfg_${k} = selectedFile.toString()
+        }
+    }`
+  }
   if (def.type === 'file') {
     return `    RowLayout {
-        Kirigami.FormData.label: page.t.${def.label}
+        Kirigami.FormData.label: page.t.${def.label}${visible}
         QQC2.Label {
             Layout.maximumWidth: Kirigami.Units.gridUnit * 16
             elide: Text.ElideMiddle
@@ -112,7 +152,7 @@ function configRow(def: SettingDef | ActionDef): string {
     const model = def.options.map((o) => `{ "value": "${o.value}", "text": page.t.${o.label} }`).join(', ')
     return `    QQC2.ComboBox {
         id: combo_${k}
-        Kirigami.FormData.label: page.t.${def.label}
+        Kirigami.FormData.label: page.t.${def.label}${visible}
         textRole: "text"
         valueRole: "value"
         model: [${model}]
@@ -121,7 +161,6 @@ function configRow(def: SettingDef | ActionDef): string {
     }`
   }
   if (def.type === 'int' && def.input === 'number') {
-    const visible = def.visibleWhen !== undefined ? `\n        visible: page.cfg_${def.visibleWhen.key} === "${def.visibleWhen.equals}"` : ''
     return `    QQC2.SpinBox {
         Kirigami.FormData.label: page.t.${def.label}${visible}
         editable: true
@@ -133,7 +172,6 @@ function configRow(def: SettingDef | ActionDef): string {
     }`
   }
   if (def.type === 'int') {
-    const visible = def.visibleWhen !== undefined ? `\n        visible: page.cfg_${def.visibleWhen.key} === "${def.visibleWhen.equals}"` : ''
     return `    RowLayout {
         Kirigami.FormData.label: page.t.${def.label}${visible}
         QQC2.Slider {
@@ -150,7 +188,7 @@ function configRow(def: SettingDef | ActionDef): string {
     }`
   }
   return `    QQC2.CheckBox {
-        Kirigami.FormData.label: page.t.${def.label}
+        Kirigami.FormData.label: page.t.${def.label}${visible}
         checked: page.cfg_${k}
         onToggled: page.cfg_${k} = checked
     }`

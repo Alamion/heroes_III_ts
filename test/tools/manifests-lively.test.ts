@@ -37,3 +37,13 @@ describe('Lively manifests (spec 004 FR-016)', () => {
     }
   })
 })
+
+describe('Lively map folder (spec 007)', () => {
+  it('takes the folder as a .zip with a hint, and "next map" as a button', () => {
+    const props = livelyProperties() as Record<string, Control>
+    expect(props.mapfolder).toMatchObject({ type: 'folderDropdown', folder: 'userfiles', filter: '*.zip', value: null })
+    expect(props.mapfolder?.help).toBeTruthy()
+    expect(props.mapnext).toMatchObject({ type: 'button' })
+    expect(props.maprotation).toMatchObject({ type: 'textbox', value: '0' })
+  })
+})
