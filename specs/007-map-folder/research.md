@@ -281,3 +281,81 @@ with its title and file (clarification "map name").
 - **Windows**: the remaining questions (WE-F1, WE-F2, LV-F1) and a first HotA check on the real Windows
   hosts are handed over in [windows-handoff.md](windows-handoff.md).
 
+## Windows session (2026-09-25, WSL on the owner's machine)
+
+Environment: Windows 10/11 host, WSL (Linux) driving it through interop; the owner's Complete edition and
+HotA 1.8 installs; Wallpaper Engine 2.8.42 (CEF 146) on monitor 1, Lively 2.2.x (WebView2, Edge 153) on
+monitor 0. A throwaway in-page diagnostic posted state and console lines to a collector in WSL
+(`check-reports/windows-session/2026-09-25/telemetry.js`, git-ignored) and polled commands back
+(`nextMap`, `applySettings`) — WE has no usable CDP port (WE-12), and WSL cannot reach Lively's CDP port
+(Windows loopback is not forwarded into WSL), but the page can always reach WSL.
+
+### A. HotA on the real hosts (spec 005)
+
+- **A1 (WE, HotA map + HotA archive): pass.** `slots.hotaArchive = loaded`, `phase = showing`, no
+  `sprite(s) not found`. Screenshot `check-reports/windows-session/2026-09-25/screens/A1-we-hota-DISPLAY2.png`
+  shows Highlands and Wasteland terrain, the HotA towns and objects. Settings applied → first showing frame
+  was ~0.5 s (warm, archives cached from the session; `applyUserProperties` at 18:32:03, `phase showing`
+  at 18:32:04.164).
+- **A2 (WE, base map + HotA archive): pass.** `game/Arrogance.h3m` with `game/HotA.lod` renders the base
+  desert map normally, `phase = showing`, no missing sprites (`A2-we-base-hota-DISPLAY2.png`).
+- **A3 (Lively, HotA): pass.** With all three archives and `test_map_hota.h3m` set (Browse values,
+  `userfiles\name`), `hotaArchive = loaded`, `phase = showing`. The HotA archive, sprite archive, data
+  archive and map went in as one batch.
+- **A4 (both, all four file settings together): pass.** On WE and Lively the four settings were delivered
+  in one `applyUserProperties`/property batch and HotA-only sprites appeared; the HotA-first load order
+  held (`hotaArchive` reached `loaded` before the sprite archive finished). See also bug A4-race below.
+- **WE start-up delivers the properties twice** (two `applyUserProperties` calls ~4 s apart, identical
+  values, and two page instances / `diag-start`s). Harmless, but every real-host timing must ignore the
+  second delivery.
+
+### B. Map folder
+
+- **WE-F1 answered: NO.** Wallpaper Engine's CEF cannot list a `file://` directory. Measured in-page:
+  `fetch('file:///…/game/maps/')` rejects with `TypeError: Failed to fetch` (same for the relative
+  `game/maps/` and for `file:///…/game/`); an `XMLHttpRequest` of the same directory never calls `onload`
+  or `onerror`, so the page's `READ_TIMEOUT_MS` fires: `FOLDER_EMPTY maps: reading timed out after 30 s`.
+  It is not the URL form: an absolute `file:` **file** reads fine over both XHR and `fetch` (61 MB
+  `H3sprite.lod`, status 200). So the map folder needs the `.zip` on WE.
+- **B2 (WE, `.zip`): pass.** `game/maps.zip` (228 `.h3m`) → `folder.entries = 228`, a map shown
+  (`B2-we-zip-DISPLAY2.png`). Three `nextMap` switches stayed `showing` throughout (no black/placeholder
+  frame) and `gpuBytes` was flat at 38–39 MB across seven shows.
+- **B4 (Lively, `.zip`): pass.** `userfiles\maps.zip` → `folder.entries = 228`, maps shown, `nextMap`
+  works. The value must be the folderDropdown form `userfiles\maps.zip`; a bare `maps.zip` resolves
+  against the page root and fails (`FOLDER_EMPTY maps.zip: Failed to fetch`).
+- **LV-F1 answered: NO.** Over the WebView2 virtual host `fetch('userfiles/')` rejects with
+  `TypeError: Failed to fetch`; `fetch('maps/')` too. Lively has no directory listing, so its only path is
+  the `.zip` (R1 confirmed).
+- **WE-F2: not measured this session.** The WE `directory` property in `fetchall` mode was not probed; it
+  remains documented as images/videos only (R1). The `.zip` is the supported WE path.
+- **B6 (rotation and settings): pass by telemetry on both hosts.** `nextMap` changes the map with
+  `phase` staying `showing`; filters hold (`mapsizemax=s` showed only 36×36; `mapunderground=two` only
+  2-level maps); switching `mapsource` back to *single* reloads the single map; `maprotation=1` changed
+  the map once after ~61 s (WE, no loading frame); the overlay strings are Russian (the Lively messages
+  came through in Russian). GPU memory on WE stayed at 38–39 MB over the switches; Lively's engine reports
+  `gpuBytes = 0` while the wallpaper is `hostPaused` (its screen is covered by the owner's windows), so the
+  100-switch memory bound stays with the Linux browser/host checks.
+- **Lively stores property values in `Library/SaveData/wpdata/<wallpaper>/<n>/LivelyProperties.json`, not
+  in the package's `LivelyProperties.json`.** New settings (HotA, map folder, rotation) are only delivered
+  to an existing install after the SaveData is recreated (a fresh import); pre-filling the package file has
+  no effect on a wallpaper that already has SaveData. The stored value is the bare file name
+  (`HotA.lod`); Lively delivers it prefixed as `userfiles\HotA.lod`.
+
+### Bugs found and fixed
+
+1. **A folder map could be picked before its archives were loaded (fixed, commit `016e334`).**
+   `loadIntoSlot` fires a pick when HotA finishes loading and no map is shown yet (the "HotA maps of the
+   folder become eligible" edge case). With all four settings in one batch, `loadHotaArchive` returns while
+   the sprite archive is still reading, so the map was prepared without the sprite archive and shown; the
+   normal pick after `Promise.all` then advanced the rotation and replaced it. The first map of the
+   rotation was skipped and shown object-less. Fix: pick only when the sprite archive is loaded and no
+   archive is still reading/decoding. Regression test
+   `test/adapters/controller-folder.test.ts` "HotA arriving with the other archives does not pick before
+   they are loaded" (per-slot load delays in the fake engine): two prepares/shows before, one after.
+   First seen on the real WE host; also reproducible in the synthetic controller test.
+2. **Wallpaper Engine relative setting paths went through `fetch` (fixed, commit `38f7766`).**
+   `weFileUrl` returned a relative path unchanged, so archives were read with `fetch` (an `ArrayBuffer`
+   in the JS heap) instead of the XHR-blob path adopted in 004, and a `#` in a name could be read as a
+   fragment. Now resolved against the page's encoded `file://` folder. This does **not** make WE list a
+   folder (WE-F1 above); it makes the archive/`.zip` reads consistent and correctly encoded.
+

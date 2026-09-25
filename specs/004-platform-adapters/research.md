@@ -513,6 +513,29 @@ events plus `document.hidden`. To verify or correct there:
   `check-reports/windows-session/cdp-eval.mjs` and runs on Windows-side Node (`Runtime.evaluate` over
   `/devtools/page/<id>`); nothing Windows-only entered shared tooling.
 
+### 2026-09-25 — Windows session, spec 007 follow-up (WSL)
+
+First Windows check after HotA support (spec 005) and the map folder (spec 007); the host-neutral answers
+are in [007 research "Windows session"](../007-map-folder/research.md#windows-session-2026-09-25-wsl-on-the-owners-machine).
+Section C items re-measured here:
+
+- **WE-3 answered**: the classic IIFE bundle and the embedded Blob worker run on the real Wallpaper Engine
+  2.8.42 CEF (Chromium 146) — the wallpaper decodes archives and renders (spec 007 checks), so no module
+  scripts or URL workers are needed. WE-4 answered: the host listener (wrapped from the page) received the
+  first full `applyUserProperties` with all 29 keys, so `window.wallpaperPropertyListener` is set early
+  enough.
+- **WE-6 answered**: `applyGeneralProperties` carries `language: "ru-ru"` (the owner's WE UI language) and
+  `fps: 25`; `navigator.language` in the page is `en-US`, so it does **not** follow WE's language — the
+  `language` value is the one to use. WE-8: `fps` is delivered (25 here).
+- **LV-4 answered**: while the owner's windows cover the Lively screen the page's `hostPaused` is `true`
+  and `engine.paused` is `true` (playback pause), matching the 2026-09-19 suspension measurement.
+- **LV-6 partial**: `navigator.language` in WebView2 is `en-US` (Windows language), and the overlay
+  messages rendered in Russian from `LivelyProperties.loc.json`; the panel labels were not re-checked
+  this session.
+- **Still open** (not re-measured): WE-5 (IndexedDB across restart/reboot, per monitor), WE-7 (WE pause
+  delivery/freeze), WE-10 (scaled displays; both monitors are dpr 1 here), WE-11 (`preview.png`), LV-5
+  (Lively IndexedDB persistence). All need the owner present or a scaled display.
+
 ### 2026-09-24 — KDE: black wallpaper after a monitor was plugged in
 
 The owner plugged in the large monitor (the primary screen), the wallpaper moved to it and stayed
