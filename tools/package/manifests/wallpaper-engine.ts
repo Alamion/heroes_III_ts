@@ -26,8 +26,9 @@ export const DISPLAY_KEYS: readonly string[] = [NOTICE_KEY, SPACER_KEY]
 const FILE_DEFAULTS: Partial<Record<SettingDef['key'], string>> = {
   spritearchive: 'game/H3sprite.lod',
   dataarchive: 'game/h3bitmap.lod',
-  // Spec 007: the maps folder sits next to the archives (research R1).
-  mapfolder: 'game/maps',
+  // Spec 007: WE's CEF cannot list a file:// folder (2026-09-25 Windows session), so the folder source
+  // needs a .zip of the maps; its name follows the README convention next to the archives.
+  mapfolder: 'game/maps.zip',
 }
 
 /** Settings ordered before this belong to the files-and-maps group the spacer closes. */

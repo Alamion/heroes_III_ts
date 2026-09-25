@@ -67,7 +67,7 @@ describe('Wallpaper Engine project.json (spec 004 FR-014)', () => {
   it('shows the folder settings only with the folder source (spec 007)', () => {
     expect(props.mapfile?.condition).toBe('mapsource.value == "single"')
     for (const key of ['mapfolder', 'maprotation', 'mapsizemin', 'mapsizemax', 'mapunderground', 'mapnext']) expect(props[key]?.condition, key).toBe('mapsource.value == "folder"')
-    expect(props.mapfolder).toMatchObject({ type: 'textinput', value: 'game/maps' })
+    expect(props.mapfolder).toMatchObject({ type: 'textinput', value: 'game/maps.zip' })
     expect(props.mapnext).toMatchObject({ type: 'bool', value: false })
     expect(props.mapsource).toMatchObject({ type: 'combo', value: 'single' })
   })

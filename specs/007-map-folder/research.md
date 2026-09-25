@@ -358,4 +358,9 @@ monitor 0. A throwaway in-page diagnostic posted state and console lines to a co
    in the JS heap) instead of the XHR-blob path adopted in 004, and a `#` in a name could be read as a
    fragment. Now resolved against the page's encoded `file://` folder. This does **not** make WE list a
    folder (WE-F1 above); it makes the archive/`.zip` reads consistent and correctly encoded.
+3. **The Wallpaper Engine README and settings never mentioned the `.zip` (fixed).** WE's `mapfolder`
+   default was `game/maps`, a folder it can never list, and `help_wallpaper_engine`/the notice said nothing
+   about the folder source. The default is now `game/maps.zip` and both language texts explain that WE
+   needs a `.zip` of the maps; the WE manifest test and package were updated. The Lively and KDE texts are
+   unchanged (they list a folder or copy a `.zip`).
 
