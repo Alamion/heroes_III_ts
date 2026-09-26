@@ -225,7 +225,8 @@ export async function wallpaperEngineDriver(browser: Browser, packageDir: string
       await hp.page.evaluate((v) => (window as unknown as { wallpaperPropertyListener: { applyUserProperties(p: unknown): void } }).wallpaperPropertyListener.applyUserProperties({ viewreroll: { value: v } }), value)
     },
     async supplyFolder(hp, folder) {
-      await hp.page.evaluate((p) => (window as unknown as { wallpaperPropertyListener: { applyUserProperties(p: unknown): void } }).wallpaperPropertyListener.applyUserProperties(p), { mapsource: { value: 'folder' }, mapfolder: { value: folder.dir } })
+      // WE's CEF cannot list a folder (2026-09-25 Windows session): the user enters a .zip of the maps.
+      await hp.page.evaluate((p) => (window as unknown as { wallpaperPropertyListener: { applyUserProperties(p: unknown): void } }).wallpaperPropertyListener.applyUserProperties(p), { mapsource: { value: 'folder' }, mapfolder: { value: folder.zip } })
     },
     async nextMap(hp) {
       const value = !(nextToggles.get(hp) ?? false)

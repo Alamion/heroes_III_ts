@@ -104,9 +104,9 @@ Prebuilt packages are not published yet. Build them from source (see
    its `project.json` in the Wallpaper Engine editor.
 2. Select the wallpaper, open its properties and choose the files in **Sprite archive**, **Data
    archive** and **Map** (and **HotA archive** for a HotA map).
-3. For a folder of maps: copy the maps into `game/maps/` inside the wallpaper's folder (Wallpaper
-   Engine reads files only there), set **Map source** to *Folder of maps*; **Folder of maps** already
-   says `game/maps`. A `.zip` of maps inside the wallpaper folder works too.
+3. For a folder of maps: Wallpaper Engine cannot list a folder, so zip the maps (for example the
+   game's `Maps` folder) into `game/maps.zip` inside the wallpaper's folder and set **Map source** to
+   *Folder of maps*; **Folder of maps** already says `game/maps.zip`.
 
 **Lively Wallpaper** (Windows)
 1. Drag `dist/packages/heroes3-living-map-lively-<version>.zip` into Lively.

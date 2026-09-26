@@ -326,7 +326,7 @@ events plus `document.hidden`. To verify or correct there:
 7. **LV-7** Import of the `.zip` package, thumbnail/preview display.
 
 **Map folder (spec 007, [research R2](../007-map-folder/research.md#r2-chromiums-file-directory-listing-measured))**
-- **WE-F1** Does WE's CEF answer an XHR/fetch of a folder inside the wallpaper folder (`game/maps/`) with
+- **WE-F1** (answered 2026-09-25: no, see 007 research "Windows session") Does WE's CEF answer an XHR/fetch of a folder inside the wallpaper folder (`game/maps/`) with
   Chromium's `addRow(…)` listing? (Measured in desktop Chromium and in the KDE/Linux simulation.)
 - **WE-F2** Does a `directory` user property in `fetchall` mode report `.h3m` files at all (docs say images/videos)?
 - **LV-F1** Does WebView2's virtual host list a folder? Expected no; the `.zip` path does not depend on it.

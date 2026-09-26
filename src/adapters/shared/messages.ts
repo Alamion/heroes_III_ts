@@ -23,6 +23,8 @@ export type MessageCode =
   | 'FOLDER_FILTERED'
   /** Spec 007: every map of the folder failed ({detail} = count and first failure). */
   | 'FOLDER_UNREADABLE'
+  /** Spec 007: the host cannot list folders and the setting names one ({file} = the value). */
+  | 'FOLDER_NEEDS_ZIP'
 
 export interface UserMessage {
   code: MessageCode

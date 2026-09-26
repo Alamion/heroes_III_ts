@@ -1,7 +1,7 @@
 // Wallpaper controller with the folder source (spec 007 US1–US4): real synthetic maps for the summaries,
 // the fake engine for prepare/show, fake timers for the map interval.
 import { describe, expect, it } from 'vitest'
-import { filesCatalogue } from '../../src/runtime/catalogue.ts'
+import { filesCatalogue, ListingUnsupportedError } from '../../src/runtime/catalogue.ts'
 import type { CatalogueEntry } from '../../src/runtime/catalogue.ts'
 import type { FolderMapSpec } from '../fixtures/synthetic/map-folder.ts'
 import { BROKEN_ONLY_FOLDER, HALF_BROKEN_FOLDER, MIXED_FOLDER, mapFolderEntries } from '../fixtures/synthetic/map-folder.ts'
@@ -34,6 +34,7 @@ function folderSetup(opts: { seed?: number; missing?: Set<string> } = {}) {
     openCatalogue: async (url) => {
       const key = url.replace('file:///', '')
       if (key === 'unreadable') throw new Error('cannot list the folder')
+      if (key === 'unlistable') throw new ListingUnsupportedError(key)
       const entries = catalogue(FOLDERS[key] ?? [])
       if (opts.missing === undefined) return entries
       const missing = opts.missing
@@ -102,7 +103,7 @@ describe('folder source: start (spec 007 US1)', () => {
     expect(half.c.state().folder?.failed).toBe(3)
     expect(codes(half.c)).toEqual([])
 
-    for (const [folder, code] of [['broken', 'FOLDER_UNREADABLE'], ['empty', 'FOLDER_EMPTY'], ['unreadable', 'FOLDER_EMPTY']] as const) {
+    for (const [folder, code] of [['broken', 'FOLDER_UNREADABLE'], ['empty', 'FOLDER_EMPTY'], ['unreadable', 'FOLDER_EMPTY'], ['unlistable', 'FOLDER_NEEDS_ZIP']] as const) {
       const t = folderSetup()
       await t.c.start()
       t.c.applySettings({ ...ARCHIVES, mapsource: 'folder', mapfolder: folder })

@@ -16,9 +16,11 @@ A folder of maps ([specs/007-map-folder/](specs/007-map-folder/)) is implemented
 visible time, 0–1440), size and underground filters, the `mapnext` action (`N` in the browser). Facts
 it relies on:
 - Chromium answers an XHR of a `file://` folder with an HTML listing of `addRow(name, url, isDir,
-  size, …)` calls (JSON-escaped arguments; measured 2026-09-25); `catalogue.ts` parses it. Wallpaper
-  Engine keeps the maps in `game/maps/` inside the wallpaper folder, Lively takes a `.zip`, KDE a
-  folder dialog, the browser a picked or dropped folder (remembered in IndexedDB). All host differences
+  size, …)` calls (JSON-escaped arguments; measured 2026-09-25; QtWebEngine on KDE does the same);
+  `catalogue.ts` parses it. Wallpaper Engine's CEF does **not** (a `fetch` of a folder fails, the XHR
+  never answers; Windows session 2026-09-25), so WE and Lively take a `.zip` (WE default
+  `game/maps.zip`; a folder value on WE gives `FOLDER_NEEDS_ZIP` at once), KDE a folder dialog, the
+  browser a picked or dropped folder (remembered in IndexedDB). All host differences
   stay in the catalogue functions; the owner wants a more uniform way later (TODO item 5).
 - `engine.loadMap` shows the new terrain before its objects are built; a folder switch therefore uses
   `prepareMap` (off-screen, the worker keeps shown + prepared worlds) and `showPreparedMap` (one-step
@@ -45,8 +47,9 @@ capture tooling verifies level and pixel mapping before storing a capture. Platf
 ([specs/004-platform-adapters/](specs/004-platform-adapters/)) are built on Linux: a browser version
 (GitHub Pages from `testing`), Wallpaper Engine, Lively and a KDE Plasma 6 plugin, one host-neutral
 wallpaper controller, `yarn package`, `yarn verify packages|hosts` (host simulations) and `yarn accept kde`.
-KDE is accepted on a real Plasma session; Wallpaper Engine and Lively still need verification on the real Windows hosts (004 research "Open
-questions for the Windows session" and "Windows session handoff").
+KDE is accepted on a real Plasma session; Wallpaper Engine and Lively were checked on the real Windows hosts
+(2026-09-19, and HotA + map folder on 2026-09-25); still open there: WE-5/7/10/11, LV-5, cold start timings
+(004 research "Open questions for the Windows session").
 
 Facts measured against the original game that code must respect (details in
 [002 research](specs/002-foundation-rewrite/research.md), [003 research](specs/003-map-objects/research.md)):

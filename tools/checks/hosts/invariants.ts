@@ -480,7 +480,8 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
   {
     id: 14.1,
     name: 'spec 007: a map added to the folder is a candidate after a restart',
-    hosts: ['wallpaper-engine', 'kde'],
+    // Only hosts that list a folder; Wallpaper Engine takes a .zip (invariant 14.3).
+    hosts: ['kde'],
     run: async (ctx, hp, fail) => {
       const dir = mkdtempSync(join(tmpdir(), 'h3-folder-'))
       try {
@@ -523,6 +524,24 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
       } finally {
         await second.close()
       }
+    },
+  },
+  {
+    id: 14.3,
+    name: 'spec 007: a folder path on Wallpaper Engine asks for a .zip at once instead of timing out',
+    hosts: ['wallpaper-engine'],
+    run: async (ctx, hp, fail) => {
+      await ctx.driver.supplyFiles(hp, { spriteArchive: ctx.files.spriteArchive, dataArchive: ctx.files.dataArchive })
+      const t0 = Date.now()
+      await ctx.driver.setSettings(hp, { mapsource: 'folder', mapfolder: ctx.files.folders.five.dir })
+      const shown = await waitMessage(hp.page, 'FOLDER_NEEDS_ZIP', 10_000)
+      const elapsed = Date.now() - t0
+      // The archives may still be loading when the message appears; the phase settles after them.
+      await idle(hp.page)
+      const s = await state(hp.page)
+      if (!shown) fail(`no FOLDER_NEEDS_ZIP message: phase ${s.phase}, messages ${JSON.stringify(s.messages)}`)
+      else if (elapsed > 5_000) fail(`the message took ${elapsed} ms`)
+      if (s.phase !== 'problem') fail(`phase ${s.phase}, expected problem`)
     },
   },
   {

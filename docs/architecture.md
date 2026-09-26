@@ -580,13 +580,13 @@ catalogue functions:
 | Host | Folder arrives as | Listed by |
 | --- | --- | --- |
 | Browser | folder picker (`webkitdirectory`), a dropped folder or `.zip` | the browser hands over the files; remembered in IndexedDB |
-| Wallpaper Engine | a text path inside the wallpaper folder (default `game/maps`) | Chromium's own `file://` directory listing |
+| Wallpaper Engine | a text path to a `.zip` inside the wallpaper folder (default `game/maps.zip`) | the built-in ZIP reader; its CEF cannot list a folder, so a folder value gives `FOLDER_NEEDS_ZIP` at once |
 | KDE Plasma | a folder dialog (or a typed path, or a `.zip`) | the same `file://` listing |
 | Lively | a `.zip` copied by `folderDropdown` (Lively has no folder property) | the built-in ZIP reader ([zip.ts](../src/core/formats/zip/zip.ts)) |
 
 Chromium answers an XHR for a `file://` folder with an HTML page of `addRow(name, url, isDir,
-size, …)` calls whose arguments are JSON-escaped; the parser reads exactly those. A `.zip` works on
-every host. The controller then walks a seeded shuffle ([rotation.ts](../src/runtime/rotation.ts)):
+size, …)` calls whose arguments are JSON-escaped; the parser reads exactly those (desktop Chromium and
+QtWebEngine; not Wallpaper Engine's CEF). A `.zip` works on every host. The controller then walks a seeded shuffle ([rotation.ts](../src/runtime/rotation.ts)):
 each entry is read, its summary (version, size, levels, title — the first 64 KB of the inflated map,
 [summary.ts](../src/core/formats/h3m/summary.ts)) decides the filters, and only then is it prepared
 and shown. Broken entries are skipped for the session; a message appears only when nothing can be

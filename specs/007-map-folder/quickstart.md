@@ -53,6 +53,5 @@ attach over the DevTools port (AGENTS.md "KDE live debugging") and check `state(
 
 ## 5. Windows session (later, with the spec 004 open questions)
 
-- Wallpaper Engine: copy maps into `<wallpaper>/game/maps/`, leave the default `mapfolder`; answer WE-F1 (listing)
-  and WE-F2 (`directory` property with `.h3m`).
-- Lively: zip the `Maps` folder, choose it in "Folder of maps"; answer LV-F1 (virtual-host listing).
+Done 2026-09-25 (research "Windows session"): WE-F1 and LV-F1 are negative, both hosts take a `.zip`
+(WE: `<wallpaper>/game/maps.zip`, the default `mapfolder`; Lively: "Browse"). WE-F2 was not measured.

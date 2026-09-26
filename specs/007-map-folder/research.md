@@ -364,3 +364,14 @@ monitor 0. A throwaway in-page diagnostic posted state and console lines to a co
    needs a `.zip` of the maps; the WE manifest test and package were updated. The Lively and KDE texts are
    unchanged (they list a folder or copy a `.zip`).
 
+
+### Follow-up on Linux (2026-09-26)
+
+- The README section for Wallpaper Engine still described `game/maps/`; it now says `game/maps.zip`
+  (AGENTS.md, docs/architecture.md and TODO.md updated the same way).
+- A folder value on Wallpaper Engine waited for the 30 s read timeout and then reported "no maps". The WE
+  bridge now declares `folderListing: false`; `openCatalogueAt` refuses a non-`.zip` value at once with
+  `ListingUnsupportedError`, which the controller shows as the new message `FOLDER_NEEDS_ZIP` ("zip the
+  maps and enter the .zip"). The WE host simulation now supplies the `.zip` like the real host, invariant
+  14.1 (a folder re-listed after a restart) runs on KDE only, and invariant 14.3 checks the immediate
+  message on WE.

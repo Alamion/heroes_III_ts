@@ -12,6 +12,8 @@ const { controller } = createBrowserController({
   canvas: document.getElementById('map') as HTMLCanvasElement,
   overlayRoot: document.body,
   fileUrl: weFileUrl,
+  // WE's CEF cannot list a file:// folder (spec 007, 2026-09-25 Windows session): the folder is a .zip.
+  folderListing: false,
   workerFactory: classicWorkerFactory(),
 })
 

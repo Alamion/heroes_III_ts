@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CATALOGUE_LIMITS, filesCatalogue, isMapPath, listingCatalogue, openCatalogueAt, parseDirectoryListing, zipCatalogue } from '../../src/runtime/catalogue.ts'
+import { CATALOGUE_LIMITS, filesCatalogue, isMapPath, ListingUnsupportedError, listingCatalogue, openCatalogueAt, parseDirectoryListing, zipCatalogue } from '../../src/runtime/catalogue.ts'
 import { MIXED_FOLDER, mapFolderEntries, mapFolderZip } from '../fixtures/synthetic/map-folder.ts'
 
 const blob = (b: Uint8Array | string) => new Blob([typeof b === 'string' ? b : (b as Uint8Array<ArrayBuffer>)])
@@ -95,6 +95,9 @@ describe('map catalogues (spec 007 data-model "CatalogueEntry")', () => {
     expect(viaValue.map((e) => e.path)).toEqual(expected)
     const want = mapFolderEntries(MIXED_FOLDER).find((e) => e.path === 'small.h3m')!.data
     expect(new Uint8Array(await (await viaValue.find((e) => e.path === 'small.h3m')!.read()).arrayBuffer())).toEqual(want)
+    // A host without folder listing (Wallpaper Engine) still opens the .zip, and refuses a folder at once.
+    expect(await openCatalogueAt('file:///maps.zip', 'maps.zip', { ...tree, listing: false })).toHaveLength(expected.length)
+    await expect(openCatalogueAt('file:///maps/', 'maps', { ...tree, listing: false })).rejects.toBeInstanceOf(ListingUnsupportedError)
   })
 
   it('files handed over by the browser, with Windows separators', () => {

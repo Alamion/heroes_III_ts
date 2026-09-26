@@ -80,6 +80,7 @@ export const en = {
   msg_FOLDER_EMPTY: 'No maps (.h3m) found in {file}.',
   msg_FOLDER_FILTERED: 'No map in {file} matches the filters ({detail}).',
   msg_FOLDER_UNREADABLE: 'None of the maps in {file} can be shown: {detail}',
+  msg_FOLDER_NEEDS_ZIP: 'This wallpaper app cannot read a folder ({file}): zip the maps into one file and enter the .zip in "Folder of maps".',
 
   // Browser panel
   panel_title: APP_NAME,
@@ -187,6 +188,7 @@ export const ru: Record<StringKey, string> = {
   msg_FOLDER_EMPTY: 'В {file} не найдено карт (.h3m).',
   msg_FOLDER_FILTERED: 'Ни одна карта в {file} не подходит под фильтры ({detail}).',
   msg_FOLDER_UNREADABLE: 'Ни одну карту из {file} не удалось показать: {detail}',
+  msg_FOLDER_NEEDS_ZIP: 'Эта программа обоев не умеет читать папку ({file}): заархивируйте карты в один файл и укажите .zip в «Папке с картами».',
 
   panel_title: APP_NAME,
   panel_files: 'Файлы',

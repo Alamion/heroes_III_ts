@@ -1,6 +1,6 @@
 // Map catalogue (spec 007 data-model "CatalogueEntry", research R1–R3): the candidate maps of a folder,
 // each read on demand. Every host turns its folder value into the same list — a file:// directory
-// listing (Wallpaper Engine, KDE), a .zip (every host; the way on Lively) or files the browser was
+// listing (KDE), a .zip (every host; the only way on Wallpaper Engine and Lively) or files the browser was
 // given — so everything after this module is host-neutral. DOM-free apart from Blob.
 
 import { ZipArchive } from '../core/formats/zip/zip.ts'
@@ -58,6 +58,22 @@ export function parseDirectoryListing(html: string): ListingRow[] {
 export interface ListingDeps {
   /** Reads a file:// URL (the page's usual reader). */
   readFile: (url: string) => Promise<Blob>
+  /**
+   * False on a host that cannot list a folder: Wallpaper Engine's CEF rejects a `fetch` of a `file://`
+   * folder and never answers the XHR (2026-09-25 Windows session). A folder value then fails at once
+   * with ListingUnsupportedError instead of after the 30 s read timeout.
+   */
+  listing?: boolean
+}
+
+/** The host cannot list folders; the user has to give a `.zip` of the maps. */
+export class ListingUnsupportedError extends Error {
+  readonly value: string
+  constructor(value: string) {
+    super(`this host cannot list a folder (${value}); use a .zip of the maps`)
+    this.value = value
+    this.name = 'ListingUnsupportedError'
+  }
 }
 
 const byPath = (a: { path: string }, b: { path: string }): number => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
@@ -124,5 +140,6 @@ export const isZipValue = (value: string): boolean => /\.zip$/i.test(value.trim(
  */
 export async function openCatalogueAt(url: string, name: string, deps: ListingDeps): Promise<CatalogueEntry[]> {
   if (isZipValue(url) || isZipValue(name)) return zipCatalogue(await deps.readFile(url), name)
+  if (deps.listing === false) throw new ListingUnsupportedError(name)
   return listingCatalogue(url, deps)
 }

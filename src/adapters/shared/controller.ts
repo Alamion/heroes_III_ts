@@ -11,6 +11,7 @@ import { hashInts } from '../../core/util/rng.ts'
 import type { Engine, EngineStats, EngineStatus, LoadResult, UserScale } from '../../runtime/engine.ts'
 import { summarizeMapFile } from '../../runtime/file-kind.ts'
 import type { FileKind } from '../../runtime/file-kind.ts'
+import { ListingUnsupportedError } from '../../runtime/catalogue.ts'
 import type { CatalogueEntry } from '../../runtime/catalogue.ts'
 import { displayName, UserFileError } from './file-url.ts'
 import type { FileSlot, MessageCode, UserMessage } from './messages.ts'
@@ -195,7 +196,7 @@ interface FolderState {
   switching: boolean
 }
 
-const FOLDER_CODES: readonly MessageCode[] = ['FOLDER_EMPTY', 'FOLDER_FILTERED', 'FOLDER_UNREADABLE']
+const FOLDER_CODES: readonly MessageCode[] = ['FOLDER_EMPTY', 'FOLDER_FILTERED', 'FOLDER_UNREADABLE', 'FOLDER_NEEDS_ZIP']
 
 export function createController(deps: ControllerDeps): WallpaperController {
   let engine: ControllerEngine | undefined
@@ -577,7 +578,8 @@ export function createController(deps: ControllerDeps): WallpaperController {
     } catch (err) {
       if (gen !== folderGen) return
       f.entries = []
-      addMessage({ code: 'FOLDER_EMPTY', level: 'error', file: name, detail: err instanceof Error ? err.message : String(err) })
+      if (err instanceof ListingUnsupportedError) addMessage({ code: 'FOLDER_NEEDS_ZIP', level: 'error', file: name })
+      else addMessage({ code: 'FOLDER_EMPTY', level: 'error', file: name, detail: err instanceof Error ? err.message : String(err) })
       refresh()
       return
     }

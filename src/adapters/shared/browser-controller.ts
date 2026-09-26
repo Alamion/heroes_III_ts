@@ -49,6 +49,8 @@ export interface BrowserControllerOptions {
   workerFactory?: () => Worker
   /** false: the host cannot open a map folder from its settings (the browser supplies folders itself). */
   folderSettings?: boolean
+  /** false: the host cannot list a file:// folder, so its folder setting must name a .zip (Wallpaper Engine). */
+  folderListing?: boolean
 }
 
 function testMode(): boolean {
@@ -116,7 +118,7 @@ export function createBrowserController(opts: BrowserControllerOptions): Browser
     fileUrl: opts.fileUrl,
     readFile,
     // Spec 007: a folder value is listed through the page's own reader, or read as a .zip.
-    ...(opts.folderSettings !== false ? { openCatalogue: (url: string, name: string) => openCatalogueAt(url, name, { readFile }) } : {}),
+    ...(opts.folderSettings !== false ? { openCatalogue: (url: string, name: string) => openCatalogueAt(url, name, { readFile, listing: opts.folderListing !== false }) } : {}),
     classify: classifyFile,
     overlay: createOverlay(opts.overlayRoot),
     timers: { set: (cb, ms) => window.setTimeout(cb, ms * timeScale), clear: (h) => window.clearTimeout(h) },
