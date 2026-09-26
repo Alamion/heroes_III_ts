@@ -55,8 +55,9 @@ KDE Store and no confirmed steamcmd path for Wallpaper Engine items (see researc
   screenshots of the project's own output (the `docs/img/` kind) may be uploaded to store pages by
   the maintainer, and they still never go into packages or build output.
 - Q: Are Wallpaper Engine and Lively ready for release? → A: Yes. Both were verified on real
-  Windows; the extras planned for later (saves, map folders, lock screen, several monitors) are not
-  part of this release.
+  Windows; the extras planned for later (saves, lock screen, several monitors) are not part of this
+  release. The map folder with rotation ([spec 007](../007-map-folder/spec.md), merged 2026-09-26 and
+  checked on Windows 2026-09-25) is part of it.
 
 ### Session 2026-09-24
 
@@ -161,7 +162,8 @@ both stores; the checklist alone is enough to complete the update.
 2. **Given** the Workshop description, **When** it is pasted, **Then** it fits the Workshop limits
    (title ≤ 128 characters, description ≤ 8000) and states: what the wallpaper is; that no game files
    are included and which files the user supplies from where; the Wallpaper Engine quirks (files
-   copied into the wallpaper folder, `game\` paths, why the file pickers cannot be used); a link to the
+   copied into the wallpaper folder, `game\` paths, a map folder given as a `.zip`, why the file
+   pickers cannot be used); a link to the
    repository; that suggestions and bug reports are handled only in the repository's GitHub Issues.
 3. **Given** the KDE Store description, **When** it is pasted, **Then** it states the same points for
    KDE, plus the requirement for Qt WebEngine with the package name for the main distributions, and
@@ -291,7 +293,8 @@ module) and see the message instead of an empty screen.
 - **FR-012**: Each store description MUST state: what the wallpaper is; that it is fan-made and not
   affiliated with the publishers; that no game files are included, which files the user supplies and
   where they come from; the host's own quirks (for Wallpaper Engine: files placed in the wallpaper
-  folder by hand, `game\` paths, file pickers limited to images and videos; for KDE: the Qt WebEngine
+  folder by hand, `game\` paths, a map folder only as a `.zip` (default `game\maps.zip`), file pickers
+  limited to images and videos; for KDE: a map folder picked as a folder, and the Qt WebEngine
   requirement with per-distribution package names); a link to the repository, the README and the
   releases; and that suggestions and bug reports are handled only in the repository's GitHub Issues.
   English comes first, then Russian, in one text.
@@ -302,7 +305,9 @@ module) and see the message instead of an empty screen.
   version and changelog, tagging (local and GitHub CLI variants), checking the run, updating the
   Workshop item through the Wallpaper Engine editor, updating the KDE Store product (replace the
   file, set the product version — KNewStuff offers updates only when it changes — add the changelog),
-  and publishing store screenshots. After the first Workshop publish it MUST tell the maintainer
+  and publishing store screenshots. It MUST also record how each store form field is filled (for the
+  KDE Store: tags, product homepage, source repository, license, the empty CC-BY credit field and
+  "Original"; research.md), so a new store page can be set up without guessing. After the first Workshop publish it MUST tell the maintainer
   to commit the item id the editor wrote (FR-014a); later updates unpack the new package over the
   editor's project folder and use "Publish update".
 - **FR-014a**: The Wallpaper Engine Workshop item id MUST be kept in the repository next to the
@@ -384,6 +389,10 @@ module) and see the message instead of an empty screen.
 - The KDE Store product lives in the "Plasma 6 Wallpaper Plugins" category; the existing `.tar.gz`
   package is accepted by KNewStuff as is.
 - Lively has no store: its `.zip` on the GitHub Release is the distribution channel.
+- Both store items exist since 2026-09-26, created by hand from the `0.0.1` packages: Workshop item
+  `3808342201` (<https://steamcommunity.com/sharedfiles/filedetails/?id=3808342201>, visible by link
+  only until the release) and KDE Store product `2374098` (<https://store.kde.org/p/2374098/>). They
+  are the values FR-014a and FR-014b start from.
 - The existing reproducible package build is reused, so re-runs produce identical files.
 - The repository is public and GitHub Pages is served from GitHub Actions, as today.
 - Automated Workshop or KDE Store uploads may be revisited later (research.md records the options:
@@ -393,5 +402,6 @@ module) and see the message instead of an empty screen.
 
 - Automatic uploads to the Steam Workshop or the KDE Store.
 - A Lively gallery submission (no such gallery exists).
-- New wallpaper features (map folders, save files, lock screen, several monitors) — TODO item 5.
+- New wallpaper features (save files, lock screen, several monitors) — TODO item 5. The map folder
+  (spec 007) is already implemented and ships with this release.
 - Translating store texts into languages other than English and Russian.

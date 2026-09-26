@@ -54,6 +54,20 @@ sources). `/speckit-plan` extends this file with design decisions.
   opendesktop once announced linking files on github.com (2017); unverified today.
 - Description: BBCode (`[b] [i] [code] [url=] [img] [list][*] [quote] [h1]`), no tables. Fill the
   license and source-repository fields (MIT, GitHub URL). *Unverified*: screenshot gallery details.
+- Product form as filled on 2026-09-26 (product 2374098), for the release checklist:
+  - Description: none was ready for the first publish (the owner copied the Workshop one); FR-011
+    generates it from now on.
+  - Tags: free-form; use `heroes3`, `homm3`, `heroes-of-might-and-magic`, `hota`, `live-wallpaper`,
+    `animated`, `map`, `game`.
+  - Product homepage: the browser version on GitHub Pages; the source-repository field holds the
+    GitHub repository.
+  - "Credit for CC-BY licenses": empty. The product is MIT; the only CC BY-SA material the project
+    uses (`vcmi-hota-mod/` data) is kept out of shipped builds.
+  - "Original or Modification": **Original**. The field is about the uploaded file being a changed
+    copy of someone else's work (a theme, a picture). The package holds only this project's own code
+    and procedural preview art and no game content; the game is what it reads, like any fan engine.
+    Ported MIT code (H3M layouts, the HotA LOD scheme) is credited in `THIRD_PARTY_NOTICES.md` and does
+    not make the product a modification.
 - No dependency field; common practice is a "Requirements" section naming Qt WebEngine per
   distribution — Fedora `qt6-qtwebengine`, Debian/Ubuntu `qml6-module-qtwebengine`, Arch
   `qt6-webengine` — plus an in-wallpaper message when the QML import fails (as the Wallpaper Engine KDE
