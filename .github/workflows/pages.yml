@@ -1,6 +1,6 @@
-# Browser version on GitHub Pages (spec 004 FR-013a): deployed from `testing` only after the
-# type-check, tests and the web package checks pass on the same commit. No game files exist in CI;
-# real-file tests skip.
+# Checks on every push to `testing`: type-check, tests and the web package checks. No game files exist
+# in CI; real-file tests skip. Pages is no longer deployed from here: the `github-pages` environment
+# only accepts `v*` tags, and spec 006 moves the deploy to the release workflow (2026-09-26).
 name: pages
 
 on:
@@ -32,19 +32,3 @@ jobs:
       - run: yarn package --host web
       - run: yarn verify packages --host web --no-build
       - run: yarn verify hosts --host web --no-build
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist/packages/web
-
-  deploy:
-    needs: check
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - id: deploy
-        uses: actions/deploy-pages@v4
