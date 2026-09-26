@@ -23,6 +23,7 @@
     "h3": "node tools/inspect/cli.ts",
     "verify": "node tools/checks/cli.ts",
     "package": "node tools/package/cli.ts",
+    "release": "node tools/release/cli.ts",
     "accept": "node tools/accept/cli.ts"
   },
   "dependencies": {},

@@ -300,7 +300,8 @@ passes, and the size check reports each package's runtime size.
 - **FR-013a**: The browser package MUST be published automatically to GitHub Pages whenever `testing`
   is updated, only after the package checks (FR-020, FR-021) pass on the same commit; it MUST work
   under the Pages sub-path, and user files MUST never leave the user's browser (no uploads, no
-  third-party requests).
+  third-party requests). *Superseded in part by spec 006 FR-007 (2026-09-26): Pages deploys from
+  final releases only; pushes to `testing` run the checks without deploying.*
 
 **Wallpaper Engine**
 

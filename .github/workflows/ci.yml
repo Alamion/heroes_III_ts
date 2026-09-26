@@ -1,0 +1,39 @@
+# Checks on every push and pull request to `testing` (spec 006 FR-007): type-check, tests, all
+# packages, package checks, the browser host simulation, store texts and layers. Nothing is deployed
+# here — GitHub Pages is deployed by release.yml from final releases only (supersedes spec 004
+# FR-013a). No game files exist in CI; real-file tests skip.
+name: ci
+
+on:
+  push:
+    branches: [testing]
+  pull_request:
+    branches: [testing]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      H3_CHROMIUM: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - run: yarn build
+      - run: yarn test
+      - run: yarn package
+      - run: yarn verify packages --no-build
+      - run: yarn verify hosts --host web --no-build
+      - run: yarn verify store-texts
+      - run: yarn verify layers

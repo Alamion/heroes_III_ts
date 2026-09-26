@@ -11,6 +11,16 @@ Read it first. If this file conflicts with it, the constitution wins — fix thi
 
 ## Current State
 
+Releases ([specs/006-release-publishing/](specs/006-release-publishing/)): SemVer with `package.json` as
+the only source of the version and a hand-written `CHANGELOG.md` (a Markdown subset, because the same
+text becomes the store change notes). A tag `vX.Y.Z` on `testing` runs `.github/workflows/release.yml`
+(rules → build → checks → GitHub Release with four archives, store texts, `SHA256SUMS` → Pages for
+final versions); `ci.yml` only checks. The Steam Workshop item (`3808342201`) and the KDE Store product
+(`2374098`) are updated by hand following [docs/releasing.md](docs/releasing.md); their ids, the
+repository links and the author live in `src/adapters/shared/project.ts`, the only URLs the packages
+check allows. The KDE Store offers an update only when the product's Version field changes. Feedback
+goes to GitHub Issues only (issue forms in `.github/ISSUE_TEMPLATE/`).
+
 A folder of maps ([specs/007-map-folder/](specs/007-map-folder/)) is implemented: `mapsource` =
 `single|folder`, `mapfolder` (a folder, or a `.zip` standing for one), `maprotation` (minutes of
 visible time, 0–1440), size and underground filters, the `mapnext` action (`N` in the browser). Facts
@@ -45,7 +55,7 @@ with the map border on top, a browser dev harness (sprite archive, data archive 
 map), inspection CLIs and headless checks (layers, determinism, fidelity with objects, budgets). The
 capture tooling verifies level and pixel mapping before storing a capture. Platform adapters
 ([specs/004-platform-adapters/](specs/004-platform-adapters/)) are built on Linux: a browser version
-(GitHub Pages from `testing`), Wallpaper Engine, Lively and a KDE Plasma 6 plugin, one host-neutral
+(GitHub Pages from final releases), Wallpaper Engine, Lively and a KDE Plasma 6 plugin, one host-neutral
 wallpaper controller, `yarn package`, `yarn verify packages|hosts` (host simulations) and `yarn accept kde`.
 KDE is accepted on a real Plasma session; Wallpaper Engine and Lively were checked on the real Windows hosts
 (2026-09-19, and HotA + map folder on 2026-09-25); still open there: WE-5/7/10/11, LV-5, cold start timings
@@ -140,8 +150,8 @@ docs               architecture.md (developer deep dive), img/ (documentation sc
 
 Layers only import downwards (`core/util` → `data` → `formats` → `state` → `sim` → `render` →
 `runtime` → `adapters`); `yarn verify layers` enforces it. Tools may import anything except adapters:
-from adapters they import only the DOM-free `src/adapters/shared/settings.ts` and `strings.ts` (to
-generate host manifests). Host adapters (`src/adapters/<host>/`) import only `src/adapters/shared/`,
+from adapters they import only the DOM-free `src/adapters/shared/settings.ts`, `strings.ts` and
+`project.ts` (to generate host manifests, store texts and release notes). Host adapters (`src/adapters/<host>/`) import only `src/adapters/shared/`,
 runtime and core, never each other; nothing else imports tools or adapters.
 
 ---
@@ -155,9 +165,15 @@ yarn preview        # preview production build
 yarn test           # Vitest, run once (real-file and browser suites skip with a reason)
 yarn test:watch     # Vitest, watch mode
 yarn test:coverage  # coverage of src/core
-yarn package [--host web|wallpaper-engine|lively|kde|all]   # dist/packages/<host>, Lively .zip, KDE .tar.gz
+yarn package [--host web|wallpaper-engine|lively|kde|all]   # dist/packages/<host> + heroes3-living-map-<host>-<version>.zip (KDE .tar.gz)
 yarn preview:web    # serve dist/packages/web under /heroes_III_ts/ (as GitHub Pages)
 yarn accept kde [--apply] [--screen 0] [--folder DIR] [--keep] [--no-restart]   # install; restarts plasmashell after an upgrade; --apply switches a screen and restores plugin and settings
+yarn accept kde --simulate-missing-webengine [--screen 0]   # a variant without Qt WebEngine: waits for the message in the journal, restores
+yarn release check --tag vX.Y.Z [--local]   # release rules (version, branch, changelog); --local before tagging
+yarn release assets [--build]               # dist/release/<version>/: archives, store texts, notes, SHA256SUMS
+yarn release texts                          # store texts only (Workshop/KDE Store descriptions, change notes)
+yarn release notes-draft [--since vX.Y.Z]   # changelog draft from feat/fix commits (stdout/stderr only)
+yarn release publish --tag vX.Y.Z           # CI: create or fill the GitHub Release through gh
 ```
 
 Inspection (one JSON document on stdout; exit 0 ok, 1 failure, 2 usage, 3 missing files).
@@ -194,7 +210,8 @@ yarn verify fidelity --map test_map.h3m --all-regions [--kind still|clip] [--cap
 yarn verify fidelity --map M --level Z --region x0,y0,x1,y1
 yarn verify budget [--no-build] [--throttle 4] [--viewport 1920x1080]   # + package sizes and package start-up
 yarn verify packages [--host …] [--no-build] [--reproducible]
-yarn verify hosts [--host …] [--files synthetic|real] [--map NAME] [--only 14,16] [--no-build]    # host simulations, invariants 1–20
+yarn verify hosts [--host …] [--files synthetic|real] [--map NAME] [--only 14,16] [--no-build]    # host simulations, invariants 1–21
+yarn verify store-texts                      # store texts and change notes: limits (UTF-8 bytes), BBCode tags, project links only
 yarn verify all
 ```
 
@@ -244,7 +261,8 @@ Every `yarn ref` command prints one JSON document on stdout; logs go to stderr.
 
 Never commit game files or anything derived from them (extracted frames, atlases, palettes,
 caches, captures). The one exception is a few documentation screenshots of this project's own
-output in `docs/img/` (≤ 2 MB each, ≤ 10 MB total, never shipped; constitution I). Tests needing
+output in `docs/img/` (≤ 2 MB each, ≤ 10 MB total, never shipped; constitution I); the maintainer may
+also upload such screenshots to the store pages (constitution 1.4.0), never into packages. Tests needing
 real game files must skip with a clear message when absent.
 
 ### Dev assets (`public/dev-assets/`)
@@ -406,7 +424,8 @@ Facts measured on HotA 1.8.1 (2026-09-23, details in [005 research](specs/005-ho
 - Every page has a CSP without `'unsafe-inline'`: no inline scripts, styles or handlers (host listeners
   are separate `listener.js` files loaded first).
 - KDE: one persistent `WebEngineProfile` singleton for all screens; lock and window-coverage detection are
-  isolated behind `Loader`s. The lock screen gets a plain background (no shared GL context there).
+  isolated behind `Loader`s, and so is the web view itself (`WebView.qml`): `main.qml` must never import
+  `QtWebEngine`, so a system without it shows a message naming the package instead of failing to load. The lock screen gets a plain background (no shared GL context there).
 - Actions (`ACTIONS` in `settings.ts`, e.g. "new random place now") hold no value: Wallpaper Engine gets a
   checkbox whose every toggle acts, Lively a button, KDE a counter the settings page increments, the browser a
   panel button (key `R`). They are handled by the bridges, never stored in `WallpaperSettings`.

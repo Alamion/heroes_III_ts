@@ -2,11 +2,14 @@
 // page; settings go to the page with runJavaScript, and the page is paused (and the view hidden)
 // while a maximized or fullscreen window covers the screen or the screen is locked. On the lock
 // screen itself the web view is not created (it has no shared GL context there).
+//
+// Spec 006 US5: this file must not import QtWebEngine. The view lives in WebView.qml behind a Loader;
+// when the Qt WebEngine QML module is missing the Loader fails and a message names the package to
+// install (the KDE Store installs no dependencies).
 
 import QtQuick
-import QtWebEngine
 import org.kde.plasma.plasmoid
-import "."
+import "strings.js" as Strings
 
 WallpaperItem {
     id: root
@@ -46,13 +49,13 @@ WallpaperItem {
     }
 
     function pushConfig() {
-        if (view.item !== null && root.pageReady)
-            view.item.runJavaScript("window.h3wallpaper && window.h3wallpaper.apply(" + JSON.stringify(root.configJson()) + ")")
+        if (view.status === Loader.Ready && root.pageReady)
+            view.item.pushConfig(root.configJson())
     }
 
     function pushPaused() {
-        if (view.item !== null && root.pageReady)
-            view.item.runJavaScript("window.h3wallpaper && window.h3wallpaper.setPaused(" + (root.paused ? "true" : "false") + ")")
+        if (view.status === Loader.Ready && root.pageReady)
+            view.item.pushPaused(root.paused)
     }
 
     onPausedChanged: pushPaused()
@@ -66,25 +69,33 @@ WallpaperItem {
         id: view
         anchors.fill: parent
         active: !root.onLockScreen
-        sourceComponent: WebEngineView {
-            backgroundColor: "black"
-            visible: !root.paused
-            profile: SharedProfile
-            settings.localContentCanAccessFileUrls: true
-            settings.localContentCanAccessRemoteUrls: false
-            settings.webGLEnabled: true
-            settings.javascriptCanOpenWindows: false
-            settings.showScrollBars: false
-            url: Qt.resolvedUrl("../web/index.html")
-            onLoadingChanged: (request) => {
-                if (request.status === WebEngineView.LoadSucceededStatus) {
-                    root.pageReady = true
-                    root.pushConfig()
-                    root.pushPaused()
-                }
-            }
-            onJavaScriptConsoleMessage: (level, message, lineNumber, sourceId) => console.log("[h3dynam]", message)
+        source: "WebView.qml"
+        onLoaded: item.paused = Qt.binding(() => root.paused)
+        onStatusChanged: {
+            if (status === Loader.Error)
+                console.log("[h3dynam] webengine-missing")
         }
+    }
+
+    Connections {
+        target: view.status === Loader.Ready ? view.item : null
+        function onReady() {
+            root.pageReady = true
+            root.pushConfig()
+            root.pushPaused()
+        }
+    }
+
+    // Shown when WebView.qml cannot load: the Qt WebEngine QML module is not installed.
+    Text {
+        anchors.centerIn: parent
+        width: parent.width * 0.6
+        visible: view.status === Loader.Error
+        wrapMode: Text.WordWrap
+        horizontalAlignment: Text.AlignHCenter
+        color: "#e8dcc0"
+        font.pixelSize: 20
+        text: Strings.table(Qt.uiLanguage !== "" ? Qt.uiLanguage : Qt.locale().name).kde_webengine_missing
     }
 
     Loader {

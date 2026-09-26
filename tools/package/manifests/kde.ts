@@ -8,7 +8,8 @@ import { ACTIONS, SETTINGS } from '../../../src/adapters/shared/settings.ts'
 import type { ActionDef, SettingDef } from '../../../src/adapters/shared/settings.ts'
 import { en, ru } from '../../../src/adapters/shared/strings.ts'
 import type { ClassicBundle, PackageFiles } from '../build.ts'
-import { readme, utf8 } from './common.ts'
+import { AUTHOR, NEW_ISSUE_URL, REPOSITORY_URL } from '../../../src/adapters/shared/project.ts'
+import { readme, utf8, versionOf } from './common.ts'
 
 export const KDE_PLUGIN_ID = 'io.github.alamion.h3dynam'
 
@@ -26,7 +27,10 @@ export function metadataJson(version: string): Record<string, unknown> {
       Icon: 'preferences-desktop-wallpaper',
       License: 'MIT',
       Version: version,
-      Authors: [{ Name: 'heroes_iii_dynam contributors' }],
+      Authors: [{ Name: AUTHOR }],
+      // Spec 006 FR-015/FR-017: shown in Plasma's "About" of the plugin.
+      Website: REPOSITORY_URL,
+      BugReportUrl: NEW_ISSUE_URL,
     },
     'X-Plasma-API-Minimum-Version': '6.0',
     'X-KDE-ParentApp': 'org.kde.plasmashell',
@@ -230,17 +234,17 @@ ${[...SETTINGS, ...ACTIONS].sort((a, b) => a.order - b.order).map(configRow).joi
 }
 
 export function kdePackage(repoRoot: string, bundle: ClassicBundle): PackageFiles {
-  const version = (JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as { version: string }).version
+  const version = versionOf(repoRoot)
   const read = (p: string) => new Uint8Array(readFileSync(resolve(repoRoot, p)))
   const files: PackageFiles = new Map()
   files.set('metadata.json', utf8(`${JSON.stringify(metadataJson(version), null, 2)}\n`))
-  for (const f of ['main.qml', 'SharedProfile.qml', 'qmldir', 'WindowWatcher.qml', 'LockWatcher.qml']) files.set(`contents/ui/${f}`, read(`packaging/kde/contents/ui/${f}`))
+  for (const f of ['main.qml', 'WebView.qml', 'SharedProfile.qml', 'qmldir', 'WindowWatcher.qml', 'LockWatcher.qml']) files.set(`contents/ui/${f}`, read(`packaging/kde/contents/ui/${f}`))
   files.set('contents/ui/config.qml', utf8(configQml()))
   files.set('contents/ui/strings.js', utf8(stringsJs()))
   files.set('contents/config/main.xml', utf8(mainXml()))
   files.set('contents/web/index.html', read('src/adapters/kde/index.html'))
   files.set('contents/web/page.css', read('src/adapters/shared/page.css'))
   files.set('contents/web/main.js', utf8(bundle.main))
-  files.set('README.md', readme('help_kde'))
+  files.set('README.md', readme('help_kde', version))
   return files
 }

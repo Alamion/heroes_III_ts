@@ -110,6 +110,17 @@ export const en = {
   spacer_wallpaper_engine: '<br></br>',
   help_lively: 'Open "Customise" for the wallpaper in Lively and use "Browse" in the file settings; Lively copies the files into the wallpaper folder. The HotA archive is only needed for HotA maps.',
   help_kde: `Install the plugin, open "Configure Desktop and Wallpaper", pick "${APP_NAME}" and choose the files. The HotA archive is only needed for HotA maps.`,
+
+  // Links and feedback (spec 006): inline Markdown — [text]({url}), **bold**, \`code\` — rendered per
+  // surface (plain text in readmes, BBCode on store pages, a link in the browser panel).
+  store_links: 'Source code, README and downloads for every host: [GitHub]({repository}) · [releases]({releases}) · [browser version]({pages})',
+  store_feedback: 'Suggestions and bug reports go only to [GitHub Issues]({issues}); comments and reviews on store pages are not tracked.',
+  store_on_workshop: 'Also on the [Steam Workshop]({workshop}) for Wallpaper Engine.',
+  store_on_kde_store: 'Also in the [KDE Store]({kde_store}) for KDE Plasma 6.',
+  store_kde_requirements: 'Requires Qt WebEngine for QML, which the store does not install: Fedora — `qt6-qtwebengine`, Debian/Ubuntu — `qml6-module-qtwebengine`, Arch — `qt6-webengine`.',
+  kde_webengine_missing: `${APP_NAME} needs Qt WebEngine for QML. Install it and restart Plasma (or log in again): Fedora — qt6-qtwebengine; Debian/Ubuntu — qml6-module-qtwebengine; Arch — qt6-webengine.`,
+  panel_version: 'Version {version}',
+  panel_report: 'Report a problem',
 } as const
 
 export type StringKey = keyof typeof en
@@ -216,6 +227,15 @@ export const ru: Record<StringKey, string> = {
   spacer_wallpaper_engine: '<br></br>',
   help_lively: 'Откройте «Настроить» для обоев в Lively и нажмите «Обзор» в настройках файлов; Lively скопирует файлы в папку обоев. Архив HotA нужен только для карт HotA.',
   help_kde: `Установите плагин, откройте «Настроить рабочий стол и обои», выберите «${APP_NAME}» и укажите файлы. Архив HotA нужен только для карт HotA.`,
+
+  store_links: 'Исходный код, README и файлы для всех платформ: [GitHub]({repository}) · [релизы]({releases}) · [версия для браузера]({pages})',
+  store_feedback: 'Предложения и сообщения об ошибках принимаются только в [GitHub Issues]({issues}); комментарии и отзывы на страницах магазинов не отслеживаются.',
+  store_on_workshop: 'Есть и в [Steam Workshop]({workshop}) для Wallpaper Engine.',
+  store_on_kde_store: 'Есть и в [KDE Store]({kde_store}) для KDE Plasma 6.',
+  store_kde_requirements: 'Нужен Qt WebEngine для QML, магазин сам его не установит: Fedora — `qt6-qtwebengine`, Debian/Ubuntu — `qml6-module-qtwebengine`, Arch — `qt6-webengine`.',
+  kde_webengine_missing: `Для ${APP_NAME} нужен Qt WebEngine для QML. Установите его и перезапустите Plasma (или войдите в систему заново): Fedora — qt6-qtwebengine; Debian/Ubuntu — qml6-module-qtwebengine; Arch — qt6-webengine.`,
+  panel_version: 'Версия {version}',
+  panel_report: 'Сообщить о проблеме',
 }
 
 export const STRINGS: Record<Language, Record<StringKey, string>> = { en, ru }

@@ -84,6 +84,11 @@ describe('Wallpaper Engine project.json (spec 004 FR-014)', () => {
     }
   })
 
+  it('carries the Workshop item id when one is set (spec 006 FR-014a)', () => {
+    expect(pj).toMatchObject({ workshopid: '3808342201' })
+    expect(projectJson(null)).not.toHaveProperty('workshopid')
+  })
+
   it('sets the scheme colour to the project gold, after every setting', () => {
     expect(props.schemecolor).toMatchObject({ type: 'color', text: 'ui_browse_properties_scheme_color', value: '0.725 0.604 0.333' })
     const orders = Object.values(props).map((p) => p.order ?? 0)

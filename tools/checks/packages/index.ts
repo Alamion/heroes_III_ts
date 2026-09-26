@@ -8,6 +8,8 @@ import { tmpdir } from 'node:os'
 import { join, relative, resolve, sep } from 'node:path'
 import { ACTIONS, SETTINGS } from '../../../src/adapters/shared/settings.ts'
 import { en, ru } from '../../../src/adapters/shared/strings.ts'
+import { AUTHOR, ISSUES_URL, NEW_ISSUE_URL, projectUrls, REPOSITORY_URL, WORKSHOP_ID } from '../../../src/adapters/shared/project.ts'
+import { livelyVersion, parseVersion } from '../../release/semver.ts'
 import { BUILTIN_LABELS, DISPLAY_KEYS } from '../../package/manifests/wallpaper-engine.ts'
 import { flag, opt } from '../../shared/cli-runner.ts'
 import type { CommandResult, ParsedArgs } from '../../shared/cli-runner.ts'
@@ -22,14 +24,18 @@ export const REQUIRED_FILES: Record<HostId, readonly string[]> = {
   web: ['index.html', 'favicon.svg'],
   'wallpaper-engine': ['index.html', 'listener.js', 'main.js', 'page.css', 'project.json', 'preview.png', 'README.txt'],
   lively: ['index.html', 'listener.js', 'main.js', 'page.css', 'LivelyInfo.json', 'LivelyInfo.loc.json', 'LivelyProperties.json', 'LivelyProperties.loc.json', 'userfiles/.keep', 'preview.png', 'thumbnail.png', 'README.txt'],
-  kde: ['metadata.json', 'contents/ui/main.qml', 'contents/ui/config.qml', 'contents/ui/strings.js', 'contents/config/main.xml', 'contents/web/index.html', 'contents/web/main.js', 'contents/web/page.css', 'README.md'],
+  kde: ['metadata.json', 'contents/ui/main.qml', 'contents/ui/WebView.qml', 'contents/ui/config.qml', 'contents/ui/strings.js', 'contents/config/main.xml', 'contents/web/index.html', 'contents/web/main.js', 'contents/web/page.css', 'README.md'],
 }
 
 /** Extensions of game archives, sprites, maps, saves, palettes and fonts. */
 const GAME_EXTENSIONS = ['.lod', '.snd', '.vid', '.def', '.pcx', '.h3m', '.h3c', '.gm1', '.gm2', '.cgm', '.pal', '.msk', '.fnt', '.p32', '.d32', '.bik', '.smk', '.82m', '.wav']
 const TEXT_EXTENSIONS = ['.html', '.js', '.css', '.json', '.qml', '.xml', '.txt', '.md']
-/** Absolute URLs allowed in shipped text (XML namespaces). */
+/** Absolute URLs allowed in shipped text: XML namespaces, and exactly the project's own links (spec 006 R4). */
 const ALLOWED_URLS = [/^https?:\/\/www\.w3\.org\//, /^https?:\/\/www\.kde\.org\/standards\/kcfg\//]
+// Sentence punctuation after a URL in prose is not part of it.
+const trimSlash = (u: string): string => u.replace(/[.,;:!?]+$/, '').replace(/\/+$/, '')
+const PROJECT_URLS = new Set(projectUrls().map(trimSlash))
+const allowedUrl = (u: string): boolean => ALLOWED_URLS.some((re) => re.test(u)) || PROJECT_URLS.has(trimSlash(u))
 const AFFILIATION = [/ubisoft/i, /\b3do\b/i, /new world computing/i, /\bnwc\b/i, /\bofficial\b/i, /licensed by/i, /endorsed by/i]
 
 export interface CheckOutcome {
@@ -83,7 +89,7 @@ export function checkNoExternalUrls(files: PackageFiles): CheckOutcome {
   for (const [path, bytes] of files) {
     if (!TEXT_EXTENSIONS.includes(ext(path))) continue
     for (const m of text(bytes).matchAll(/\b(?:https?|wss?):\/\/[^\s"'`)<>\\]+/g)) {
-      if (!ALLOWED_URLS.some((re) => re.test(m[0]))) details.push(`${path}: ${m[0]}`)
+      if (!allowedUrl(m[0])) details.push(`${path}: ${m[0]}`)
     }
   }
   return outcome('no-external-urls', details)
@@ -151,6 +157,83 @@ export function checkManifests(host: HostId, files: PackageFiles): CheckOutcome 
     if (meta?.KPackageStructure !== 'Plasma/Wallpaper') details.push('metadata.json KPackageStructure is not Plasma/Wallpaper')
   }
   return outcome('manifest-matches-settings', details)
+}
+
+const README: Record<HostId, string | undefined> = { web: undefined, 'wallpaper-engine': 'README.txt', lively: 'README.txt', kde: 'README.md' }
+
+/**
+ * Spec 006 FR-004, FR-014a, FR-015, FR-017: every surface carries the version, the repository and the
+ * GitHub Issues rule, the author, and no e-mail address; Wallpaper Engine carries the Workshop item id.
+ */
+export function checkFeedback(host: HostId, files: PackageFiles, version: string): CheckOutcome {
+  const details: string[] = []
+  const read = (path: string): string | undefined => {
+    const b = files.get(path)
+    return b === undefined ? undefined : text(b)
+  }
+  const readmePath = README[host]
+  if (readmePath !== undefined) {
+    const r = read(readmePath) ?? ''
+    if (!r.split('\n')[0]?.includes(version)) details.push(`${readmePath}: first line lacks version ${version}`)
+    for (const url of [REPOSITORY_URL, ISSUES_URL]) if (!r.includes(url)) details.push(`${readmePath}: lacks ${url}`)
+  }
+  if (host === 'web') {
+    const js = [...files].filter(([p]) => p.endsWith('.js')).map(([, b]) => text(b)).join('\n')
+    if (!js.includes(NEW_ISSUE_URL)) details.push(`web bundle lacks the report link ${NEW_ISSUE_URL}`)
+    // The minifier may quote it with any of the three quotes.
+    if (![`"${version}"`, `'${version}'`, `\`${version}\``].some((q) => js.includes(q))) details.push(`web bundle lacks version ${version}`)
+  }
+  if (host === 'wallpaper-engine') {
+    const pj = JSON.parse(read('project.json') ?? '{}') as { workshopid?: string }
+    if (pj.workshopid !== (WORKSHOP_ID ?? undefined)) details.push(`project.json workshopid ${String(pj.workshopid)} differs from project.ts ${String(WORKSHOP_ID)}`)
+  }
+  if (host === 'lively') {
+    const info = JSON.parse(read('LivelyInfo.json') ?? '{}') as { Author?: string; Contact?: string; Version?: number }
+    if (info.Author !== AUTHOR) details.push(`LivelyInfo.json Author ${String(info.Author)}`)
+    if (info.Contact !== ISSUES_URL) details.push(`LivelyInfo.json Contact ${String(info.Contact)}`)
+    if (info.Version !== livelyVersion(parseVersion(version))) details.push(`LivelyInfo.json Version ${String(info.Version)}`)
+  }
+  if (host === 'kde') {
+    const meta = (JSON.parse(read('metadata.json') ?? '{}') as { KPlugin?: { Version?: string; Website?: string; BugReportUrl?: string; Authors?: { Name?: string }[] } }).KPlugin ?? {}
+    if (meta.Version !== version) details.push(`metadata.json Version ${String(meta.Version)}`)
+    if (meta.Website !== REPOSITORY_URL) details.push(`metadata.json Website ${String(meta.Website)}`)
+    if (meta.BugReportUrl !== NEW_ISSUE_URL) details.push(`metadata.json BugReportUrl ${String(meta.BugReportUrl)}`)
+    if (meta.Authors?.[0]?.Name !== AUTHOR) details.push(`metadata.json Authors ${JSON.stringify(meta.Authors)}`)
+  }
+  // No e-mail address in manifests and readmes (FR-017).
+  for (const [path, bytes] of files) {
+    if (!/\.(json|txt|md)$/.test(path)) continue
+    const t = text(bytes).replace(/\bhttps?:\/\/\S+/g, '')
+    const m = /[\w.+-]+@[\w-]+\.[\w.]+/.exec(t)
+    if (m !== null) details.push(`${path}: e-mail address ${m[0]}`)
+  }
+  return outcome('feedback', details)
+}
+
+/**
+ * Spec 006 US5, research R7: a missing Qt WebEngine QML module must fail only the Loader of
+ * WebView.qml, never main.qml, and the message it leads to names the package for each distribution.
+ */
+export function checkKdeWebEngineFallback(host: HostId, files: PackageFiles): CheckOutcome {
+  if (host !== 'kde') return outcome('kde-webengine-fallback', [], true)
+  const details: string[] = []
+  const read = (p: string) => (files.has(p) ? text(files.get(p) as Uint8Array) : undefined)
+  const main = read('contents/ui/main.qml') ?? ''
+  const view = read('contents/ui/WebView.qml')
+  if (/^\s*import\s+QtWebEngine\b/m.test(main)) details.push('main.qml imports QtWebEngine')
+  if (/^\s*import\s+"\."/m.test(main)) details.push('main.qml imports "." (the SharedProfile singleton needs QtWebEngine)')
+  if (!/source:\s*"WebView\.qml"/.test(main)) details.push('main.qml does not load WebView.qml through a Loader source')
+  if (!/Loader\.Error/.test(main) || !/kde_webengine_missing/.test(main)) details.push('main.qml has no Loader.Error branch showing kde_webengine_missing')
+  if (!/webengine-missing/.test(main)) details.push('main.qml does not log "[h3dynam] webengine-missing"')
+  if (view === undefined) details.push('contents/ui/WebView.qml is missing')
+  else if (!/^\s*import\s+QtWebEngine\b/m.test(view)) details.push('WebView.qml does not import QtWebEngine')
+  const strings = read('contents/ui/strings.js') ?? ''
+  for (const lang of ['en', 'ru'] as const) {
+    const msg = (lang === 'en' ? en : ru).kde_webengine_missing
+    if (!strings.includes(JSON.stringify(msg).slice(1, -1))) details.push(`strings.js lacks the ${lang} kde_webengine_missing text`)
+    for (const pkgName of ['qt6-qtwebengine', 'qml6-module-qtwebengine', 'qt6-webengine']) if (!msg.includes(pkgName)) details.push(`${lang} message lacks ${pkgName}`)
+  }
+  return outcome('kde-webengine-fallback', details)
 }
 
 export function checkClassicFlavour(host: HostId, files: PackageFiles): CheckOutcome {
@@ -227,6 +310,8 @@ export async function packagesCommand(args: ParsedArgs): Promise<CommandResult> 
       checkManifests(host, files),
       checkClassicFlavour(host, files),
       checkNoInlineScripts(files),
+      checkFeedback(host, files, version),
+      checkKdeWebEngineFallback(host, files),
       { id: size.id, outcome: size.outcome, details: size.details },
     ]
     if (host === 'kde') checks.push(checkKpackage(join(outDir, artifactName('kde', version))))

@@ -656,6 +656,37 @@ extensions and signatures, files over 2 MB, external URLs, affiliation wording, 
 classic packages, and runtime JS over 100 KB gzipped. Package previews and the icon are
 procedural ([previews.ts](../tools/package/previews.ts), [icon.ts](../tools/package/icon.ts)).
 
+### Releases
+
+A release is a tag, and everything after the tag is automated except the two stores that have no
+usable upload API ([spec 006](../specs/006-release-publishing/), maintainer steps in
+[releasing.md](releasing.md)).
+
+- **One source per fact.** The version is `package.json`; the notes are `CHANGELOG.md`; links, the
+  Workshop id, the KDE Store URL and the author are [project.ts](../src/adapters/shared/project.ts);
+  every user-facing sentence is [strings.ts](../src/adapters/shared/strings.ts). Manifests, readmes,
+  the browser panel, release notes and store texts are all generated from them, so a store page cannot
+  drift from the package it describes.
+- **Rules as code.** [tools/release/](../tools/release/) holds the tag rules
+  ([tags.ts](../tools/release/tags.ts): version match, ancestry on `testing`, monotonic final
+  versions, changelog section), a SemVer comparator, the changelog parser, the asset writer and the
+  `gh` publisher. The workflow ([release.yml](../.github/workflows/release.yml)) only calls
+  `yarn release …` and the existing checks, so every rule runs the same on a laptop and is unit-tested
+  against temporary git repositories.
+- **A Markdown subset instead of a converter.** [markup.ts](../tools/release/markup.ts) accepts only
+  `###` headings, bullets, paragraphs and inline bold/italic/code/links, and renders them as Markdown,
+  plain text, Steam BBCode or KDE Store BBCode. General converters silently degrade tables and images;
+  refusing them is what lets `yarn verify store-texts` promise that a text can be pasted as is. Store
+  limits are counted in UTF-8 bytes, the stricter reading of Steam's `cch…Max` constants.
+- **Idempotent publishing.** Assets are byte-identical per commit, uploads use `--clobber`, and notes
+  already on a release (for example one created with `gh release create`) are never overwritten, so
+  a failed or repeated run is repaired by running it again.
+- **Pages follows releases.** `ci.yml` checks every push; only a final release deploys the browser
+  version, from the same build as the release's web archive.
+- **KDE without Qt WebEngine.** The Plasma package installs no dependencies. `main.qml` therefore
+  never imports `QtWebEngine`; the view lives in `WebView.qml` behind a `Loader`, and a load error
+  shows which package to install.
+
 ---
 
 ## Checking against the original game

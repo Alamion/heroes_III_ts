@@ -27,11 +27,12 @@ const LAYER_RANK: Record<string, number> = {
 }
 
 /**
- * Adapter files tools may import (spec 004 FR-008): the DOM-free settings definition and string
- * tables, used to generate host manifests. These files must stay DOM-free and import nothing from
- * runtime or other adapter files except each other.
+ * Adapter files tools may import (spec 004 FR-008, spec 006 research R4): the DOM-free settings
+ * definition, string tables and project links, used to generate host manifests, store texts and
+ * release notes. These files must stay DOM-free and import nothing from runtime or other adapter
+ * files except each other.
  */
-export const TOOL_IMPORTABLE_ADAPTER_FILES = new Set(['src/adapters/shared/settings.ts', 'src/adapters/shared/strings.ts'])
+export const TOOL_IMPORTABLE_ADAPTER_FILES = new Set(['src/adapters/shared/settings.ts', 'src/adapters/shared/strings.ts', 'src/adapters/shared/project.ts'])
 
 /** The adapter folder of a path under src/adapters/ (e.g. "shared", "wallpaper-engine"). */
 function adapterFolder(posixPath: string): string | undefined {

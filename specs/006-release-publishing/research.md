@@ -233,6 +233,10 @@ tools may import only `settings.ts` and `strings.ts` from adapters (`TOOL_IMPORT
   on a real Plasma session: installs a variant whose `WebView.qml` imports a module that does not
   exist, applies it and waits for the log line in the journal, then restores. FR-018's "host
   simulation" is read as these two checks (the host simulations drive the page in Chromium, not QML).
+- Implementation note: `main.qml` also stops importing `"."`, because the `SharedProfile` singleton in
+  that folder imports `QtWebEngine`; it is imported by `WebView.qml` only. The message uses the
+  generated `strings.js` (desktop language), and the check `kde-webengine-fallback` in `yarn verify
+  packages` guards the structure.
 - **Alternatives**: `Qt.createQmlObject` with an inline import (same effect, harder to read);
   shipping a `qmltestrunner` test (needs `qt6-qtdeclarative-devel` and Plasma's QML modules in CI).
 
@@ -255,8 +259,8 @@ tools may import only `settings.ts` and `strings.ts` from adapters (`TOOL_IMPORT
 - `release.yml`'s `pages` job uploads `dist/packages/web` of the same run (the tree the web archive
   was made from) with `actions/upload-pages-artifact` and deploys with `actions/deploy-pages`.
 - One-time repository setting: the `github-pages` environment's deployment branch rule must allow
-  tags `v*` (today it allows `testing`); the checklist names this step, and the first run fails with
-  a clear "not allowed to deploy" otherwise.
+  tags `v*` (it allowed `testing` only); the checklist names this step, and the first run fails with
+  a clear "not allowed to deploy" otherwise. **Done by the owner on 2026-09-26.**
 - Actions are pinned by major tag as today (`checkout@v4`, `setup-node@v4`, Pages actions); no
   third-party action receives a secret — `GITHUB_TOKEN` with `contents: write` is used by `gh` only.
 

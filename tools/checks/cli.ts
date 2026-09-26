@@ -41,6 +41,10 @@ export const VERIFY_COMMANDS: Record<string, CommandSpec> = {
     help: 'layer import order and platform globals',
     load: async () => (await import('./layers.ts')).layersCommand,
   },
+  'store-texts': {
+    help: 'store texts and change notes fit the Steam Workshop and KDE Store limits and markup (spec 006)',
+    load: async () => (await import('./store-texts.ts')).storeTextsCommand,
+  },
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

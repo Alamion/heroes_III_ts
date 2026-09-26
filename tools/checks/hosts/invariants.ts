@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-// Host invariants (spec 004 contracts/host-bridge.md 1–13, spec 007 contracts/host-bridge.md 14–20):
+// Host invariants (spec 004 contracts/host-bridge.md 1–13, spec 007 contracts/host-bridge.md 14–20, spec 006: 21):
 // checked through a host driver against a built package in headless Chromium.
 
 import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -13,6 +13,8 @@ import { mapBytes } from '../../../test/fixtures/synthetic/map-folder.ts'
 import type { HeadlessRenderer } from '../../shared/render-page.ts'
 import type { HostDriver, HostFiles, HostFolder, HostPage } from './drivers.ts'
 import { setHidden } from './drivers.ts'
+import { NEW_ISSUE_URL } from '../../../src/adapters/shared/project.ts'
+import { packageVersion } from '../../package/cli.ts'
 
 export interface InvariantResult {
   id: number
@@ -694,6 +696,20 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
       if (s.source !== 'single') fail(`source ${String(s.source)}`)
       if (s.folder !== null && s.folder !== undefined) fail(`a folder is open: ${JSON.stringify(s.folder)}`)
       if (s.slots.map?.status !== 'loaded') fail(`map ${JSON.stringify(s.slots.map)}`)
+    },
+  },
+  {
+    id: 21,
+    name: 'spec 006: the browser panel shows the version and links the issue forms',
+    hosts: ['web'],
+    run: async (_ctx, hp, fail) => {
+      const version = packageVersion(process.cwd())
+      const footer = await hp.page.locator('.h3p-footer').textContent({ timeout: 10_000 }).catch(() => null)
+      if (footer === null || !footer.includes(`Version ${version}`)) fail(`footer "${String(footer)}" lacks "Version ${version}"`)
+      const link = hp.page.locator('#h3p-report')
+      const href = await link.getAttribute('href').catch(() => null)
+      if (href !== NEW_ISSUE_URL) fail(`report link ${String(href)}`)
+      if ((await link.getAttribute('target').catch(() => null)) !== '_blank') fail('report link does not open a new tab')
     },
   },
 ]

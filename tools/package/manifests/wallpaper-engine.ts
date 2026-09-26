@@ -9,7 +9,8 @@ import { en, ru } from '../../../src/adapters/shared/strings.ts'
 import type { StringKey } from '../../../src/adapters/shared/strings.ts'
 import type { ClassicBundle, PackageFiles } from '../build.ts'
 import { previewPng } from '../previews.ts'
-import { json, readme, utf8 } from './common.ts'
+import { WORKSHOP_ID } from '../../../src/adapters/shared/project.ts'
+import { json, readme, utf8, versionOf } from './common.ts'
 
 const token = (key: StringKey): string => `ui_${key}`
 
@@ -96,7 +97,7 @@ export function usedKeys(): StringKey[] {
   return [...keys]
 }
 
-export function projectJson(): Record<string, unknown> {
+export function projectJson(workshopId: string | null = WORKSHOP_ID): Record<string, unknown> {
   // Dense integer orders from 100 (Workshop pattern): the notice leads (its text ends with a <br>
   // for the gap after it) and a <br></br> element separates the file settings from the rest.
   const defs = [...SETTINGS, ...ACTIONS].sort((a, b) => a.order - b.order)
@@ -120,6 +121,8 @@ export function projectJson(): Record<string, unknown> {
     preview: 'preview.png',
     tags: ['Game'],
     contentrating: 'Everyone',
+    // Spec 006 FR-014a: the published Workshop item, so the editor updates it instead of offering a new one.
+    ...(workshopId !== null ? { workshopid: workshopId } : {}),
     general: {
       properties,
       localization: { 'en-us': localization(en), 'ru-ru': localization(ru) },
@@ -137,6 +140,6 @@ export function wallpaperEnginePackage(repoRoot: string, bundle: ClassicBundle):
   files.set('main.js', utf8(bundle.main))
   files.set('project.json', json(projectJson()))
   files.set('preview.png', previewPng(512))
-  files.set('README.txt', readme('help_wallpaper_engine'))
+  files.set('README.txt', readme('help_wallpaper_engine', versionOf(repoRoot)))
   return files
 }

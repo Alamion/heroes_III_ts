@@ -4,6 +4,11 @@
 // script until then (measured 2026-09-23: not even `location.reload()` picks up the new one). With
 // --apply it switches one screen to the wallpaper with the development game files, takes a
 // screenshot, and restores both the previous wallpaper plugin and every setting it wrote.
+//
+// --simulate-missing-webengine (spec 006 US5, research R7): installs a variant whose WebView.qml imports
+// a module that does not exist — what a system without the Qt WebEngine QML module sees — switches a
+// screen to it, waits for "[h3dynam] webengine-missing" in the shell's journal and takes a screenshot of
+// the message, then restores the plugin and reinstalls the real package.
 
 import { execFileSync, spawn } from 'node:child_process'
 import { existsSync, mkdirSync } from 'node:fs'
@@ -107,8 +112,15 @@ export async function acceptKdeCommand(args: ParsedArgs): Promise<CommandResult>
   const repoRoot = process.cwd()
   if (!has('kpackagetool6')) return { ok: true, exitCode: 4, outcome: 'skip', skipReason: 'kpackagetool6 not found', steps }
   const version = packageVersion(repoRoot)
-  const outDir = resolve(repoRoot, 'dist/packages')
-  writePackage(outDir, 'kde', await assemble(repoRoot, 'kde'), version)
+  const simulate = flag(args, 'simulate-missing-webengine')
+  const outDir = resolve(repoRoot, simulate ? 'dist/accept-kde-no-webengine' : 'dist/packages')
+  const files = await assemble(repoRoot, 'kde')
+  if (simulate) {
+    const view = new TextDecoder().decode(files.get('contents/ui/WebView.qml'))
+    if (!/^import QtWebEngine$/m.test(view)) return { ok: false, host: 'kde', steps: [{ id: 'variant', outcome: 'fail', evidence: 'WebView.qml has no "import QtWebEngine" line to replace' }] }
+    files.set('contents/ui/WebView.qml', new TextEncoder().encode(view.replace(/^import QtWebEngine$/m, 'import QtWebEngineMissingForTest')))
+  }
+  writePackage(outDir, 'kde', files, version)
   const archive = join(outDir, artifactName('kde', version))
 
   const installed = (() => {
@@ -137,6 +149,8 @@ export async function acceptKdeCommand(args: ParsedArgs): Promise<CommandResult>
       if (restarted.outcome === 'fail') return { ok: false, host: 'kde', steps }
     }
   }
+
+  if (simulate) return simulateMissingWebEngine(args, repoRoot, steps)
 
   if (!flag(args, 'apply')) {
     steps.push({ id: 'apply', outcome: 'manual', evidence: 'run with --apply to switch a screen to the wallpaper, or pick it in "Configure Desktop and Wallpaper"' })
@@ -215,6 +229,71 @@ export async function acceptKdeCommand(args: ParsedArgs): Promise<CommandResult>
       plasmaScript(`var d = desktopForScreen(${screen}); ${group} ${restores} d.wallpaperPlugin = ${js(previous)}; d.reloadConfig();`)
       steps.push({ id: 'restore', outcome: 'pass', evidence: `${previous}, settings ${Object.keys(saved).join(', ')}` })
     }
+  }
+  return { ok: steps.every((s) => s.outcome !== 'fail'), host: 'kde', steps }
+}
+
+/** Reinstalls the real package after the simulation and restarts the shell so it takes effect. */
+async function reinstallReal(repoRoot: string, steps: Step[]): Promise<void> {
+  const version = packageVersion(repoRoot)
+  const outDir = resolve(repoRoot, 'dist/packages')
+  writePackage(outDir, 'kde', await assemble(repoRoot, 'kde'), version)
+  try {
+    execFileSync('kpackagetool6', ['-t', 'Plasma/Wallpaper', '-u', join(outDir, artifactName('kde', version))], { stdio: 'pipe', timeout: 60_000 })
+    steps.push({ id: 'reinstall-real', outcome: 'pass', evidence: 'the real package is installed again' })
+  } catch (err) {
+    steps.push({ id: 'reinstall-real', outcome: 'fail', evidence: `run yarn accept kde to reinstall: ${String((err as { stderr?: Buffer }).stderr ?? err)}` })
+    return
+  }
+  steps.push(await restartShell())
+}
+
+function journalSince(since: number): string {
+  try {
+    return execFileSync('journalctl', ['--user', '-u', SHELL_UNIT, '--since', `@${Math.floor(since / 1000)}`, '-o', 'cat', '--no-pager'], { encoding: 'utf8', timeout: 15_000 })
+  } catch {
+    return ''
+  }
+}
+
+async function simulateMissingWebEngine(args: ParsedArgs, repoRoot: string, steps: Step[]): Promise<CommandResult> {
+  if (!has('gdbus') || !has('journalctl')) {
+    steps.push({ id: 'simulate', outcome: 'fail', evidence: 'gdbus and journalctl are needed' })
+    await reinstallReal(repoRoot, steps)
+    return { ok: false, host: 'kde', steps }
+  }
+  const screen = intOpt(args, 'screen', 0)
+  const seconds = intOpt(args, 'seconds', 30)
+  const previous = plasmaScript(`var d = desktopForScreen(${screen}); print(d ? d.wallpaperPlugin : "");`).trim()
+  if (previous === '') {
+    steps.push({ id: 'simulate', outcome: 'fail', evidence: `no desktop on screen ${screen}` })
+    await reinstallReal(repoRoot, steps)
+    return { ok: false, host: 'kde', steps }
+  }
+  steps.push({ id: 'save-previous', outcome: 'pass', evidence: previous })
+  const start = Date.now()
+  try {
+    plasmaScript(`var d = desktopForScreen(${screen}); d.wallpaperPlugin = ${js(KDE_PLUGIN_ID)}; d.reloadConfig();`)
+    const seen = await waitFor(() => journalSince(start - 2000).includes('[h3dynam] webengine-missing'), seconds * 1000)
+    steps.push(seen
+      ? { id: 'message', outcome: 'pass', evidence: `"[h3dynam] webengine-missing" in the ${SHELL_UNIT} journal` }
+      : { id: 'message', outcome: 'fail', evidence: `no "[h3dynam] webengine-missing" in the journal within ${seconds} s` })
+    if (has('spectacle')) {
+      const dir = join(repoRoot, 'check-reports', 'accept', new Date().toISOString().replace(/[:.]/g, '-'))
+      mkdirSync(dir, { recursive: true })
+      const shot = join(dir, 'kde-no-webengine.png')
+      try {
+        execFileSync('spectacle', ['-b', '-n', '-f', '-o', shot], { stdio: 'ignore', timeout: 30_000 })
+        steps.push({ id: 'screenshot', outcome: existsSync(shot) ? 'pass' : 'fail', evidence: shot })
+      } catch (err) {
+        steps.push({ id: 'screenshot', outcome: 'fail', evidence: String(err) })
+      }
+    }
+    steps.push({ id: 'look', outcome: 'manual', evidence: 'the screenshot shows the message naming qt6-qtwebengine / qml6-module-qtwebengine / qt6-webengine, not a black screen' })
+  } finally {
+    plasmaScript(`var d = desktopForScreen(${screen}); d.wallpaperPlugin = ${js(previous)}; d.reloadConfig();`)
+    steps.push({ id: 'restore', outcome: 'pass', evidence: previous })
+    await reinstallReal(repoRoot, steps)
   }
   return { ok: steps.every((s) => s.outcome !== 'fail'), host: 'kde', steps }
 }
