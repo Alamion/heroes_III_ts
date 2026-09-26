@@ -52,7 +52,7 @@ describe.skipIf(!chromium)('engine additions for adapters', () => {
       { name: MAP_A, size: 36, underground: true },
       { name: MAP_B, size: 40, underground: false },
     ])
-    session = await openSession({ mode: 'preview', viewport: { width: 320, height: 240 }, rebuild: true })
+    session = await openSession({ mode: 'preview', viewport: { width: 320, height: 240 } })
     urls = await exposeFiles(session.context, [files.archive, files.maps[MAP_A] as string, files.maps[MAP_B] as string])
     await open(session.page)
   }, 120_000)

@@ -46,6 +46,8 @@ export default defineConfig(({ command }) => ({
     globals: false,
     environment: 'node',
     include: ['test/**/*.test.ts'],
+    // dist/ is built once here; browser suites must not rebuild it (see the file).
+    globalSetup: ['test/global-setup.ts'],
     testTimeout: 60_000,
     coverage: {
       provider: 'v8',

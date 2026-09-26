@@ -36,7 +36,7 @@ describe.skipIf(!chromium)('engine in the browser', () => {
     files = writeSyntheticFiles([{ name: 'synthetic-36.h3m', size: 36, underground: true }])
     badMap = join(files.dir, 'broken.h3m')
     writeFileSync(badMap, Uint8Array.of(0x20, 0, 0, 0, 9, 9, 9))
-    session = await openSession({ mode: 'preview', viewport: { width: 640, height: 480 }, rebuild: true })
+    session = await openSession({ mode: 'preview', viewport: { width: 640, height: 480 } })
     urls = await exposeFiles(session.context, [files.archive, files.maps['synthetic-36.h3m'] as string, badMap])
     await session.page.goto(new URL('index.html?test=1', session.server.url).toString())
     await session.page.waitForFunction(() => (globalThis as unknown as Partial<H3Global>).__h3 !== undefined)
