@@ -10,6 +10,12 @@ describe('KDE manifests (spec 004 FR-017)', () => {
     expect(metadataJson('1.2.3')).toMatchObject({ KPackageStructure: 'Plasma/Wallpaper', 'X-Plasma-API-Minimum-Version': '6.0', KPlugin: { Id: KDE_PLUGIN_ID, Version: '1.2.3' } })
   })
 
+  it('names the author, the repository and the issue forms (spec 006 FR-015, FR-017)', () => {
+    expect(metadataJson('1.2.3')).toMatchObject({
+      KPlugin: { Authors: [{ Name: 'Alamion' }], Website: 'https://github.com/Alamion/heroes_III_ts', BugReportUrl: 'https://github.com/Alamion/heroes_III_ts/issues/new/choose' },
+    })
+  })
+
   it('has one kcfg entry per setting with types, defaults and ranges', () => {
     const xml = mainXml()
     for (const def of SETTINGS) {

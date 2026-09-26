@@ -1,0 +1,23 @@
+name: Suggestion
+description: An idea for the wallpaper.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: Можно писать по-русски.
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like, and why?
+    validations:
+      required: true
+  - type: dropdown
+    id: host
+    attributes:
+      label: Which host is it about? (optional)
+      options:
+        - All
+        - Browser version
+        - Wallpaper Engine
+        - Lively Wallpaper
+        - KDE Plasma 6

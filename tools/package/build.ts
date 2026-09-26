@@ -105,6 +105,7 @@ export async function buildClassic(repoRoot: string, host: Exclude<HostId, 'web'
 
 /** ESM build of the browser version into a package file map. */
 export async function buildWeb(repoRoot: string): Promise<PackageFiles> {
+  const version = (JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as { version: string }).version
   const vite = await import('vite')
   const root = resolve(repoRoot, 'src/adapters/web')
   const out = mkdtempSync(join(tmpdir(), 'h3-web-'))
@@ -116,6 +117,8 @@ export async function buildWeb(repoRoot: string): Promise<PackageFiles> {
       base: './',
       logLevel: 'warn',
       publicDir: false,
+      // Spec 006 FR-004: the version shown in the panel footer.
+      define: { __H3_VERSION__: JSON.stringify(version) },
       worker: { format: 'es' },
       build: {
         outDir: out,

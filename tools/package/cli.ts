@@ -56,10 +56,9 @@ export async function assemble(repoRoot: string, host: HostId): Promise<PackageF
 /** File-name prefix of the release archives (the product name, see APP_NAME in strings.ts). */
 export const ARTIFACT_PREFIX = 'heroes3-living-map'
 
+/** Every host ships one archive (spec 006 research R6); KDE's is a tar.gz for kpackagetool6. */
 export function artifactName(host: HostId, version: string): string {
-  if (host === 'lively') return `${ARTIFACT_PREFIX}-lively-${version}.zip`
-  if (host === 'kde') return `${ARTIFACT_PREFIX}-kde-${version}.tar.gz`
-  return host
+  return `${ARTIFACT_PREFIX}-${host}-${version}.${host === 'kde' ? 'tar.gz' : 'zip'}`
 }
 
 export function writePackage(outDir: string, host: HostId, files: PackageFiles, version: string): BuiltPackage {
@@ -70,13 +69,10 @@ export function writePackage(outDir: string, host: HostId, files: PackageFiles, 
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, bytes)
   }
-  const name = artifactName(host, version)
-  let artifact = dir
-  if (host === 'lively' || host === 'kde') {
-    const entries = [...files].map(([path, data]) => ({ path, data }))
-    artifact = join(outDir, name)
-    writeFileSync(artifact, host === 'lively' ? writeZip(entries) : writeTarGz(entries))
-  }
+  // The folder stays for local use (yarn preview:web, copying into a host); the archive is what ships.
+  const entries = [...files].map(([path, data]) => ({ path, data }))
+  const artifact = join(outDir, artifactName(host, version))
+  writeFileSync(artifact, host === 'kde' ? writeTarGz(entries) : writeZip(entries))
   return { host, flavour: FLAVOUR[host], path: dir, artifact, files: files.size, runtimeGzipBytes: runtimeGzipBytes(files), sha256: packageHash(files) }
 }
 

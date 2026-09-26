@@ -67,6 +67,10 @@ if (stored.settings.mapsource === 'folder') {
   })
 }
 
+// Set by the web package build (tools/package/build.ts, spec 006 FR-004); absent in other builds.
+declare const __H3_VERSION__: string | undefined
+const version = typeof __H3_VERSION__ === 'string' ? __H3_VERSION__ : 'dev'
+
 const panel = createPanel(document.body, {
   onSetting(key, value) {
     stored.settings[key] = value
@@ -99,7 +103,7 @@ const panel = createPanel(document.body, {
     saveStored()
     controller.setLanguage(choice === 'auto' ? null : choice)
   },
-})
+}, version)
 controller.onChange((s) => {
   // The controller switches the source itself (a dropped single map, a supplied folder); keep it stored.
   if (stored.settings.mapsource !== undefined && stored.settings.mapsource !== s.settings.mapsource) {

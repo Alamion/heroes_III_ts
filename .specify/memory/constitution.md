@@ -1,7 +1,22 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.3.0 → 1.3.1
+Version change: 1.3.1 → 1.4.0
+Bump rationale (1.4.0, MINOR): Principle I's documentation-screenshot exception is extended to store
+pages (spec 006 FR-019, owner decision 2026-09-24): the maintainer MAY upload screenshots of this
+project's own output — the docs/img/ kind, same size limits — to the Steam Workshop and KDE Store
+pages. They still MUST NOT enter packages, release assets or build output. No rule is weakened for
+game content itself.
+
+Modified principles:
+  I. User-Supplied Assets Only — the documentation exception names store pages.
+
+Templates / dependent files:
+  ✅ .specify/templates/*.md — no constitution-specific slots; no edit needed
+  ✅ AGENTS.md — "Local-Only Folders" mentions the store-page use
+  ✅ docs/releasing.md — "Store screenshots" follows this rule
+
+Previous amendment (1.3.0 → 1.3.1):
 Bump rationale (1.3.1, PATCH): the HotA budget numbers reserved by 1.3.0 are filled in from the
 measurement of spec 005 T075. No rule changes.
 
@@ -50,6 +65,10 @@ Deferred TODOs:
   most 2 MB and the folder at most 10 MB in total. Raw extracted sprites, atlases, palettes and
   captures of the original game MUST NOT be committed, and `docs/img/` MUST NOT be copied into
   build output or packages.
+- The same kind of screenshots (this project's own output, within the same size limits) MAY be
+  uploaded by the maintainer to the project's store pages (Steam Workshop, KDE Store). Uploading is
+  a manual step of the maintainer; such images MUST NOT be added to packages, release assets or
+  build output, and screenshots of the original game, its logos or box art MUST NOT be used.
 - At runtime the user MUST be the one who provides game files (file pickers, platform
   properties, drag-and-drop). Derived caches MAY exist only on the user's own machine.
 - Development assets live in `public/dev-assets/`; reference material lives in `context/`;
@@ -260,4 +279,4 @@ make saves, HotA, and interactivity additive instead of rewrites.
 - **Compliance review:** at the end of each feature (before merge), re-check the Constitution
   Check in its plan against the actual implementation; record any accepted deviations there.
 
-**Version**: 1.3.1 | **Ratified**: 2026-09-13 | **Last Amended**: 2026-09-23
+**Version**: 1.4.0 | **Ratified**: 2026-09-13 | **Last Amended**: 2026-09-26

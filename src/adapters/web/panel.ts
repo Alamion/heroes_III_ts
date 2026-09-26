@@ -7,6 +7,7 @@ import type { FileSlot } from '../shared/messages.ts'
 import { SLOT_KIND_KEYS } from '../shared/messages.ts'
 import { SETTINGS, validateSettings } from '../shared/settings.ts'
 import type { SettingKey, WallpaperSettings } from '../shared/settings.ts'
+import { NEW_ISSUE_URL } from '../shared/project.ts'
 import { format } from '../shared/strings.ts'
 import type { Language, StringKey } from '../shared/strings.ts'
 
@@ -36,7 +37,7 @@ const FILE_SLOTS: readonly FileSlot[] = ['spriteArchive', 'dataArchive', 'hotaAr
 /** Slots listed only once a file fills them: the HotA archive is optional. */
 const OPTIONAL_SLOTS: ReadonlySet<FileSlot> = new Set(['hotaArchive'])
 
-export function createPanel(root: HTMLElement, handlers: PanelHandlers): Panel {
+export function createPanel(root: HTMLElement, handlers: PanelHandlers, version = 'dev'): Panel {
   const doc = root.ownerDocument
   const el = doc.createElement('aside')
   el.className = 'h3p'
@@ -241,7 +242,15 @@ export function createPanel(root: HTMLElement, handlers: PanelHandlers): Panel {
     const help = el_('details')
     help.append(el_('summary', undefined, format(lang, 'panel_help')))
     for (const key of ['help_files', 'help_web', 'help_privacy'] as const) help.append(el_('p', undefined, format(lang, key)))
-    el.append(help, el_('div', 'h3p-keys', format(lang, 'panel_keys')))
+    // Spec 006 FR-004, FR-015: the version and the way to report a problem.
+    const footer = el_('div', 'h3p-footer', `${format(lang, 'panel_version', { version })} · `)
+    const report = el_('a', undefined, format(lang, 'panel_report'))
+    report.id = 'h3p-report'
+    report.href = NEW_ISSUE_URL
+    report.target = '_blank'
+    report.rel = 'noopener'
+    footer.append(report)
+    el.append(help, el_('div', 'h3p-keys', format(lang, 'panel_keys')), footer)
   }
 
   const panel: Panel = {

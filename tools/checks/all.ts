@@ -1,4 +1,4 @@
-// `yarn verify all`: layers, map coverage (spec 005), determinism, packages and host simulations
+// `yarn verify all`: layers, store texts (spec 006), map coverage (spec 005), determinism, packages and host simulations
 // (spec 004), budget, and fidelity for every map with game captures.
 
 import { loadConfig } from '../reference-env/config.ts'
@@ -9,6 +9,7 @@ import { budgetCommand } from './budget/index.ts'
 import { fidelityCommand } from './fidelity/index.ts'
 import { hostsCommand } from './hosts/index.ts'
 import { layersCommand } from './layers.ts'
+import { storeTextsCommand } from './store-texts.ts'
 import { mapsCommand } from './maps/index.ts'
 import { packagesCommand } from './packages/index.ts'
 
@@ -32,6 +33,7 @@ export async function allCommand(): Promise<CommandResult> {
   const outcome = (r: CommandResult): string => (typeof r.outcome === 'string' ? r.outcome : r.ok ? 'pass' : 'fail')
   const layers = await layersCommand()
   results.layers = outcome(layers)
+  results['store-texts'] = outcome(await storeTextsCommand())
   // Every kind of map the user owns opens (spec 005 FR-020).
   const maps = await mapsCommand(args({}, []))
   results.maps = outcome(maps)

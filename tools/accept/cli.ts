@@ -6,8 +6,8 @@ import type { CommandSpec } from '../shared/cli-runner.ts'
 
 export const ACCEPT_COMMANDS: Record<string, CommandSpec> = {
   kde: {
-    help: 'install/upgrade the KDE package and restart plasmashell after an upgrade; --apply switches a screen to it with the dev files, screenshots and restores the plugin and its settings [--screen 0] [--seconds 20] [--keep] [--no-restart]',
-    booleanFlags: ['apply', 'keep', 'no-restart'],
+    help: 'install/upgrade the KDE package and restart plasmashell after an upgrade; --apply switches a screen to it with the dev files, screenshots and restores the plugin and its settings [--screen 0] [--seconds 20] [--keep] [--no-restart]; --simulate-missing-webengine installs a variant whose web view cannot load and waits for the missing-module message (spec 006 US5)',
+    booleanFlags: ['apply', 'keep', 'no-restart', 'simulate-missing-webengine'],
     load: async () => (await import('./kde.ts')).acceptKdeCommand,
   },
 }

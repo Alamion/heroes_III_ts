@@ -1,0 +1,51 @@
+name: Bug report
+description: Something looks or works wrong in the wallpaper.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please never attach game files (`.lod`, `.h3m` from the game); a map name is enough.
+        Можно писать по-русски.
+  - type: dropdown
+    id: host
+    attributes:
+      label: Where does it run?
+      options:
+        - Browser version
+        - Wallpaper Engine
+        - Lively Wallpaper
+        - KDE Plasma 6
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Shown in the browser panel, the package readme, the release name or the store page.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: map
+    attributes:
+      label: Map
+      description: The map's name (and whether it is a HotA map), or "folder of maps".
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Screenshots help a lot — paste them here.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System
+      description: Windows / Linux distribution, browser or host version, GPU if you know it.

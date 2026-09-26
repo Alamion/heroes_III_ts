@@ -9,14 +9,25 @@ import { en, ru } from '../../../src/adapters/shared/strings.ts'
 import type { StringKey } from '../../../src/adapters/shared/strings.ts'
 import type { ClassicBundle, PackageFiles } from '../build.ts'
 import { previewPng } from '../previews.ts'
-import { json, readme, utf8 } from './common.ts'
+import { WORKSHOP_ID } from '../../../src/adapters/shared/project.ts'
+import { json, readme, utf8, versionOf } from './common.ts'
 
 const token = (key: StringKey): string => `ui_${key}`
 
-/** Keys of the read-only panel elements (not settings): the warning and the spacer line. */
+/** Keys of the panel elements that are not settings: the warning, the spacer line, the scheme colour. */
 export const NOTICE_KEY = 'notice'
 export const SPACER_KEY = 'spacer'
-export const DISPLAY_KEYS: readonly string[] = [NOTICE_KEY, SPACER_KEY]
+export const SCHEME_COLOR_KEY = 'schemecolor'
+export const DISPLAY_KEYS: readonly string[] = [NOTICE_KEY, SPACER_KEY, SCHEME_COLOR_KEY]
+
+/**
+ * Wallpaper Engine tints its UI for this wallpaper (folder icons, highlights) with the scheme colour,
+ * "r g b" in 0–1. It is the project's gold accent, #b99a55 (the overlay's message border). The text
+ * is WE's own localized label, not one of ours.
+ */
+const SCHEME_COLOR = '0.725 0.604 0.333'
+/** Labels Wallpaper Engine localizes itself; they have no entry in our localization tables. */
+export const BUILTIN_LABELS: readonly string[] = ['ui_browse_properties_scheme_color']
 
 /**
  * WE's CEF reads files only inside the wallpaper folder (2026-09-19 Windows session), so the archive
@@ -86,7 +97,7 @@ export function usedKeys(): StringKey[] {
   return [...keys]
 }
 
-export function projectJson(): Record<string, unknown> {
+export function projectJson(workshopId: string | null = WORKSHOP_ID): Record<string, unknown> {
   // Dense integer orders from 100 (Workshop pattern): the notice leads (its text ends with a <br>
   // for the gap after it) and a <br></br> element separates the file settings from the rest.
   const defs = [...SETTINGS, ...ACTIONS].sort((a, b) => a.order - b.order)
@@ -100,6 +111,7 @@ export function projectJson(): Record<string, unknown> {
     if (i === afterFiles) properties[SPACER_KEY] = panelElement(next(), 'spacer_wallpaper_engine')
     properties[def.key] = { ...property(def), order: next() }
   })
+  properties[SCHEME_COLOR_KEY] = { order: next(), text: BUILTIN_LABELS[0], type: 'color', value: SCHEME_COLOR }
   const localization = (t: Record<StringKey, string>) => Object.fromEntries(usedKeys().map((k) => [token(k), t[k]]))
   return {
     file: 'index.html',
@@ -109,6 +121,8 @@ export function projectJson(): Record<string, unknown> {
     preview: 'preview.png',
     tags: ['Game'],
     contentrating: 'Everyone',
+    // Spec 006 FR-014a: the published Workshop item, so the editor updates it instead of offering a new one.
+    ...(workshopId !== null ? { workshopid: workshopId } : {}),
     general: {
       properties,
       localization: { 'en-us': localization(en), 'ru-ru': localization(ru) },
@@ -126,6 +140,6 @@ export function wallpaperEnginePackage(repoRoot: string, bundle: ClassicBundle):
   files.set('main.js', utf8(bundle.main))
   files.set('project.json', json(projectJson()))
   files.set('preview.png', previewPng(512))
-  files.set('README.txt', readme('help_wallpaper_engine'))
+  files.set('README.txt', readme('help_wallpaper_engine', versionOf(repoRoot)))
   return files
 }

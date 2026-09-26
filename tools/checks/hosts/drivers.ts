@@ -2,7 +2,7 @@
 // Host drivers for `yarn verify hosts` (spec 004 T029–T030, T038, T055, T064): each opens a built
 // package the way its host does and delivers files, settings, pause and language like the host.
 
-import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -239,6 +239,16 @@ export async function wallpaperEngineDriver(browser: Browser, packageDir: string
 
 // --- Lively --------------------------------------------------------------------------------------
 
+/**
+ * Copies a file so a reader never sees it half-written: invariants may run in parallel (`--jobs`,
+ * spec 006 T068) and copy the same file into Lively's shared userfiles folder.
+ */
+function copyInto(from: string, to: string): void {
+  const tmp = `${to}.${process.pid}.${Math.random().toString(36).slice(2)}.part`
+  copyFileSync(from, tmp)
+  renameSync(tmp, to)
+}
+
 export async function livelyDriver(browser: Browser, packageDir: string): Promise<HostDriver> {
   // Lively serves a copy of the wallpaper folder on a virtual https host; files chosen with
   // "Browse" are copied into its folder. Here: a temp copy served on http://<name>.localhost.
@@ -273,7 +283,7 @@ export async function livelyDriver(browser: Browser, packageDir: string): Promis
       for (const [slot, path] of Object.entries(files)) {
         if (path === undefined) continue
         const name = basename(path)
-        if (existsSync(path)) copyFileSync(path, join(dir, 'userfiles', name))
+        if (existsSync(path)) copyInto(path, join(dir, 'userfiles', name))
         await deliver(hp, SETTING_OF_SLOT[slot as keyof HostFiles], `userfiles\\${name}`)
       }
     },
@@ -290,7 +300,7 @@ export async function livelyDriver(browser: Browser, packageDir: string): Promis
       // Lively has no folder property: "Browse" copies the .zip of the maps (research R1).
       mkdirSync(join(dir, 'userfiles'), { recursive: true })
       const name = basename(folder.zip)
-      copyFileSync(folder.zip, join(dir, 'userfiles', name))
+      copyInto(folder.zip, join(dir, 'userfiles', name))
       await deliver(hp, 'mapsource', toLively('mapsource', 'folder'))
       await deliver(hp, 'mapfolder', `userfiles\\${name}`)
     },

@@ -81,6 +81,14 @@
   opacity: 0.65;
   font-size: 12px;
 }
+.h3p-footer {
+  margin-top: 6px;
+  opacity: 0.65;
+  font-size: 12px;
+}
+.h3p-footer a {
+  color: inherit;
+}
 .h3p-close {
   float: right;
 }

@@ -6,7 +6,11 @@ type Control = { type: string; text: string; items?: string[]; value: unknown; f
 
 describe('Lively manifests (spec 004 FR-016)', () => {
   it('is a web wallpaper with pause events', () => {
-    expect(livelyInfo()).toMatchObject({ Type: 1, FileName: 'index.html', Arguments: '--pause-event true', IsAbsolutePath: false })
+    expect(livelyInfo('0.1.0')).toMatchObject({ Type: 1, FileName: 'index.html', Arguments: '--pause-event true', IsAbsolutePath: false })
+  })
+
+  it('names the author, the issues page and an integer version (spec 006 FR-004, FR-015)', () => {
+    expect(livelyInfo('1.2.3')).toMatchObject({ Author: 'Alamion', Contact: 'https://github.com/Alamion/heroes_III_ts/issues', Version: 10203 })
   })
 
   it('maps settings to Lively controls in definition order', () => {

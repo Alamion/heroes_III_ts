@@ -1,0 +1,143 @@
+# Releases (spec 006 US1, contracts/release-workflow.md): a tag vX.Y.Z on a commit of `testing` —
+# pushed from a clone or created with `gh release create` — is checked, built and verified, then the
+# GitHub Release gets the four host archives, the store texts and SHA256SUMS, and a final (not
+# pre-release) version redeploys GitHub Pages from the same build. Nothing is published before every
+# check has passed; a re-run replaces assets with identical ones and keeps hand-written notes.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to (re)publish, e.g. v0.1.0'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  # The release rules first: nothing else starts for a tag that cannot be released.
+  check:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          fetch-depth: 0
+      - run: git fetch --no-tags origin testing:refs/remotes/origin/testing
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - id: check
+        name: Release rules (version, branch, changelog)
+        run: |
+          yarn -s release check --tag "$TAG" > check.json || { cat check.json; exit 1; }
+          cat check.json
+          node -e 'const c=require("./check.json");console.log(`version=${c.version}`);console.log(`prerelease=${c.kind==="prerelease"}`)' >> "$GITHUB_OUTPUT"
+
+  # Host simulations are the slow part (spec 006 T069): one runner per host, in parallel.
+  hosts:
+    needs: check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        host: [web, wallpaper-engine, lively, kde]
+    env:
+      H3_CHROMIUM: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - run: yarn package --host ${{ matrix.host }}
+      - run: yarn verify hosts --host ${{ matrix.host }} --no-build
+
+  # Build, unit tests, package checks and the release assets, in parallel with the host simulations.
+  build:
+    needs: check
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - run: yarn build
+      - run: yarn test
+      - run: yarn package
+      - run: yarn verify packages --no-build --reproducible
+      - run: yarn verify store-texts
+      - run: yarn release assets
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: dist/release/${{ env.VERSION }}/
+          if-no-files-found: error
+      - if: needs.check.outputs.prerelease == 'false'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/packages/web
+
+  # Nothing is published before every check above has passed (SC-002).
+  release:
+    needs: [check, hosts, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: dist/release/${{ env.VERSION }}/
+      - name: Publish the GitHub Release
+        run: yarn release publish --tag "$TAG" --dir "dist/release/$VERSION"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  pages:
+    needs: [check, release]
+    if: needs.check.outputs.prerelease == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

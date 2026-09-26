@@ -46,7 +46,7 @@ as a plain web page.
 ## Status
 
 This is an early release. Base-game and HotA maps render; save games and interactive extras are
-planned (see [Roadmap](#roadmap)).
+planned (see [Roadmap](#roadmap)). What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
 | Host | State |
 | --- | --- |
@@ -73,6 +73,15 @@ and show a message.
 
 ## Getting started
 
+| Host | Where to get it |
+| --- | --- |
+| Browser | **<https://alamion.github.io/heroes_III_ts/>**, nothing to install |
+| Wallpaper Engine | [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3808342201), or the `wallpaper-engine` archive of the [latest release](https://github.com/Alamion/heroes_III_ts/releases/latest) |
+| Lively Wallpaper | the `lively` archive of the [latest release](https://github.com/Alamion/heroes_III_ts/releases/latest) |
+| KDE Plasma 6 | [KDE Store](https://store.kde.org/p/2374098/) ("Get New Plugins…" in the wallpaper settings), or the `kde` archive of the [latest release](https://github.com/Alamion/heroes_III_ts/releases/latest) |
+
+Every release lists its files with checksums (`SHA256SUMS`).
+
 ### In the browser
 
 Open **<https://alamion.github.io/heroes_III_ts/>**, then click **Choose files…** or drop the
@@ -96,12 +105,14 @@ the browser remembers them like the other files.
 
 ### Wallpaper Engine, Lively, KDE Plasma
 
-Prebuilt packages are not published yet. Build them from source (see
-[Building from source](#building-from-source)): `yarn package` writes them to `dist/packages/`.
+Take the package from the [Getting started](#getting-started) table: the stores install it for you;
+the release archives are named `heroes3-living-map-<host>-<version>`. To build them yourself, see
+[Building from source](#building-from-source) (`yarn package` writes them to `dist/packages/`).
 
 **Wallpaper Engine** (Windows)
-1. Copy `dist/packages/wallpaper-engine/` into `Wallpaper Engine/projects/myprojects/`, or open
-   its `project.json` in the Wallpaper Engine editor.
+1. Subscribe on the [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3808342201),
+   or unpack `heroes3-living-map-wallpaper-engine-<version>.zip` into a new folder under
+   `Wallpaper Engine/projects/myprojects/` (or open its `project.json` in the Wallpaper Engine editor).
 2. Select the wallpaper, open its properties and choose the files in **Sprite archive**, **Data
    archive** and **Map** (and **HotA archive** for a HotA map).
 3. For a folder of maps: Wallpaper Engine cannot list a folder, so zip the maps (for example the
@@ -109,18 +120,21 @@ Prebuilt packages are not published yet. Build them from source (see
    *Folder of maps*; **Folder of maps** already says `game/maps.zip`.
 
 **Lively Wallpaper** (Windows)
-1. Drag `dist/packages/heroes3-living-map-lively-<version>.zip` into Lively.
+1. Drag `heroes3-living-map-lively-<version>.zip` (from the release) into Lively.
 2. Open **Customise** for the wallpaper and use **Browse** in the file settings. Lively copies
    the chosen files into the wallpaper's folder. The HotA archive is only needed for HotA maps.
 3. For a folder of maps: Lively copies single files only, so zip the maps (for example the game's
    `Maps` folder) and choose the `.zip` in **Folder of maps**, with **Map source** set to *Folder of maps*.
 
 **KDE Plasma 6** (Linux)
-1. Install the plugin:
+1. Install the plugin from the [KDE Store](https://store.kde.org/p/2374098/) (right-click the desktop →
+   **Configure Desktop and Wallpaper** → **Get New Plugins…**), or from the release archive:
    ```bash
-   kpackagetool6 -t Plasma/Wallpaper -i dist/packages/heroes3-living-map-kde-<version>.tar.gz
+   kpackagetool6 -t Plasma/Wallpaper -i heroes3-living-map-kde-<version>.tar.gz
    # later updates: -u instead of -i
    ```
+   It needs Qt WebEngine for QML: Fedora `qt6-qtwebengine`, Debian/Ubuntu `qml6-module-qtwebengine`,
+   Arch `qt6-webengine` (without it the wallpaper shows this message instead of the map).
 2. Right-click the desktop → **Configure Desktop and Wallpaper** → wallpaper type **Heroes 3 Living Map**.
 3. Choose the files (the HotA archive only for HotA maps) and press **Apply**.
 4. For a folder of maps: set **Map source** to *Folder of maps* and choose the folder (for example
@@ -182,7 +196,9 @@ is git-ignored). [AGENTS.md](AGENTS.md) lists every command, including inspectio
   [reference environment](specs/001-reference-environment/),
   [foundation](specs/002-foundation-rewrite/), [map objects](specs/003-map-objects/),
   [platform adapters](specs/004-platform-adapters/), [HotA support](specs/005-hota-support/),
-  [map folder](specs/007-map-folder/).
+  [releases and publishing](specs/006-release-publishing/), [map folder](specs/007-map-folder/).
+- [CHANGELOG.md](CHANGELOG.md): what changed in each release; [docs/releasing.md](docs/releasing.md):
+  how a release is made and the stores are updated.
 - [TODO.md](TODO.md): roadmap and open items.
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md): attribution.
 
@@ -191,6 +207,11 @@ is git-ignored). [AGENTS.md](AGENTS.md) lists every command, including inspectio
 1. One map across several screens; the lock screen.
 2. Save games of the Complete edition.
 3. Interactive extras: scrolling on idle, battles, captured towns and mines.
+
+## Feedback
+
+Suggestions and bug reports go to [GitHub Issues](https://github.com/Alamion/heroes_III_ts/issues/new/choose)
+(English or Russian). Comments and reviews on the store pages are not tracked.
 
 ## Credits and prior work
 

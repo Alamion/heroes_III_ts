@@ -10,20 +10,25 @@ import { en, ru } from '../../../src/adapters/shared/strings.ts'
 import type { StringKey } from '../../../src/adapters/shared/strings.ts'
 import type { ClassicBundle, PackageFiles } from '../build.ts'
 import { previewPng } from '../previews.ts'
-import { json, readme, utf8 } from './common.ts'
+import { AUTHOR, ISSUES_URL } from '../../../src/adapters/shared/project.ts'
+import { livelyVersion, parseVersion } from '../../release/semver.ts'
+import { json, readme, utf8, versionOf } from './common.ts'
 
 export const LIVELY_USER_FOLDER = 'userfiles'
 
-export function livelyInfo(): Record<string, unknown> {
+export function livelyInfo(version: string): Record<string, unknown> {
   return {
     AppVersion: '2.2.0.0',
     Title: en.package_title,
     Thumbnail: 'thumbnail.png',
     Preview: 'preview.png',
     Desc: en.package_description,
-    Author: 'heroes_iii_dynam contributors',
+    Author: AUTHOR,
     License: 'MIT',
-    Contact: '',
+    // Spec 006 FR-015/FR-017: feedback goes to GitHub Issues; no e-mail anywhere.
+    Contact: ISSUES_URL,
+    // Lively's integer wallpaper version, growing with every release (research R2).
+    Version: livelyVersion(parseVersion(version)),
     Type: 1,
     FileName: 'index.html',
     Arguments: '--pause-event true',
@@ -69,13 +74,14 @@ export function livelyPackage(repoRoot: string, bundle: ClassicBundle): PackageF
   files.set('page.css', read('src/adapters/shared/page.css'))
   files.set('listener.js', utf8(bundle.listener))
   files.set('main.js', utf8(bundle.main))
-  files.set('LivelyInfo.json', json(livelyInfo()))
+  const version = versionOf(repoRoot)
+  files.set('LivelyInfo.json', json(livelyInfo(version)))
   files.set('LivelyInfo.loc.json', json({ Languages: { ru: { Title: ru.package_title, Desc: ru.package_description } } }))
   files.set('LivelyProperties.json', json(livelyProperties()))
   files.set('LivelyProperties.loc.json', json(livelyPropertiesLoc()))
   files.set(`${LIVELY_USER_FOLDER}/.keep`, new Uint8Array(0))
   files.set('preview.png', previewPng(512))
   files.set('thumbnail.png', previewPng(256))
-  files.set('README.txt', readme('help_lively'))
+  files.set('README.txt', readme('help_lively', version))
   return files
 }

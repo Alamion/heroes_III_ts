@@ -101,15 +101,26 @@ export const en = {
 
   // Packages and documentation
   package_title: APP_NAME,
-  package_description: 'An animated adventure map of Heroes of Might and Magic III (Heroes 3, HoMM3) from your own Complete edition files: terrain, objects, heroes and towns, as in the original game. Fan-made, not affiliated with the game publishers. No game files are included.',
+  package_description: 'An animated adventure map of Heroes of Might and Magic III (Heroes 3, HoMM3) from your own game files — the Complete edition, and Horn of the Abyss (HotA) for its maps: terrain, objects, heroes and towns, as in the original game. Fan-made, not affiliated with the game publishers. No game files are included.',
   help_files: 'Take H3sprite.lod and H3bitmap.lod from the Data folder of your Heroes III Complete installation and any map (.h3m) from its Maps folder. Maps of Restoration of Erathia, Armageddon\'s Blade, Shadow of Death and Horn of the Abyss are supported. For a HotA map, also choose HotA.lod from the Data folder of your HotA installation; without it a HotA map is missing its terrains and objects.',
   help_privacy: 'The files stay on this computer: they are read locally and never uploaded.',
   help_web: 'Choose the files with the button or drop them onto the page. The browser remembers them until you press "Forget files".',
-  help_wallpaper_engine: 'Wallpaper Engine only lets a wallpaper read files inside its own folder, so you must place the files there yourself — without this the wallpaper cannot work. Copy H3sprite.lod and H3bitmap.lod (from the Data folder of your Heroes III Complete installation) and your map (.h3m) into the wallpaper folder, next to index.html; a "game" subfolder is the intended place. The "Sprite archive" and "Data archive" settings default to game\\H3sprite.lod and game\\h3bitmap.lod, so with the standard names only the map needs entering (for example game\\Arrogance.h3m); other names go into the settings the same way. A HotA map also needs HotA.lod copied there and entered in the "HotA archive" setting (for example game\\HotA.lod). For the map source "Folder of maps", Wallpaper Engine cannot list a folder: zip your maps into one file (for example game\\maps.zip, the default) and enter it in "Folder of maps".',
+  help_wallpaper_engine: 'Wallpaper Engine lets a wallpaper read only files inside its own folder, so copy them there yourself: put H3sprite.lod, H3bitmap.lod and your map (.h3m) into a "game" subfolder next to index.html. The archive settings already say game\\H3sprite.lod and game\\h3bitmap.lod; enter the map the same way (for example game\\Arrogance.h3m). For HotA maps, copy HotA.lod there too and enter game\\HotA.lod in "HotA archive". Wallpaper Engine cannot list a folder: for "Folder of maps", zip your maps into game\\maps.zip (the default).',
   notice_wallpaper_engine: '<b><i><u>Important:</u></i></b> the wallpaper can only read files inside its own folder, so copy H3sprite.lod, H3bitmap.lod and your map (.h3m) into the wallpaper folder yourself (next to index.html; a "game" subfolder is fine) — otherwise it will not load. The archive settings below already point to game\\H3sprite.lod and game\\h3bitmap.lod; enter your map the same way (game\\YourMap.h3m).<br></br>',
   spacer_wallpaper_engine: '<br></br>',
   help_lively: 'Open "Customise" for the wallpaper in Lively and use "Browse" in the file settings; Lively copies the files into the wallpaper folder. The HotA archive is only needed for HotA maps.',
   help_kde: `Install the plugin, open "Configure Desktop and Wallpaper", pick "${APP_NAME}" and choose the files. The HotA archive is only needed for HotA maps.`,
+
+  // Links and feedback (spec 006): inline Markdown — [text]({url}), **bold**, \`code\` — rendered per
+  // surface (plain text in readmes, BBCode on store pages, a link in the browser panel).
+  store_links: 'Source code, README and downloads for every host: [GitHub]({repository}) · [releases]({releases}) · [browser version]({pages})',
+  store_feedback: 'Suggestions and bug reports go only to [GitHub Issues]({issues}); comments and reviews on store pages are not tracked.',
+  store_on_workshop: 'Also on the [Steam Workshop]({workshop}) for Wallpaper Engine.',
+  store_on_kde_store: 'Also in the [KDE Store]({kde_store}) for KDE Plasma 6.',
+  store_kde_requirements: 'Requires Qt WebEngine for QML, which the store does not install: Fedora — `qt6-qtwebengine`, Debian/Ubuntu — `qml6-module-qtwebengine`, Arch — `qt6-webengine`.',
+  kde_webengine_missing: `${APP_NAME} needs Qt WebEngine for QML. Install it and restart Plasma (or log in again): Fedora — qt6-qtwebengine; Debian/Ubuntu — qml6-module-qtwebengine; Arch — qt6-webengine.`,
+  panel_version: 'Version {version}',
+  panel_report: 'Report a problem',
 } as const
 
 export type StringKey = keyof typeof en
@@ -207,15 +218,24 @@ export const ru: Record<StringKey, string> = {
   panel_drop_folder: 'Перетащите папку с картами или .zip с картами на страницу либо выберите папку кнопкой.',
 
   package_title: APP_NAME,
-  package_description: 'Анимированная карта приключений Heroes of Might and Magic III (Герои 3, HoMM3) из ваших файлов издания Complete: местность, объекты, герои и города, как в оригинальной игре. Фанатский проект, не связан с издателями игры. Игровые файлы не входят в комплект.',
+  package_description: 'Анимированная карта приключений Heroes of Might and Magic III (Герои 3, HoMM3) из ваших файлов игры — издания Complete, а для карт Horn of the Abyss (HotA) ещё и HotA: местность, объекты, герои и города, как в оригинальной игре. Фанатский проект, не связан с издателями игры. Игровые файлы не входят в комплект.',
   help_files: 'Возьмите H3sprite.lod и H3bitmap.lod из папки Data вашей установки Heroes III Complete и любую карту (.h3m) из папки Maps. Поддерживаются карты Restoration of Erathia, Armageddon\'s Blade, Shadow of Death и Horn of the Abyss. Для карты HotA выберите ещё HotA.lod из папки Data вашей установки HotA — без него у карты HotA не будет её земель и объектов.',
   help_privacy: 'Файлы остаются на этом компьютере: они читаются локально и никуда не загружаются.',
   help_web: 'Выберите файлы кнопкой или перетащите их на страницу. Браузер запомнит их, пока вы не нажмёте «Забыть файлы».',
-  help_wallpaper_engine: 'Wallpaper Engine разрешает обоям читать файлы только внутри их собственной папки, поэтому файлы нужно положить туда самостоятельно — без этого обои работать не будут. Скопируйте H3sprite.lod и H3bitmap.lod (из папки Data вашей установки Heroes III Complete) и карту (.h3m) в папку обоев, рядом с index.html; для этого предназначена подпапка «game». Настройки «Архив спрайтов» и «Архив данных» по умолчанию содержат game\\H3sprite.lod и game\\h3bitmap.lod, так что при стандартных именах остаётся вписать только карту (например game\\Arrogance.h3m); другие имена вводятся так же. Для карты HotA туда же нужно скопировать HotA.lod и вписать его в настройку «Архив HotA» (например game\\HotA.lod). Для источника «Папка с картами» Wallpaper Engine не умеет показывать список папки: заархивируйте карты в один файл (например game\\maps.zip, значение по умолчанию) и укажите его в «Папке с картами».',
+  help_wallpaper_engine: 'Wallpaper Engine разрешает обоям читать только файлы из их собственной папки, поэтому скопируйте их туда сами: положите H3sprite.lod, H3bitmap.lod и карту (.h3m) в подпапку «game» рядом с index.html. В настройках архивов уже указано game\\H3sprite.lod и game\\h3bitmap.lod; карту впишите так же (например game\\Arrogance.h3m). Для карт HotA скопируйте туда же HotA.lod и впишите game\\HotA.lod в «Архив HotA». Wallpaper Engine не умеет читать список папки: для «Папки с картами» заархивируйте карты в game\\maps.zip (значение по умолчанию).',
   notice_wallpaper_engine: '<b><i><u>Важно:</u></i></b> обои могут читать файлы только внутри своей папки, поэтому скопируйте H3sprite.lod, H3bitmap.lod и карту (.h3m) в папку обоев самостоятельно (рядом с index.html; подойдёт подпапка «game») — иначе обои не загрузятся. Настройки архивов ниже уже указывают на game\\H3sprite.lod и game\\h3bitmap.lod; карту впишите так же (game\\ВашаКарта.h3m).<br></br>',
   spacer_wallpaper_engine: '<br></br>',
   help_lively: 'Откройте «Настроить» для обоев в Lively и нажмите «Обзор» в настройках файлов; Lively скопирует файлы в папку обоев. Архив HotA нужен только для карт HotA.',
   help_kde: `Установите плагин, откройте «Настроить рабочий стол и обои», выберите «${APP_NAME}» и укажите файлы. Архив HotA нужен только для карт HotA.`,
+
+  store_links: 'Исходный код, README и файлы для всех платформ: [GitHub]({repository}) · [релизы]({releases}) · [версия для браузера]({pages})',
+  store_feedback: 'Предложения и сообщения об ошибках принимаются только в [GitHub Issues]({issues}); комментарии и отзывы на страницах магазинов не отслеживаются.',
+  store_on_workshop: 'Есть и в [Steam Workshop]({workshop}) для Wallpaper Engine.',
+  store_on_kde_store: 'Есть и в [KDE Store]({kde_store}) для KDE Plasma 6.',
+  store_kde_requirements: 'Нужен Qt WebEngine для QML, магазин сам его не установит: Fedora — `qt6-qtwebengine`, Debian/Ubuntu — `qml6-module-qtwebengine`, Arch — `qt6-webengine`.',
+  kde_webengine_missing: `Для ${APP_NAME} нужен Qt WebEngine для QML. Установите его и перезапустите Plasma (или войдите в систему заново): Fedora — qt6-qtwebengine; Debian/Ubuntu — qml6-module-qtwebengine; Arch — qt6-webengine.`,
+  panel_version: 'Версия {version}',
+  panel_report: 'Сообщить о проблеме',
 }
 
 export const STRINGS: Record<Language, Record<StringKey, string>> = { en, ru }

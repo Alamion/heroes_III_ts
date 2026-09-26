@@ -29,6 +29,14 @@ describe('repository hygiene', () => {
     expect(images.filter((f) => !f.startsWith('docs/img/'))).toEqual([])
   })
 
+  it('has no leftover merge conflict markers', () => {
+    // `git add` marks a conflict resolved even with the markers still in the file (a merge on
+    // 2026-09-26 committed them into README.md and AGENTS.md).
+    const text = files.filter((f) => /\.(md|ts|js|json|ya?ml|qml|html|css|txt)$/i.test(f) && existsSync(resolve(REPO, f)))
+    const marked = text.filter((f) => /^(<{7}|={7}|>{7})( |$)/m.test(readFileSync(resolve(REPO, f), 'utf8')))
+    expect(marked).toEqual([])
+  })
+
   it('keeps documentation screenshots small (constitution I)', () => {
     const images = files.filter((f) => f.startsWith('docs/img/') && existsSync(resolve(REPO, f)))
     const sizes = images.map((f) => ({ f, bytes: statSync(resolve(REPO, f)).size }))
