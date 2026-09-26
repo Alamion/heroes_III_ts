@@ -319,3 +319,21 @@ report, a `warn` line for each wait that ends by its timeout):
   (type-check, tests, packages with `--reproducible`, store texts, assets); `release` publishes only
   after both, and `pages` follows. Expected tag-to-release time: ~10 min, within SC-001; to be
   confirmed on the first pre-release run (T064).
+
+## First releases (T064, T065, 2026-09-26)
+
+- `v0.1.0-rc.1`: release run 1 min 51 s (check 13 s; four host runners ~60 s each in parallel with
+  build ~70 s; publish 18 s); 91 of 91 host invariants and 470 tests passed on the runners; a
+  pre-release with 4 archives, 5 texts and `SHA256SUMS`, all checksums valid; Pages skipped.
+- Re-run by `workflow_dispatch` for the same tag: a line added to the notes by hand survived, and
+  `SHA256SUMS` was identical — the packages are byte-identical across runners (FR-008, SC-007).
+- `v0.1.1-rc.1` with `package.json` at `0.1.0-rc.1`: stopped at `check` with `VERSION_MISMATCH`
+  ("tag v0.1.1-rc.1 but package.json says 0.1.0-rc.1"); every other job skipped, no release (SC-002).
+  The test tags and the pre-release were deleted afterwards.
+- `v0.1.0`: release run 1 min 52 s including the Pages deploy (SC-001: < 20 min); `/releases/latest`
+  points to it; the Pages bundle carries `0.1.0`; the four store pictures resolve at the tag
+  (`raw.githubusercontent.com/.../v0.1.0/docs/img/...`, HTTP 200).
+- KDE without Qt WebEngine on the owner's session: the message shows (owner, 2026-09-26). The first
+  `accept --simulate-missing-webengine` run missed the journal line because the Loader fails during
+  creation; fixed in `main.qml` (the message reports itself) and in the journal window.
+
