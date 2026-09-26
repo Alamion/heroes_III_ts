@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ACTIONS, SETTINGS } from '../../src/adapters/shared/settings.ts'
-import { DISPLAY_KEYS, projectJson } from '../../tools/package/manifests/wallpaper-engine.ts'
+import { BUILTIN_LABELS, DISPLAY_KEYS, projectJson } from '../../tools/package/manifests/wallpaper-engine.ts'
 
 type Prop = { type: string; text: string; value: unknown; order?: number; options?: { label: string; value: string }[]; condition?: string; fileType?: string; min?: number; max?: number }
 
@@ -75,12 +75,18 @@ describe('Wallpaper Engine project.json (spec 004 FR-014)', () => {
   it('localizes every token in en-us and ru-ru', () => {
     const tokens = new Set<string>()
     for (const p of Object.values(props)) {
-      tokens.add(p.text)
+      if (!BUILTIN_LABELS.includes(p.text)) tokens.add(p.text)
       p.options?.forEach((o) => tokens.add(o.label))
     }
     for (const locale of ['en-us', 'ru-ru']) {
       const table = pj.general.localization[locale] as Record<string, string>
       for (const t of tokens) expect(table[t], `${locale} ${t}`).toBeTruthy()
     }
+  })
+
+  it('sets the scheme colour to the project gold, after every setting', () => {
+    expect(props.schemecolor).toMatchObject({ type: 'color', text: 'ui_browse_properties_scheme_color', value: '0.725 0.604 0.333' })
+    const orders = Object.values(props).map((p) => p.order ?? 0)
+    expect(props.schemecolor?.order).toBe(Math.max(...orders))
   })
 })

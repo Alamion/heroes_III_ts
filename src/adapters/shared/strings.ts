@@ -101,7 +101,7 @@ export const en = {
 
   // Packages and documentation
   package_title: APP_NAME,
-  package_description: 'An animated adventure map of Heroes of Might and Magic III (Heroes 3, HoMM3) from your own Complete edition files: terrain, objects, heroes and towns, as in the original game. Fan-made, not affiliated with the game publishers. No game files are included.',
+  package_description: 'An animated adventure map of Heroes of Might and Magic III (Heroes 3, HoMM3) from your own game files — the Complete edition, and Horn of the Abyss (HotA) for its maps: terrain, objects, heroes and towns, as in the original game. Fan-made, not affiliated with the game publishers. No game files are included.',
   help_files: 'Take H3sprite.lod and H3bitmap.lod from the Data folder of your Heroes III Complete installation and any map (.h3m) from its Maps folder. Maps of Restoration of Erathia, Armageddon\'s Blade, Shadow of Death and Horn of the Abyss are supported. For a HotA map, also choose HotA.lod from the Data folder of your HotA installation; without it a HotA map is missing its terrains and objects.',
   help_privacy: 'The files stay on this computer: they are read locally and never uploaded.',
   help_web: 'Choose the files with the button or drop them onto the page. The browser remembers them until you press "Forget files".',
@@ -207,7 +207,7 @@ export const ru: Record<StringKey, string> = {
   panel_drop_folder: 'Перетащите папку с картами или .zip с картами на страницу либо выберите папку кнопкой.',
 
   package_title: APP_NAME,
-  package_description: 'Анимированная карта приключений Heroes of Might and Magic III (Герои 3, HoMM3) из ваших файлов издания Complete: местность, объекты, герои и города, как в оригинальной игре. Фанатский проект, не связан с издателями игры. Игровые файлы не входят в комплект.',
+  package_description: 'Анимированная карта приключений Heroes of Might and Magic III (Герои 3, HoMM3) из ваших файлов игры — издания Complete, а для карт Horn of the Abyss (HotA) ещё и HotA: местность, объекты, герои и города, как в оригинальной игре. Фанатский проект, не связан с издателями игры. Игровые файлы не входят в комплект.',
   help_files: 'Возьмите H3sprite.lod и H3bitmap.lod из папки Data вашей установки Heroes III Complete и любую карту (.h3m) из папки Maps. Поддерживаются карты Restoration of Erathia, Armageddon\'s Blade, Shadow of Death и Horn of the Abyss. Для карты HotA выберите ещё HotA.lod из папки Data вашей установки HotA — без него у карты HotA не будет её земель и объектов.',
   help_privacy: 'Файлы остаются на этом компьютере: они читаются локально и никуда не загружаются.',
   help_web: 'Выберите файлы кнопкой или перетащите их на страницу. Браузер запомнит их, пока вы не нажмёте «Забыть файлы».',

@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join, relative, resolve, sep } from 'node:path'
 import { ACTIONS, SETTINGS } from '../../../src/adapters/shared/settings.ts'
 import { en, ru } from '../../../src/adapters/shared/strings.ts'
-import { DISPLAY_KEYS } from '../../package/manifests/wallpaper-engine.ts'
+import { BUILTIN_LABELS, DISPLAY_KEYS } from '../../package/manifests/wallpaper-engine.ts'
 import { flag, opt } from '../../shared/cli-runner.ts'
 import type { CommandResult, ParsedArgs } from '../../shared/cli-runner.ts'
 import type { HostId, PackageFiles } from '../../package/build.ts'
@@ -127,7 +127,7 @@ export function checkManifests(host: HostId, files: PackageFiles): CheckOutcome 
     for (const key of DISPLAY_KEYS) if (props[key]?.text === undefined) details.push(`project.json lacks the display element ${key}`)
     for (const locale of ['en-us', 'ru-ru']) {
       const table = pj?.general?.localization?.[locale] ?? {}
-      for (const p of Object.values(props)) for (const t of [p.text, ...(p.options ?? []).map((o) => o.label)]) if (typeof table[t] !== 'string' || table[t] === '') details.push(`project.json ${locale} missing ${t}`)
+      for (const p of Object.values(props)) for (const t of [p.text, ...(p.options ?? []).map((o) => o.label)]) if (!BUILTIN_LABELS.includes(t) && (typeof table[t] !== 'string' || table[t] === '')) details.push(`project.json ${locale} missing ${t}`)
     }
   } else if (host === 'lively') {
     const props = (json('LivelyProperties.json') ?? {}) as Record<string, { type: string; items?: string[] }>

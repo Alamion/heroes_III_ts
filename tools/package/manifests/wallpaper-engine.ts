@@ -13,10 +13,20 @@ import { json, readme, utf8 } from './common.ts'
 
 const token = (key: StringKey): string => `ui_${key}`
 
-/** Keys of the read-only panel elements (not settings): the warning and the spacer line. */
+/** Keys of the panel elements that are not settings: the warning, the spacer line, the scheme colour. */
 export const NOTICE_KEY = 'notice'
 export const SPACER_KEY = 'spacer'
-export const DISPLAY_KEYS: readonly string[] = [NOTICE_KEY, SPACER_KEY]
+export const SCHEME_COLOR_KEY = 'schemecolor'
+export const DISPLAY_KEYS: readonly string[] = [NOTICE_KEY, SPACER_KEY, SCHEME_COLOR_KEY]
+
+/**
+ * Wallpaper Engine tints its UI for this wallpaper (folder icons, highlights) with the scheme colour,
+ * "r g b" in 0–1. It is the project's gold accent, #b99a55 (the overlay's message border). The text
+ * is WE's own localized label, not one of ours.
+ */
+const SCHEME_COLOR = '0.725 0.604 0.333'
+/** Labels Wallpaper Engine localizes itself; they have no entry in our localization tables. */
+export const BUILTIN_LABELS: readonly string[] = ['ui_browse_properties_scheme_color']
 
 /**
  * WE's CEF reads files only inside the wallpaper folder (2026-09-19 Windows session), so the archive
@@ -100,6 +110,7 @@ export function projectJson(): Record<string, unknown> {
     if (i === afterFiles) properties[SPACER_KEY] = panelElement(next(), 'spacer_wallpaper_engine')
     properties[def.key] = { ...property(def), order: next() }
   })
+  properties[SCHEME_COLOR_KEY] = { order: next(), text: BUILTIN_LABELS[0], type: 'color', value: SCHEME_COLOR }
   const localization = (t: Record<StringKey, string>) => Object.fromEntries(usedKeys().map((k) => [token(k), t[k]]))
   return {
     file: 'index.html',
