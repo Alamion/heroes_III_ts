@@ -206,6 +206,19 @@ under 20 min (SC-001). Done before T063–T065 (owner decision 2026-09-26).
 
 ---
 
+## Phase 10: Store pages with pictures (FR-012a) — added 2026-09-26
+
+**Purpose**: the store descriptions become real store pages with inline screenshots and the GIF, and
+the galleries get a fixed list of pictures (owner decision 2026-09-26: reuse `docs/img/`).
+
+- [X] T071 [US3] Allow pictures in store templates: `tools/release/markup.ts` gets an `images` option (off for changelog sections) — a line `![alt](../img/<file>)` becomes an image block rendered as `![alt](url)` (markdown), `[img]url[/img]` (Steam, KDE); `url` is `https://raw.githubusercontent.com/Alamion/heroes_III_ts/v<version>/docs/img/<file>`; tests in `test/tools/release-markup.test.ts`
+- [X] T072 [US3] Write the templates `docs/store/description.en.md` and `docs/store/description.ru.md` (research R3 subset + images): pitch, features, inline pictures, `{files}`, `{host_setup}`, `{privacy}`, `{links}`, `{other_store}`, `{feedback}`, fan-made note; the pictures shared by both languages go in `docs/store/pictures.md` at the top of the text
+- [X] T073 [US3] Build the store descriptions from the templates in `tools/release/store-texts.ts` (placeholders filled from `strings.ts` per store and language), and extend `checkStoreText`: image URLs only at the release tag under `docs/img/`, each file present in `docs/img/` and ≤ 2 MB; update `test/tools/release-texts.test.ts`
+- [X] T074 [US3] `docs/releasing.md`: the gallery list per store (files, order, captions) and where to upload them (Steam item page → "Add/edit images & videos"; KDE Store → product pictures); note that inline pictures appear only after the tag exists
+- [X] T075 Run `yarn verify store-texts` (sizes with pictures, both languages within 8000 bytes), `yarn test`, `yarn verify packages --no-build`; record the headroom in research R5
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

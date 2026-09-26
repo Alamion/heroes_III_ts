@@ -22,6 +22,11 @@ export const KDE_STORE_URL: string | null = 'https://store.kde.org/p/2374098/'
 
 export const AUTHOR = 'Alamion'
 
+/** Pictures of the store pages (spec 006 FR-012a): docs/img/ at a release tag. Not in shipped files. */
+export function storeImageUrl(version: string, file: string): string {
+  return `https://raw.githubusercontent.com/Alamion/heroes_III_ts/v${version}/docs/img/${file}`
+}
+
 export function workshopUrl(id: string | null = WORKSHOP_ID): string | null {
   return id === null ? null : `https://steamcommunity.com/sharedfiles/filedetails/?id=${id}`
 }

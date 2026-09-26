@@ -209,6 +209,11 @@ tools may import only `settings.ts` and `strings.ts` from adapters (`TOOL_IMPORT
   counts **UTF-8 bytes** of the BBCode source, the stricter reading (Cyrillic takes two bytes, and
   the Russian half is about half of every text). `yarn verify store-texts` fails naming the text,
   the limit and the excess, and reports the headroom of each text when it passes.
+- Store pages with pictures (FR-012a, 2026-09-26): templates in `docs/store/` (layout + one text per
+  language, placeholders filled from `strings.ts`), four inline pictures from `docs/img/` linked at the
+  release tag. The first build was 28 bytes over the Workshop limit; shortening `help_wallpaper_engine`
+  (it repeated the file list of `help_files`) left 976 bytes of headroom for the Workshop text and
+  1423 for the KDE text.
 
 ### R6. Every shipped archive is named and zipped
 

@@ -75,6 +75,16 @@ KDE Store and no confirmed steamcmd path for Wallpaper Engine items (see researc
   `Alamion` (the GitHub account that owns the repository); contact is the repository's GitHub Issues
   URL; no e-mail address is published anywhere.
 
+### Session 2026-09-26
+
+- Q: How rich are the store descriptions? → A: A proper store page, shorter than the README but more
+  than instructions: a pitch, the main features, inline screenshots and the animated GIF, what the user
+  needs and how to set up this host, links, and the GitHub Issues rule. The same pictures form the
+  store galleries, uploaded by hand.
+- Q: Where do the inline pictures live? → A: In the repository under `docs/img/` (the existing README
+  screenshots and GIF, constitution I limits), linked from the texts through
+  `raw.githubusercontent.com` at the release tag, so a published description never changes under it.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - The maintainer cuts a release with one tag (Priority: P1)
@@ -298,9 +308,17 @@ module) and see the message instead of an empty screen.
   requirement with per-distribution package names); a link to the repository, the README and the
   releases; and that suggestions and bug reports are handled only in the repository's GitHub Issues.
   English comes first, then Russian, in one text.
+- **FR-012a**: Each store description MUST also read as a store page: a short pitch, the main features
+  (the game's look and animation, HotA, a folder of maps with rotation, random places, pausing while
+  covered, English and Russian) and inline pictures — screenshots and the animated GIF from
+  `docs/img/`, linked at the release tag (`https://raw.githubusercontent.com/Alamion/heroes_III_ts/v<version>/docs/img/<file>`).
+  Its wording comes from per-language templates in the repository; the parts shared with the packages
+  (files, host setup, privacy, links, feedback) are filled in from the same strings. The checklist
+  (FR-014) lists the pictures for each store's gallery, in order.
 - **FR-013**: A check MUST verify the generated store texts against the store limits (Workshop title
   ≤ 128 characters, description and change note ≤ 8000) and against the markup each store supports,
-  and fail the build when a text does not fit.
+  and fail the build when a text does not fit. Every inline picture MUST exist in `docs/img/` within
+  the constitution's size limit; no other image source is allowed.
 - **FR-014**: A release checklist in the repository MUST describe every manual step: preparing the
   version and changelog, tagging (local and GitHub CLI variants), checking the run, updating the
   Workshop item through the Wallpaper Engine editor, updating the KDE Store product (replace the

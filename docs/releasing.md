@@ -109,7 +109,7 @@ Signed in on <https://store.kde.org/p/2374098/> (the opendesktop/Pling account t
    (or the update date) changes — it does not read the package's own `metadata.json`.
 3. **Changelog**: add an entry with `kde-changelog-X.Y.Z.bbcode`.
 4. **Description** (when it changed): paste `kde-store-description.bbcode`. It uses only tags the
-   store supports (no tables, no heading tags).
+   store supports (no tables, no heading tags; pictures as `[img]`).
 5. Save.
 
 How the product form is filled (set once when the product was created, 2026-09-26):
@@ -126,12 +126,33 @@ How the product form is filled (set once when the product was created, 2026-09-2
 | Original or Modification | **Original** — the package holds only this project's code and procedural art |
 | Logo / pictures | `preview.png` from a package (procedural art), or screenshots (below) |
 
-## 6. Store screenshots
+## 6. Store pictures
 
-Screenshots of this project's own output — renders of a map made from your files, the kind kept in
-`docs/img/` (≤ 2 MB each) — may be uploaded to the store pages (constitution I, 1.4.0). They never go
-into the repository outside `docs/img/`, into packages, release assets or build output. Never upload
-screenshots of the original game, its logos or its box art.
+The descriptions carry pictures inline: `[img]` links to `docs/img/` on raw.githubusercontent.com **at
+the release tag** (`…/heroes_III_ts/vX.Y.Z/docs/img/…`). They show only once the tag is pushed, so paste
+a description after the release exists. Their wording lives in [docs/store/](store/) (templates) and in
+`src/adapters/shared/strings.ts`; `yarn release texts` rebuilds them, `yarn verify store-texts` checks
+them (8000 bytes for both languages together).
+
+The galleries are uploaded by hand, the same files in this order:
+
+| # | File (`docs/img/`) | Caption |
+| --- | --- | --- |
+| 1 | `web-version.jpg` | The browser version with its settings panel, on the Wasteland of a HotA map |
+| 2 | `animation.gif` | Animated water, a whirlpool and a hero's flag |
+| 3 | `snow-town.png` | A snow town with heroes, mines and a windmill |
+| 4 | `underground.png` | An underground cave of Shadow Valleys |
+| 5 | `layers-objects.png` | Terrain, roads and objects as the game draws them |
+
+- **Steam**: the item page → **Add/edit images & videos** → upload 1–5. The item's main preview stays
+  the package's `preview.png` (set by the editor).
+- **KDE Store**: **Edit product** → pictures / gallery → upload 1–5 (the first becomes the product
+  picture).
+
+Only screenshots of this project's own output — renders made from your files, the kind kept in
+`docs/img/` (≤ 2 MB each, ≤ 10 MB in total) — may go to the store pages (constitution I, 1.4.0). They
+never go into packages, release assets or build output. Never upload screenshots of the original game,
+its logos or its box art. A new picture for the stores is added to `docs/img/` first.
 
 ## One-time repository settings
 

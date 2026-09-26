@@ -32,12 +32,16 @@ describe('store texts (spec 006 FR-011–FR-013)', () => {
     expect(texts[0]?.content).toBe('Heroes 3 Living Map\n')
   })
 
-  it('puts English before Russian with every required point (FR-012)', () => {
-    const steam = storeDescription('steam', links)
-    const kde = storeDescription('kde', links)
+  it('puts English before Russian with every required point (FR-012, FR-012a)', () => {
+    const steam = storeDescription('steam', links, '0.1.0')
+    const kde = storeDescription('kde', links, '0.1.0')
     for (const d of [steam, kde]) {
-      expect(d.indexOf('[b]English[/b]')).toBe(0)
-      expect(d.indexOf('[b]Русский[/b]')).toBeGreaterThan(d.indexOf('No game files are included'))
+      // A picture first, then English, the other pictures, then Russian.
+      expect(d.startsWith('[img]https://raw.githubusercontent.com/Alamion/heroes_III_ts/v0.1.0/docs/img/web-version.jpg[/img]')).toBe(true)
+      expect(d.indexOf('Анимированная')).toBeGreaterThan(d.indexOf('No game files are included'))
+      expect(d.indexOf('animation.gif')).toBeGreaterThan(d.indexOf('English and Russian'))
+      expect(d.indexOf('animation.gif')).toBeLessThan(d.indexOf('Анимированная'))
+      expect(d).toContain('Horn of the Abyss')
       expect(d).toContain(links.repository)
       expect(d).toContain(`[url=${links.issues}]`)
       expect(d).toContain('GitHub Issues')
@@ -51,17 +55,25 @@ describe('store texts (spec 006 FR-011–FR-013)', () => {
   })
 
   it('leaves out a store line without its page', () => {
-    expect(storeDescription('steam', none)).not.toContain('store.kde.org')
-    expect(storeDescription('kde', none)).not.toContain('steamcommunity')
+    expect(storeDescription('steam', none, '0.1.0')).not.toContain('store.kde.org')
+    expect(storeDescription('kde', none, '0.1.0')).not.toContain('steamcommunity')
   })
 
   it('fails a text over its limit, naming bytes and excess', () => {
-    const t = { name: 'workshop-description.bbcode', store: 'steam' as const, kind: 'description' as const, limit: 8000, content: 'ж'.repeat(4001) }
+    const t = { name: 'workshop-description.bbcode', store: 'steam' as const, kind: 'description' as const, limit: 8000, content: 'ж'.repeat(4001), version: '0.1.0' }
     expect(checkStoreText(t)).toEqual(['workshop-description.bbcode: 8002 bytes, 2 over the limit of 8000'])
   })
 
   it('rejects foreign links in descriptions and unsupported tags', () => {
-    const t = { name: 'kde-store-description.bbcode', store: 'kde' as const, kind: 'description' as const, limit: 8000, content: '[h2]x[/h2] https://example.com' }
+    const t = { name: 'kde-store-description.bbcode', store: 'kde' as const, kind: 'description' as const, limit: 8000, content: '[h2]x[/h2] https://example.com', version: '0.1.0' }
     expect(checkStoreText(t)).toHaveLength(3)
+  })
+
+  it('accepts only docs/img pictures at the version tag (FR-013)', () => {
+    const pic = (url: string) => checkStoreText({ name: 'd.bbcode', store: 'steam', kind: 'description', limit: 8000, content: `[img]${url}[/img]`, version: '0.1.0' })
+    expect(pic('https://raw.githubusercontent.com/Alamion/heroes_III_ts/v0.1.0/docs/img/snow-town.png')).toEqual([])
+    expect(pic('https://raw.githubusercontent.com/Alamion/heroes_III_ts/testing/docs/img/snow-town.png')[0]).toMatch(/at tag v0.1.0/)
+    expect(pic('https://raw.githubusercontent.com/Alamion/heroes_III_ts/v0.1.0/docs/img/missing.png')[0]).toMatch(/does not exist/)
+    expect(pic('https://example.com/a.png')[0]).toMatch(/not docs\/img/)
   })
 })

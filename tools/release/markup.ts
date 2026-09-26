@@ -4,7 +4,8 @@
 // store text can be checked before it is pasted.
 //
 // Blocks: `### heading`, paragraphs, `-` bullets with one nested level (two-space or four-space
-// indent). Inline: **bold**, *italic*, `code`, [text](url).
+// indent). Inline: **bold**, *italic*, `code`, [text](url). Store templates (spec 006 FR-012a) may
+// also hold picture lines `![alt](../img/<file>)`, pointing into docs/img/.
 
 export type Profile = 'markdown' | 'text' | 'steam' | 'kde'
 
@@ -24,9 +25,25 @@ interface ListItem {
   children: { text: string; line: number }[]
 }
 
-export type Block = { kind: 'heading'; text: string; line: number } | { kind: 'para'; text: string; line: number } | { kind: 'list'; items: ListItem[] }
+export type Block =
+  | { kind: 'heading'; text: string; line: number }
+  | { kind: 'para'; text: string; line: number }
+  | { kind: 'list'; items: ListItem[] }
+  | { kind: 'image'; alt: string; file: string; line: number }
 
-export function parseBlocks(source: string, firstLine = 1): Block[] {
+export interface ParseOptions {
+  /** Picture lines `![alt](../img/<file>)` (store templates only; never in changelog sections). */
+  images?: boolean
+}
+
+export interface RenderOptions {
+  /** URL of a picture in docs/img/ (required to render image blocks outside Markdown). */
+  imageUrl?: (file: string) => string
+}
+
+const IMAGE_LINE = /^!\[([^\]]*)\]\(\.\.\/img\/([\w.-]+)\)$/
+
+export function parseBlocks(source: string, firstLine = 1, opts: ParseOptions = {}): Block[] {
   const blocks: Block[] = []
   let para: { text: string[]; line: number } | undefined
   let list: ListItem[] | undefined
@@ -44,6 +61,13 @@ export function parseBlocks(source: string, firstLine = 1): Block[] {
     }
     const bullet = /^( *)- (.*)$/.exec(raw)
     const trimmed = raw.trim()
+    const image = opts.images === true ? IMAGE_LINE.exec(trimmed) : null
+    if (image !== null) {
+      flush()
+      blocks.push({ kind: 'image', alt: image[1] as string, file: image[2] as string, line })
+      return
+    }
+    if (opts.images === true && /^!\[/.test(trimmed)) throw new MarkupError(line, 'a picture is a line of its own: ![alt](../img/<file>)')
     if (bullet === null) {
       if (/^#{1,2} /.test(trimmed)) throw new MarkupError(line, 'only "###" headings are allowed inside a section')
       if (/^#{4,} /.test(trimmed)) throw new MarkupError(line, 'headings deeper than "###" are not supported')
@@ -125,8 +149,14 @@ export function renderInline(text: string, profile: Profile): string {
   return out.join('')
 }
 
-export function renderBlocks(blocks: readonly Block[], profile: Profile): string {
+export function renderBlocks(blocks: readonly Block[], profile: Profile, opts: RenderOptions = {}): string {
   const parts = blocks.map((b) => {
+    if (b.kind === 'image') {
+      if (profile === 'markdown') return `![${b.alt}](../img/${b.file})`
+      if (profile === 'text') return b.alt
+      if (opts.imageUrl === undefined) throw new Error('rendering a picture needs imageUrl')
+      return `[img]${opts.imageUrl(b.file)}[/img]`
+    }
     if (b.kind === 'heading') {
       const t = renderInline(b.text, profile)
       if (profile === 'markdown') return `### ${t}`
@@ -143,8 +173,8 @@ export function renderBlocks(blocks: readonly Block[], profile: Profile): string
   return parts.join('\n\n')
 }
 
-export function renderMarkup(source: string, profile: Profile, firstLine = 1): string {
-  return renderBlocks(parseBlocks(source, firstLine), profile)
+export function renderMarkup(source: string, profile: Profile, firstLine = 1, opts: ParseOptions & RenderOptions = {}): string {
+  return renderBlocks(parseBlocks(source, firstLine, opts), profile, opts)
 }
 
 /** The changelog rule for `yarn release check` (spec 006 T031); `line` is the section heading's line. */
@@ -155,8 +185,8 @@ export function validateChangelogMarkup(body: string, line: number): void {
 
 /** BBCode tags each store accepts (research R3; KDE: no tables, headings as bold). */
 export const ALLOWED_TAGS: Record<'steam' | 'kde', ReadonlySet<string>> = {
-  steam: new Set(['h1', 'h2', 'h3', 'b', 'i', 'u', 'url', 'list', '*', 'code', 'hr']),
-  kde: new Set(['b', 'i', 'u', 'url', 'list', '*', 'code']),
+  steam: new Set(['h1', 'h2', 'h3', 'b', 'i', 'u', 'url', 'list', '*', 'code', 'hr', 'img']),
+  kde: new Set(['b', 'i', 'u', 'url', 'list', '*', 'code', 'img']),
 }
 
 /** Problems of a BBCode text for a store: unknown tags and unbalanced ones. */

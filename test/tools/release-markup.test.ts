@@ -66,4 +66,16 @@ describe('markup subset (spec 006 research R3)', () => {
     expect(checkBbcode('[b]x', 'steam')).toEqual(['unclosed tags: [b]'])
     expect(checkBbcode('[b][i]x[/b][/i]', 'steam').length).toBeGreaterThan(0)
   })
+
+  it('renders pictures only where allowed (spec 006 FR-012a)', () => {
+    const src = 'Intro\n\n![A snowy town](../img/snow-town.png)\n\nMore'
+    const url = (f: string) => `https://raw.githubusercontent.com/Alamion/heroes_III_ts/v0.1.0/docs/img/${f}`
+    expect(renderMarkup(src, 'steam', 1, { images: true, imageUrl: url })).toBe('Intro\n\n[img]https://raw.githubusercontent.com/Alamion/heroes_III_ts/v0.1.0/docs/img/snow-town.png[/img]\n\nMore')
+    expect(renderMarkup(src, 'markdown', 1, { images: true })).toContain('![A snowy town](../img/snow-town.png)')
+    expect(checkBbcode(renderMarkup(src, 'kde', 1, { images: true, imageUrl: url }), 'kde')).toEqual([])
+    // Changelog sections never take pictures, and a picture must be a line of its own in docs/img/.
+    expect(() => validateChangelogMarkup(src, 1)).toThrow(/images/)
+    expect(() => renderMarkup('see ![x](../img/a.png) here', 'steam', 1, { images: true, imageUrl: url })).toThrow(/images are not supported/)
+    expect(() => renderMarkup('![x](https://example.com/a.png)', 'steam', 1, { images: true, imageUrl: url })).toThrow(/line of its own/)
+  })
 })
