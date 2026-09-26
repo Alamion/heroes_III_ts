@@ -7,7 +7,7 @@ import type { Atlas } from '../core/render/atlas.ts'
 import { centeredCamera, clampCamera } from '../core/render/camera.ts'
 import type { Camera } from '../core/render/camera.ts'
 import { TerrainRenderer } from '../core/render/webgl-renderer.ts'
-import type { FrameAnimation, RendererStats } from '../core/render/webgl-renderer.ts'
+import type { FrameAnimation, ObjectLayer, RendererStats } from '../core/render/webgl-renderer.ts'
 import type { DrawListEntry } from '../core/render/object-plan.ts'
 import { placeView } from '../core/render/view-placement.ts'
 import type { LevelChoice, ViewPlacement } from '../core/render/view-placement.ts'
@@ -69,7 +69,19 @@ export interface EngineStatus {
   diagnostics: Diagnostic[]
 }
 
+/** Handle of a map prepared off-screen (spec 007 contracts/engine-api.md). */
+export interface PreparedMap {
+  readonly name: string
+  readonly identity: string
+  readonly size: number
+  readonly levels: number
+}
+
+export type PrepareResult = { ok: true; prepared: PreparedMap; fromCache: boolean; warnings: Diagnostic[] } | Extract<LoadResult, { ok: false }>
+
 export interface EngineStats extends RendererStats {
+  /** Prepared maps not yet shown or discarded (spec 007; 0 or 1 in normal use). */
+  preparedMaps: number
   scheduledFrames: number
   pendingCallbacks: number
   surface: { width: number; height: number }
@@ -89,6 +101,18 @@ export interface Engine {
    */
   loadHotaArchive(file: Blob, name?: string): Promise<LoadResult>
   loadMap(file: Blob, name?: string): Promise<LoadResult>
+  /**
+   * Spec 007: parses a map and builds its object layer without touching what is shown; the current map
+   * keeps rendering. A newer prepareMap or an archive change supersedes it (error code SUPERSEDED).
+   */
+  prepareMap(file: Blob, name?: string): Promise<PrepareResult>
+  /**
+   * Shows a prepared map in one step: terrain, objects and camera change before the next frame and the
+   * previous map is released. Undefined when the handle is stale (superseded, archives changed, shown).
+   */
+  showPreparedMap(prepared: PreparedMap, level: LevelChoice, placement: ViewPlacement): { level: number; fx: number; fy: number } | undefined
+  /** Drops a prepared map that will not be shown. */
+  discardPreparedMap(prepared: PreparedMap): void
   /** h3bitmap.lod: Objects.txt, artraits.txt and game.pal; objects are drawn only with it. */
   loadDataArchive(file: Blob, name?: string): Promise<LoadResult>
   setObjectsVisible(visible: boolean): void
@@ -175,7 +199,11 @@ export function createEngine(options: EngineOptions): Engine {
   let dpr = 1
   let userScale: UserScale = 1
   /** Load generation per slot: a result is applied only if no newer load of that slot started. */
-  const generations = { archive: 0, data: 0, map: 0 }
+  const generations = { archive: 0, data: 0, map: 0, prepare: 0 }
+  /** Worlds by identity for decoding on the main thread (the worker keeps its own, spec 007). */
+  const localWorlds = new Map<string, WorldState>()
+  /** Maps prepared off-screen (spec 007), with what showPreparedMap needs. */
+  const preparedMaps = new Map<PreparedMap, { world: WorldState; objects: ObjectLayer | undefined; objectsKey: string | undefined; generation: number }>()
   let visible = true
   let paused = false
   let contextLost = false
@@ -235,15 +263,22 @@ export function createEngine(options: EngineOptions): Engine {
           return { id: 0, kind: 'dataArchiveReady', ...r }
         }
         if (req.kind === 'buildObjects') {
-          if (world === undefined) throw new Error('no map loaded')
-          const r = await decodeObjects(req.sprites, req.data, { world, identity: req.mapIdentity }, req.seed, cache, req.pageSize)
+          const w = localWorlds.get(req.mapIdentity) ?? world
+          if (w === undefined) throw new Error('no map loaded')
+          const r = await decodeObjects(req.sprites, req.data, { world: w, identity: req.mapIdentity }, req.seed, cache, req.pageSize)
           return { id: 0, kind: 'objectsReady', ...r }
         }
+        if (req.kind === 'dropMap') {
+          localWorlds.delete(req.identity)
+          return { id: 0, kind: 'mapDropped' }
+        }
         const r = await decodeMap(req.file, req.name, cache)
+        if (req.keep !== 'add') localWorlds.clear()
+        localWorlds.set(r.identity, r.world)
         return { id: 0, kind: 'mapReady', ...r }
       } catch (err) {
         const e = err as { toJSON?: () => SerializedFormatError }
-        const where = 'name' in req ? req.name : 'files' in req ? ((req.files[req.files.length - 1] as ArchiveFileMsg).name) : ((req.data.files[req.data.files.length - 1] as ArchiveFileMsg).name)
+        const where = req.kind === 'dropMap' ? req.identity : 'name' in req ? req.name : 'files' in req ? ((req.files[req.files.length - 1] as ArchiveFileMsg).name) : ((req.data.files[req.data.files.length - 1] as ArchiveFileMsg).name)
         return { id: 0, kind: 'failed', error: typeof e.toJSON === 'function' ? e.toJSON() : { level: 'error', code: 'INTERNAL', message: String(err), file: where } }
       }
     }
@@ -268,6 +303,13 @@ export function createEngine(options: EngineOptions): Engine {
   const fileName = (file: Blob, name: string | undefined): string => name ?? (file instanceof File ? file.name : 'unnamed')
   const superseded = (n: string): LoadResult => ({ ok: false, error: { level: 'warn', code: SUPERSEDED, message: `a newer file replaced ${n} while it was loading`, file: n } })
 
+  /** Identity of an object layer; undefined while either archive is missing. */
+  const objectsKeyFor = (identity: string, pageSize: number): string | undefined =>
+    spriteFile === undefined || dataFile === undefined ? undefined : `${spriteFile.identity}:${dataFile.identity}:${identity}:${seed}:${pageSize}`
+  const dropWorld = (identity: string): void => {
+    void run({ kind: 'dropMap', identity }).catch((err: unknown) => log.warn('could not drop a decoded map', String(err)))
+  }
+
   /** Builds the object layer once sprite archive, data archive and map are loaded. */
   const refreshObjects = async (): Promise<void> => {
     if (options.objects === false || world === undefined || spriteFile === undefined || mapIdentity === undefined) return
@@ -286,7 +328,7 @@ export function createEngine(options: EngineOptions): Engine {
       return
     }
     const pageSize = objectPageSize(renderer.maxTextureSize())
-    const key = `${spriteFile.identity}:${dataFile.identity}:${mapIdentity}:${seed}:${pageSize}`
+    const key = objectsKeyFor(mapIdentity, pageSize) as string
     if (key === objectsKey) return
     objectsKey = key
     renderer.setObjects(undefined)
@@ -368,6 +410,74 @@ export function createEngine(options: EngineOptions): Engine {
       refreshReady()
       await scheduleObjects()
       return { ok: true, identity: r.identity, fromCache: r.fromCache, warnings: r.warnings }
+    },
+    async prepareMap(file, name) {
+      const n = fileName(file, name)
+      const gen = ++generations.prepare
+      const archivesAtStart = `${spriteFile?.identity ?? ''}|${dataFile?.identity ?? ''}|${hotaFile?.name ?? ''}`
+      const archivesNow = (): string => `${spriteFile?.identity ?? ''}|${dataFile?.identity ?? ''}|${hotaFile?.name ?? ''}`
+      const r = await run({ kind: 'openMap', file, name: n, useCache: options.cache !== false, keep: 'add' })
+      if (r.kind === 'failed') return { ok: false, error: r.error }
+      if (r.kind !== 'mapReady') return { ok: false, error: { level: 'error', code: 'PROTOCOL', message: 'unexpected worker reply' } }
+      const stale = (): boolean => gen !== generations.prepare || archivesNow() !== archivesAtStart
+      const giveUp = (): Extract<LoadResult, { ok: false }> => {
+        if (r.identity !== mapIdentity) dropWorld(r.identity)
+        return superseded(n) as Extract<LoadResult, { ok: false }>
+      }
+      if (stale()) return giveUp()
+      const warnings = [...r.warnings]
+      let objects: ObjectLayer | undefined
+      const pageSize = objectPageSize(renderer.maxTextureSize())
+      const objectsKey = objectsKeyFor(r.identity, pageSize)
+      if (options.objects !== false && objectsKey !== undefined && spriteFile !== undefined && dataFile !== undefined) {
+        const o = await run({ kind: 'buildObjects', sprites: spriteFile, data: dataFile, mapIdentity: r.identity, seed, pageSize, useCache: options.cache !== false })
+        if (stale()) return giveUp()
+        if (o.kind === 'failed') {
+          if (r.identity !== mapIdentity) dropWorld(r.identity)
+          return { ok: false, error: o.error }
+        }
+        if (o.kind !== 'objectsReady') return giveUp()
+        warnings.push(...o.warnings)
+        objects = { index: new ObjectIndex(o.objects, r.world.size, r.world.levels), atlas: o.atlas, flagColors: o.flagColors }
+      }
+      // A newer prepare replaces an older one that was never shown.
+      for (const older of [...preparedMaps.keys()]) {
+        preparedMaps.delete(older)
+        if (older.identity !== r.identity && older.identity !== mapIdentity) dropWorld(older.identity)
+      }
+      const handle: PreparedMap = { name: n, identity: r.identity, size: r.world.size, levels: r.world.levels }
+      preparedMaps.set(handle, { world: r.world, objects, objectsKey: objects === undefined ? undefined : objectsKey, generation: gen })
+      return { ok: true, prepared: handle, fromCache: r.fromCache, warnings }
+    },
+    showPreparedMap(handle, level, placement) {
+      const p = preparedMaps.get(handle)
+      if (p === undefined) return undefined
+      preparedMaps.delete(handle)
+      const pageSize = objectPageSize(renderer.maxTextureSize())
+      const keyNow = objectsKeyFor(handle.identity, pageSize)
+      // Archives changed since the objects were built: the caller prepares again.
+      if (p.objects !== undefined && p.objectsKey !== keyNow) {
+        if (handle.identity !== mapIdentity) dropWorld(handle.identity)
+        return undefined
+      }
+      const previous = mapIdentity
+      // Any map load still in flight is older than this map.
+      generations.map++
+      world = p.world
+      renderer.replaceMap(p.world, p.objects)
+      status.map = handle.name
+      mapIdentity = handle.identity
+      objectsKey = p.objectsKey
+      const placed = engine.placeView(level, placement)
+      if (previous !== undefined && previous !== handle.identity) dropWorld(previous)
+      refreshReady()
+      // Without objects (no data archive yet) the usual path reports or builds them.
+      if (p.objects === undefined) void scheduleObjects()
+      return placed
+    },
+    discardPreparedMap(handle) {
+      if (!preparedMaps.delete(handle)) return
+      if (handle.identity !== mapIdentity) dropWorld(handle.identity)
     },
     async loadDataArchive(file, name) {
       const n = fileName(file, name)
@@ -464,6 +574,7 @@ export function createEngine(options: EngineOptions): Engine {
     status: () => ({ ...status, diagnostics: [...status.diagnostics] }),
     stats: () => ({
       ...renderer.getStats(),
+      preparedMaps: preparedMaps.size,
       scheduledFrames: scheduler.frames,
       pendingCallbacks: scheduler.pending,
       surface: { width: canvas.width, height: canvas.height },

@@ -31,6 +31,14 @@ export interface OpenOptions {
   /** Delay the page's read of a file whose name ends with the key (ms); see TestOptions.readDelays. */
   readDelays?: Record<string, number>
   viewport?: { width: number; height: number }
+  /** See TestOptions.timeScale (spec 007 invariant 19). */
+  timeScale?: number
+}
+
+/** A synthetic map folder (spec 007): the folder itself and the same maps as a .zip. */
+export interface HostFolder {
+  dir: string
+  zip: string
 }
 
 export interface HostPage {
@@ -51,6 +59,13 @@ export interface HostDriver {
   setPaused(hp: HostPage, paused: boolean): Promise<void>
   /** Uses the host's "new random place now" control. */
   newRandomPlace(hp: HostPage): Promise<void>
+  /**
+   * Spec 007: sets the map source to a folder the host way — a folder path (Wallpaper Engine, KDE), a
+   * .zip copied by "Browse" (Lively), the folder picker (browser).
+   */
+  supplyFolder(hp: HostPage, folder: HostFolder): Promise<void>
+  /** Uses the host's "next map now" control. */
+  nextMap(hp: HostPage): Promise<void>
   setLanguage?(hp: HostPage, tag: string): Promise<void>
   dispose(): Promise<void>
 }
@@ -64,7 +79,13 @@ async function newHostPage(browser: Browser, opts: OpenOptions): Promise<HostPag
   await page.addInitScript((o) => {
     const w = window as unknown as Record<string, unknown>
     w.__h3testHook = true
-    w.__h3testOptions = { seed: o.seed, clockMs: o.clockMs, ...(o.noCache === true ? { noCache: true } : {}), ...(o.readDelays !== undefined ? { readDelays: o.readDelays } : {}) }
+    w.__h3testOptions = {
+      seed: o.seed,
+      clockMs: o.clockMs,
+      ...(o.noCache === true ? { noCache: true } : {}),
+      ...(o.readDelays !== undefined ? { readDelays: o.readDelays } : {}),
+      ...(o.timeScale !== undefined ? { timeScale: o.timeScale } : {}),
+    }
     w.__cspViolations = []
     document.addEventListener('securitypolicyviolation', (e) => (w.__cspViolations as string[]).push(`${e.violatedDirective} ${e.blockedURI}`))
     if (o.noCache === true) {
@@ -145,6 +166,13 @@ export async function webDriver(browser: Browser, packageDir: string): Promise<H
     async newRandomPlace(hp) {
       await hp.page.click('#h3p-viewreroll')
     },
+    async supplyFolder(hp, folder) {
+      // The panel's folder picker hands over every file with its relative path (webkitdirectory).
+      await hp.page.setInputFiles('#h3p-folder-input', folder.dir)
+    },
+    async nextMap(hp) {
+      await hp.page.keyboard.press('n')
+    },
     dispose: () => server.close(),
   }
 }
@@ -163,6 +191,7 @@ export async function wallpaperEngineDriver(browser: Browser, packageDir: string
   const url = pathToFileURL(resolve(packageDir, 'index.html')).href
   // The action checkbox: every toggle is a click.
   const toggles = new Map<HostPage, boolean>()
+  const nextToggles = new Map<HostPage, boolean>()
   return {
     host: 'wallpaper-engine',
     supportsMissingPath: true,
@@ -194,6 +223,15 @@ export async function wallpaperEngineDriver(browser: Browser, packageDir: string
       const value = !(toggles.get(hp) ?? false)
       toggles.set(hp, value)
       await hp.page.evaluate((v) => (window as unknown as { wallpaperPropertyListener: { applyUserProperties(p: unknown): void } }).wallpaperPropertyListener.applyUserProperties({ viewreroll: { value: v } }), value)
+    },
+    async supplyFolder(hp, folder) {
+      // WE's CEF cannot list a folder (2026-09-25 Windows session): the user enters a .zip of the maps.
+      await hp.page.evaluate((p) => (window as unknown as { wallpaperPropertyListener: { applyUserProperties(p: unknown): void } }).wallpaperPropertyListener.applyUserProperties(p), { mapsource: { value: 'folder' }, mapfolder: { value: folder.zip } })
+    },
+    async nextMap(hp) {
+      const value = !(nextToggles.get(hp) ?? false)
+      nextToggles.set(hp, value)
+      await hp.page.evaluate((v) => (window as unknown as { wallpaperPropertyListener: { applyUserProperties(p: unknown): void } }).wallpaperPropertyListener.applyUserProperties({ mapnext: { value: v } }), value)
     },
     dispose: async () => {},
   }
@@ -248,6 +286,17 @@ export async function livelyDriver(browser: Browser, packageDir: string): Promis
     async newRandomPlace(hp) {
       await deliver(hp, 'viewreroll', true)
     },
+    async supplyFolder(hp, folder) {
+      // Lively has no folder property: "Browse" copies the .zip of the maps (research R1).
+      mkdirSync(join(dir, 'userfiles'), { recursive: true })
+      const name = basename(folder.zip)
+      copyFileSync(folder.zip, join(dir, 'userfiles', name))
+      await deliver(hp, 'mapsource', toLively('mapsource', 'folder'))
+      await deliver(hp, 'mapfolder', `userfiles\\${name}`)
+    },
+    async nextMap(hp) {
+      await deliver(hp, 'mapnext', true)
+    },
     dispose: async () => {
       await server.close()
       rmSync(dir, { recursive: true, force: true })
@@ -269,7 +318,7 @@ export async function kdeDriver(browser: Browser, packageDir: string): Promise<H
       const hp = await newHostPage(browser, opts)
       await hp.page.goto(url)
       await hp.page.waitForFunction(() => (window as unknown as { __h3wallpaper?: unknown }).__h3wallpaper !== undefined)
-      config.set(hp, { settings: { spritearchive: '', dataarchive: '', mapfile: '', level: 'random', viewmode: 'random', viewx: 50, viewy: 50, scale: '1', objects: true, viewreroll: 0 }, language: opts.locale })
+      config.set(hp, { settings: { spritearchive: '', dataarchive: '', mapfile: '', level: 'random', viewmode: 'random', viewx: 50, viewy: 50, scale: '1', objects: true, viewreroll: 0, mapnext: 0 }, language: opts.locale })
       await apply(hp)
       return hp
     },
@@ -288,6 +337,15 @@ export async function kdeDriver(browser: Browser, packageDir: string): Promise<H
     async newRandomPlace(hp) {
       const c = config.get(hp) as { settings: Record<string, unknown> }
       c.settings.viewreroll = Number(c.settings.viewreroll ?? 0) + 1
+      await apply(hp)
+    },
+    async supplyFolder(hp, folder) {
+      Object.assign((config.get(hp) as { settings: Record<string, unknown> }).settings, { mapsource: 'folder', mapfolder: pathToFileURL(folder.dir).href })
+      await apply(hp)
+    },
+    async nextMap(hp) {
+      const c = config.get(hp) as { settings: Record<string, unknown> }
+      c.settings.mapnext = Number(c.settings.mapnext ?? 0) + 1
       await apply(hp)
     },
     async setLanguage(hp, tag) {

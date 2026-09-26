@@ -100,3 +100,75 @@ export async function packageStartEntries(browser: Browser, fileBrowser: Browser
   }
   return out
 }
+
+type FolderPage = { __h3wallpaper: { controller: { state(): { phase: string; folder: { shown: { path: string } | null; switching: boolean } | null; engine: { framesPresented: number; gpuBytes: number } | null }; nextMap(): void } } }
+
+/**
+ * Spec 007 SC-001, research R6: the Wallpaper Engine package started with a map folder instead of one
+ * map (first map within the start-up budgets, the same seed so the warm start shows the same map), and
+ * the peak of JS heap + GPU memory across map switches within the memory budget.
+ */
+export async function folderStartEntries(fileBrowser: Browser, outDir: string, files: { archive: string; dataArchive: string }, folder: string, label: string, viewport: { width: number; height: number }, rate: number): Promise<BudgetEntry[]> {
+  if (!existsSync(join(outDir, 'wallpaper-engine'))) return [{ id: 'folder-warm-start', status: 'skip', note: 'Wallpaper Engine package not built' }]
+  const url = pathToFileURL(resolve(outDir, 'wallpaper-engine', 'index.html')).href
+  const context = await fileBrowser.newContext({ viewport, screen: viewport, deviceScaleFactor: 1 })
+  const start = async (): Promise<{ page: Page; ms: number }> => {
+    const page = await throttled(context, rate)
+    await page.addInitScript(() => {
+      ;(window as unknown as { __h3testOptions: unknown }).__h3testOptions = { seed: 20260925 }
+    })
+    await page.goto(url)
+    await page.waitForFunction(() => (window as unknown as Partial<FolderPage>).__h3wallpaper !== undefined)
+    const t0 = await page.evaluate(() => performance.now())
+    await page.evaluate(
+      (f) =>
+        (window as unknown as { wallpaperPropertyListener: { applyUserProperties(p: unknown): void } }).wallpaperPropertyListener.applyUserProperties({
+          spritearchive: { value: f.archive },
+          dataarchive: { value: f.dataArchive },
+          mapsource: { value: 'folder' },
+          mapfolder: { value: f.folder },
+        }),
+      { ...files, folder },
+    )
+    await page.waitForFunction(
+      () => {
+        const s = (window as unknown as FolderPage).__h3wallpaper.controller.state()
+        return s.phase === 'showing' && s.folder?.shown != null && (s.engine?.framesPresented ?? 0) > 0
+      },
+      null,
+      { timeout: 120_000, polling: 20 },
+    )
+    return { page, ms: (await page.evaluate(() => performance.now())) - t0 }
+  }
+  try {
+    const cold = await start()
+    await cold.page.close()
+    const warm = await start()
+    // Peak memory while switching: sampled every 25 ms over five switches.
+    const peak = await warm.page.evaluate(async () => {
+      const c = (window as unknown as FolderPage).__h3wallpaper.controller
+      const mem = () => ((performance as unknown as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? 0) + (c.state().engine?.gpuBytes ?? 0)
+      let max = mem()
+      const timer = setInterval(() => (max = Math.max(max, mem())), 25)
+      for (let i = 0; i < 5; i++) {
+        const before = c.state().folder?.shown?.path
+        c.nextMap()
+        const t = performance.now()
+        while (performance.now() - t < 30_000) {
+          await new Promise((r) => setTimeout(r, 25))
+          const f = c.state().folder
+          if (f !== null && f.shown?.path !== before && !f.switching) break
+        }
+      }
+      clearInterval(timer)
+      return max
+    })
+    return [
+      entry('cold-start', cold.ms, LIMITS.coldStartMs, 'ms', `${label} (package:wallpaper-engine, folder)`, 'listing, first header and first map'),
+      entry('warm-start', warm.ms, LIMITS.warmStartMs, 'ms', `${label} (package:wallpaper-engine, folder)`, 'same seed, so the same first map from the cache'),
+      entry('memory', peak, LIMITS.memoryBytes, 'bytes', `${label} (package:wallpaper-engine, folder)`, 'peak JS heap + GPU over five map switches'),
+    ]
+  } finally {
+    await context.close()
+  }
+}

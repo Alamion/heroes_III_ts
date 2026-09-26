@@ -26,7 +26,13 @@ export const DISPLAY_KEYS: readonly string[] = [NOTICE_KEY, SPACER_KEY]
 const FILE_DEFAULTS: Partial<Record<SettingDef['key'], string>> = {
   spritearchive: 'game/H3sprite.lod',
   dataarchive: 'game/h3bitmap.lod',
+  // Spec 007: WE's CEF cannot list a file:// folder (2026-09-25 Windows session), so the folder source
+  // needs a .zip of the maps; its name follows the README convention next to the archives.
+  mapfolder: 'game/maps.zip',
 }
+
+/** Settings ordered before this belong to the files-and-maps group the spacer closes. */
+const VIEW_GROUP_ORDER = 4
 
 /**
  * Panel elements follow the working Workshop pattern (owner-provided project.json, 2026-09-19):
@@ -44,8 +50,8 @@ function property(def: SettingDef | ActionDef): Record<string, unknown> {
   // Wallpaper Engine's file dialog accepts images and videos only (official docs; measured in the
   // 2026-09-19 Windows session): a text input takes a wallpaper-folder-relative path instead, and the
   // page normalises it like any host file value (research.md R4).
-  if (def.type === 'file') return { ...base, type: 'textinput', value: FILE_DEFAULTS[def.key] ?? '' }
-  if (def.type === 'enum') return { ...base, type: 'combo', value: def.default, options: def.options.map((o) => ({ label: token(o.label), value: o.value })) }
+  if (def.type === 'file') return { ...base, type: 'textinput', value: FILE_DEFAULTS[def.key] ?? '', ...condition(def) }
+  if (def.type === 'enum') return { ...base, type: 'combo', value: def.default, options: def.options.map((o) => ({ label: token(o.label), value: o.value })), ...condition(def) }
   if (def.type === 'int' && def.input === 'number') {
     // Wallpaper Engine has no number field: a text input, validated by the page.
     return {
@@ -83,8 +89,8 @@ export function usedKeys(): StringKey[] {
 export function projectJson(): Record<string, unknown> {
   // Dense integer orders from 100 (Workshop pattern): the notice leads (its text ends with a <br>
   // for the gap after it) and a <br></br> element separates the file settings from the rest.
-  const defs = [...SETTINGS, ...ACTIONS]
-  const afterFiles = Math.max(...defs.map((d, i) => (d.type === 'file' ? i + 1 : 0)))
+  const defs = [...SETTINGS, ...ACTIONS].sort((a, b) => a.order - b.order)
+  const afterFiles = defs.findIndex((d) => d.order >= VIEW_GROUP_ORDER)
   let order = 99
   const next = (): number => ++order
   const properties: Record<string, unknown> = {

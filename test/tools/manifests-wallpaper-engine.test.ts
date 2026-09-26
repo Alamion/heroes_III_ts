@@ -30,7 +30,9 @@ describe('Wallpaper Engine project.json (spec 004 FR-014)', () => {
     expect(orders).toEqual([...orders].sort((a, b) => a - b))
     expect(orders[0]).toBe(100)
     expect(props.spacer).toMatchObject({ type: 'text', text: 'ui_spacer_wallpaper_engine' })
-    expect(props.spacer?.order).toBe((props.mapfile?.order ?? 0) + 1)
+    // The spacer closes the files-and-maps group (spec 007 adds the folder settings to it).
+    expect(props.spacer?.order).toBe((props.mapnext?.order ?? 0) + 1)
+    expect(props.mapfile?.order).toBeLessThan(props.mapfolder?.order ?? 0)
     expect(props.level?.order).toBe((props.spacer?.order ?? 0) + 1)
     for (const locale of ['en-us', 'ru-ru']) expect(pj.general.localization[locale].ui_spacer_wallpaper_engine).toBe('<br></br>')
   })
@@ -60,6 +62,14 @@ describe('Wallpaper Engine project.json (spec 004 FR-014)', () => {
     }
     expect(props.viewx?.condition).toBe('viewmode.value == "coords"')
     expect(props.viewinterval?.condition).toBe('viewmode.value == "random"')
+  })
+
+  it('shows the folder settings only with the folder source (spec 007)', () => {
+    expect(props.mapfile?.condition).toBe('mapsource.value == "single"')
+    for (const key of ['mapfolder', 'maprotation', 'mapsizemin', 'mapsizemax', 'mapunderground', 'mapnext']) expect(props[key]?.condition, key).toBe('mapsource.value == "folder"')
+    expect(props.mapfolder).toMatchObject({ type: 'textinput', value: 'game/maps.zip' })
+    expect(props.mapnext).toMatchObject({ type: 'bool', value: false })
+    expect(props.mapsource).toMatchObject({ type: 'combo', value: 'single' })
   })
 
   it('localizes every token in en-us and ru-ru', () => {

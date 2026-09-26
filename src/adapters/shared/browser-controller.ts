@@ -7,6 +7,7 @@ import { createEngine } from '../../runtime/engine.ts'
 import type { Engine } from '../../runtime/engine.ts'
 import { classifyFile } from '../../runtime/file-kind.ts'
 import { installLogger } from '../../runtime/logger.ts'
+import { openCatalogueAt } from '../../runtime/catalogue.ts'
 import { createController } from './controller.ts'
 import type { HostName, RememberedFiles, WallpaperController } from './controller.ts'
 import { browserReadDeps, readUserFile } from './file-url.ts'
@@ -24,6 +25,11 @@ export interface TestOptions {
    * force the order in which host files arrive (invariant 13). Test mode only.
    */
   readDelays?: Record<string, number>
+  /**
+   * Real milliseconds per controller millisecond (spec 007 invariant 19): 1/600 turns the one-minute map
+   * interval into 100 ms, so a check can watch the map timer without waiting. Test mode only.
+   */
+  timeScale?: number
 }
 
 declare global {
@@ -41,6 +47,10 @@ export interface BrowserControllerOptions {
   fileUrl: (value: string) => string | null
   remembered?: RememberedFiles
   workerFactory?: () => Worker
+  /** false: the host cannot open a map folder from its settings (the browser supplies folders itself). */
+  folderSettings?: boolean
+  /** false: the host cannot list a file:// folder, so its folder setting must name a .zip (Wallpaper Engine). */
+  folderListing?: boolean
 }
 
 function testMode(): boolean {
@@ -87,6 +97,12 @@ export function createBrowserController(opts: BrowserControllerOptions): Browser
   installLogger({ level: test ? 'info' : 'warn' })
   const clock = testOptions.clockMs !== undefined ? new ManualClock(testOptions.clockMs) : undefined
   let engine: Engine | undefined
+  const timeScale = testOptions.timeScale !== undefined && testOptions.timeScale > 0 ? testOptions.timeScale : 1
+  const readFile = (url: string): Promise<Blob> => {
+    const read = readUserFile(url, browserReadDeps())
+    const delay = Object.entries(testOptions.readDelays ?? {}).find(([name]) => decodeURIComponent(url).endsWith(name))?.[1] ?? 0
+    return delay === 0 ? read : read.then((blob) => new Promise<Blob>((resolve) => window.setTimeout(() => resolve(blob), delay)))
+  }
   const controller = createController({
     host: opts.host,
     createEngine: () => {
@@ -100,15 +116,13 @@ export function createBrowserController(opts: BrowserControllerOptions): Browser
       return engine
     },
     fileUrl: opts.fileUrl,
-    readFile: (url) => {
-      const read = readUserFile(url, browserReadDeps())
-      const delay = Object.entries(testOptions.readDelays ?? {}).find(([name]) => decodeURIComponent(url).endsWith(name))?.[1] ?? 0
-      return delay === 0 ? read : read.then((blob) => new Promise<Blob>((resolve) => window.setTimeout(() => resolve(blob), delay)))
-    },
+    readFile,
+    // Spec 007: a folder value is listed through the page's own reader, or read as a .zip.
+    ...(opts.folderSettings !== false ? { openCatalogue: (url: string, name: string) => openCatalogueAt(url, name, { readFile, listing: opts.folderListing !== false }) } : {}),
     classify: classifyFile,
     overlay: createOverlay(opts.overlayRoot),
-    timers: { set: (cb, ms) => window.setTimeout(cb, ms), clear: (h) => window.clearTimeout(h) },
-    now: () => performance.now(),
+    timers: { set: (cb, ms) => window.setTimeout(cb, ms * timeScale), clear: (h) => window.clearTimeout(h) },
+    now: () => performance.now() / timeScale,
     seed: testOptions.seed ?? randomSeed(),
     environmentLanguage: () => navigator.language ?? null,
     cacheAvailable: probeCache,

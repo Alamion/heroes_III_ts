@@ -2,8 +2,8 @@
 // failure (private mode, quota, blocked) degrades to a cache miss with a warning.
 
 import { log } from '../core/util/log.ts'
-import { CACHE_SCHEMA, CACHE_STORES, noCache } from './cache-key.ts'
-import type { CacheStore, DecodedCache } from './cache-key.ts'
+import { CACHE_SCHEMA, CACHE_STORES, evictionVictims, noCache } from './cache-key.ts'
+import type { CacheStore, DecodedCache, RecentMap } from './cache-key.ts'
 
 export { cacheKey, CACHE_SCHEMA, CACHE_STORES, noCache } from './cache-key.ts'
 export type { CacheStore, DecodedCache } from './cache-key.ts'
@@ -65,6 +65,28 @@ class IdbCache implements DecodedCache {
       await request(db.transaction(store, 'readwrite').objectStore(store).put(value, key))
     } catch (err) {
       log.warn(`cache write failed for ${key}`, String(err))
+    }
+  }
+
+  async noteMapUse(mapIdentity: string, store: 'world' | 'objects', key: string): Promise<void> {
+    try {
+      const db = await this.open()
+      if (db === undefined) return
+      const tx = db.transaction(['recent', 'world', 'objects'], 'readwrite')
+      const recentStore = tx.objectStore('recent')
+      const entry = ((await request(recentStore.get(mapIdentity))) as RecentMap | undefined) ?? { lastUsed: 0, keys: [] }
+      if (!entry.keys.some((k) => k.store === store && k.key === key)) entry.keys.push({ store, key })
+      entry.lastUsed = Date.now()
+      await request(recentStore.put(entry, mapIdentity))
+      const ids = (await request(recentStore.getAllKeys())) as string[]
+      const values = (await request(recentStore.getAll())) as RecentMap[]
+      const recent = new Map(ids.map((id, i) => [id, values[i] as RecentMap]))
+      for (const victim of evictionVictims(recent)) {
+        for (const k of recent.get(victim)?.keys ?? []) await request(tx.objectStore(k.store).delete(k.key))
+        await request(recentStore.delete(victim))
+      }
+    } catch (err) {
+      log.warn(`cache bookkeeping failed for ${mapIdentity}`, String(err))
     }
   }
 

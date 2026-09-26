@@ -13,6 +13,18 @@ describe('host file values to URLs (spec 004 R4)', () => {
     expect(weFileUrl('/home/u/Maps/a b.h3m')).toBe('file:///home/u/Maps/a%20b.h3m')
   })
 
+  it('resolves Wallpaper Engine paths relative to the wallpaper folder to encoded file: URLs', () => {
+    const base = 'file:///C:/Program%20Files%20(x86)/Steam/steamapps/common/wallpaper_engine/projects/myprojects/h3dynam'
+    expect(weFileUrl('game/maps', base)).toBe(`${base}/game/maps`)
+    expect(weFileUrl('game/maps/', base)).toBe(`${base}/game/maps/`)
+    expect(weFileUrl('game/HotA.lod', base)).toBe(`${base}/game/HotA.lod`)
+    expect(weFileUrl('game/По праву силы.h3m', base)).toBe(`${base}/game/%D0%9F%D0%BE%20%D0%BF%D1%80%D0%B0%D0%B2%D1%83%20%D1%81%D0%B8%D0%BB%D1%8B.h3m`)
+    // A `#` in a relative value must not become a fragment.
+    expect(weFileUrl('game/a#b.h3m', base)).toBe(`${base}/game/a%23b.h3m`)
+    // Outside a browser (checks) a relative value still becomes a file: URL, never a fetch() URL.
+    expect(weFileUrl('game/maps')).toBe('file:///game/maps')
+  })
+
   it('maps Lively folderDropdown values to relative URLs', () => {
     expect(livelyFileUrl('userfiles\\H3sprite.lod')).toBe('userfiles/H3sprite.lod')
     expect(livelyFileUrl('userfiles\\По праву силы.h3m')).toBe('userfiles/%D0%9F%D0%BE%20%D0%BF%D1%80%D0%B0%D0%B2%D1%83%20%D1%81%D0%B8%D0%BB%D1%8B.h3m')

@@ -4,6 +4,8 @@
 
 import { terrainLayerDefs } from '../core/data/terrain.ts'
 import { KNOWN_OTHER_VERSIONS, versionFromCode } from '../core/formats/h3m/h3m.ts'
+import { readMapSummary } from '../core/formats/h3m/summary.ts'
+import type { MapSummary } from '../core/formats/h3m/summary.ts'
 import type { H3mVersion } from '../core/formats/h3m/types.ts'
 import { LodArchive } from '../core/formats/lod/lod.ts'
 import { DATA_ARCHIVE_ENTRIES } from './decode.ts'
@@ -88,4 +90,14 @@ export async function classifyFile(blob: Blob, name = 'file'): Promise<FileKind>
   const raw = mapKind(head)
   // An uncompressed map must at least look like one; random bytes stay unknown.
   return raw.kind === 'map' ? raw : { kind: 'unknown' }
+}
+
+/**
+ * The map's summary (spec 007 research R4) from at most MAP_PROBE_BYTES of inflated data, so a map
+ * folder can be filtered without parsing whole maps. Throws the reader's FormatError.
+ */
+export async function summarizeMapFile(blob: Blob, name = 'map'): Promise<MapSummary> {
+  const head = new Uint8Array(await blob.slice(0, 2).arrayBuffer())
+  const bytes = isGzipMagic(head) ? (await inflatePrefix(blob, MAP_PROBE_BYTES)).bytes : new Uint8Array(await blob.slice(0, MAP_PROBE_BYTES).arrayBuffer())
+  return readMapSummary(bytes, name)
 }

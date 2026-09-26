@@ -1,4 +1,4 @@
-// `yarn accept kde [--apply] [--screen N] [--seconds S] [--keep] [--no-restart]` (spec 004
+// `yarn accept kde [--apply] [--screen N] [--seconds S] [--folder DIR] [--keep] [--no-restart]` (spec 004
 // contracts/cli.md, FR-022): installs or upgrades the KDE package in the user's Plasma session and
 // restarts plasmashell after an upgrade, because an open wallpaper page keeps running the old
 // script until then (measured 2026-09-23: not even `location.reload()` picks up the new one). With
@@ -10,7 +10,7 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { log } from '../../src/core/util/log.ts'
-import { flag, intOpt } from '../shared/cli-runner.ts'
+import { flag, intOpt, opt } from '../shared/cli-runner.ts'
 import type { CommandResult, ParsedArgs } from '../shared/cli-runner.ts'
 import { requireGameFile, requireTestMap } from '../shared/game-files.ts'
 import { artifactName, assemble, packageVersion, writePackage } from '../package/cli.ts'
@@ -160,6 +160,15 @@ export async function acceptKdeCommand(args: ParsedArgs): Promise<CommandResult>
     dataarchive: pathToFileURL(data).href,
     mapfile: pathToFileURL(map).href,
     viewmode: 'random',
+    // Spec 007: --folder shows a map folder instead (written back afterwards like every other key).
+    mapsource: 'single',
+    mapfolder: '',
+  }
+  const folder = opt(args, 'folder')
+  if (folder !== undefined) {
+    if (!existsSync(folder)) return { ok: false, exitCode: 2, host: 'kde', steps: [...steps, { id: 'apply', outcome: 'fail', evidence: `--folder ${folder} does not exist` }] }
+    settings.mapsource = 'folder'
+    settings.mapfolder = pathToFileURL(resolve(folder)).href
   }
   const group = `d.currentConfigGroup = ["Wallpaper", ${js(KDE_PLUGIN_ID)}, "General"];`
   // The dev files go into the same config group as the owner's own settings for this plugin, so

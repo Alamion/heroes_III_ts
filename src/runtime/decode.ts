@@ -152,7 +152,10 @@ export async function decodeObjects(
   const identity = `${sprites.identity}:${data.identity}:${map.identity}:${seed}:${pageSize}`
   const key = cacheKey('objects', identity)
   const cached = await cache.get<Omit<ObjectsResult, 'fromCache' | 'identity'>>('objects', key)
-  if (cached !== undefined) return { ...cached, identity, fromCache: true }
+  if (cached !== undefined) {
+    await cache.noteMapUse(map.identity, 'objects', key)
+    return { ...cached, identity, fromCache: true }
+  }
   const spritesName = (sprites.files[sprites.files.length - 1] as ArchiveFile).name
   const dataLod = await openSet(data.files)
   const templates = parseObjectsTxt(await dataLod.read('Objects.txt'))
@@ -201,6 +204,7 @@ export async function decodeObjects(
   }
   const result = { objects, atlas, flagColors: flagColors({ 'game.pal': pal }, toDisplayColor), warnings }
   await cache.put('objects', key, result)
+  await cache.noteMapUse(map.identity, 'objects', key)
   return { ...result, identity, fromCache: false }
 }
 
@@ -210,9 +214,13 @@ export async function decodeMap(file: Blob, name: string, cache: DecodedCache): 
   const identity = await mapIdentity(file)
   const key = cacheKey('world', identity)
   const cached = await cache.get<WorldState>('world', key)
-  if (cached !== undefined) return { identity, world: cached, fromCache: true, warnings: [] }
+  if (cached !== undefined) {
+    await cache.noteMapUse(identity, 'world', key)
+    return { identity, world: cached, fromCache: true, warnings: [] }
+  }
   const map = await parseH3mFile(new Uint8Array(await file.arrayBuffer()), name)
   const world = fromH3m(map, { sha256: identity, name, version: map.version })
   await cache.put('world', key, world)
+  await cache.noteMapUse(identity, 'world', key)
   return { identity, world, fromCache: false, warnings: [] }
 }

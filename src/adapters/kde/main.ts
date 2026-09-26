@@ -20,8 +20,9 @@ const { controller } = createBrowserController({
   workerFactory: classicWorkerFactory(),
 })
 
-/** Last "new random place" counter from the configuration; a change after the first apply acts. */
+/** Last "new random place" / "next map" counters from the configuration; a change after the first apply acts. */
 let rerollCounter: unknown
+let nextMapCounter: unknown
 
 window.h3wallpaper = {
   apply(json) {
@@ -33,10 +34,12 @@ window.h3wallpaper = {
     }
     if (typeof parsed.language === 'string' && parsed.language !== '') controller.setLanguage(parsed.language)
     if (parsed.settings === undefined || parsed.settings === null) return
-    const { viewreroll, ...settings } = parsed.settings
+    const { viewreroll, mapnext, ...settings } = parsed.settings
     controller.applySettings(settings)
     if (rerollCounter !== undefined && viewreroll !== rerollCounter) void controller.flushSettings().then(() => controller.newRandomPlace())
     rerollCounter = viewreroll ?? null
+    if (nextMapCounter !== undefined && mapnext !== nextMapCounter) void controller.flushSettings().then(() => controller.nextMap())
+    nextMapCounter = mapnext ?? null
   },
   setPaused: (paused) => controller.setHostPaused(paused === true),
 }

@@ -20,6 +20,8 @@ export const INSPECT_COMMANDS: Record<string, CommandSpec> = {
   'map random': { help: 'resolved random objects: MAP [--seed S] [--level Z]', load: async () => (await import('./objects.ts')).mapRandom },
   'map floating': { help: 'floating tiles [--level Z] [--region] [--format list|json]', load: async () => (await import('./floating.ts')).mapFloating },
   render: { help: 'render a map region headlessly: MAP --level Z --region x0,y0,x1,y1 (--time MS | --palette-step N) [--tick N] [--seed S] [--no-objects] [--draw-list] --out PATH [--archive FILE] [--rebuild]', booleanFlags: ['rebuild', 'no-objects', 'draw-list'], load: async () => (await import('./render.ts')).renderCommand },
+  'map summary': { help: 'what the wallpaper reads for the folder filters: version, size, levels, title (spec 007)', load: async () => (await import('./catalogue.ts')).mapSummary },
+  'map catalogue': { help: 'maps of a folder or .zip with their verdict [--size-min s --size-max g --underground any|two|one --hota HotA.lod] (spec 007)', load: async () => (await import('./catalogue.ts')).mapCatalogue },
   'map parse-all': { help: 'parse every map in the install Maps folder [--dir DIR]', load: async () => (await import('./map.ts')).mapParseAll },
 }
 

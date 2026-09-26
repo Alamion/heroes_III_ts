@@ -9,8 +9,12 @@ import type { WorkerRequest, WorkerResponse } from './protocol.ts'
 
 const scope = globalThis as unknown as DedicatedWorkerGlobalScope
 const caches = new Map<boolean, ReturnType<typeof openCache>>()
-/** Worlds decoded here, by identity (the engine asks for objects of the latest map). */
+/**
+ * Worlds decoded here, by identity: the shown map and, with a map folder, the one being prepared
+ * (spec 007). The engine drops the ones it no longer needs; the cap only guards against a leak.
+ */
 const worlds = new Map<string, WorldState>()
+const MAX_WORLDS = 4
 
 function cacheFor(enabled: boolean) {
   let c = caches.get(enabled)
@@ -52,9 +56,14 @@ scope.onmessage = async (event: MessageEvent<WorkerRequest>) => {
       post({ id: req.id, kind: 'archiveReady', identity: r.identity, atlas: { layout: r.atlas.layout, indices, palettes }, fromCache: r.fromCache, warnings: r.warnings }, [indices.buffer, palettes.buffer])
     } else if (req.kind === 'openMap') {
       const r = await withDecodeLock(`map:${req.file.size}:${req.name}`, () => decodeMap(req.file, req.name, cacheFor(req.useCache)))
-      worlds.clear()
+      if (req.keep !== 'add') worlds.clear()
+      worlds.delete(r.identity)
       worlds.set(r.identity, r.world)
+      while (worlds.size > MAX_WORLDS) worlds.delete(worlds.keys().next().value as string)
       post({ id: req.id, kind: 'mapReady', identity: r.identity, world: r.world, fromCache: r.fromCache, warnings: r.warnings })
+    } else if (req.kind === 'dropMap') {
+      worlds.delete(req.identity)
+      post({ id: req.id, kind: 'mapDropped' })
     } else if (req.kind === 'openDataArchive') {
       const r = await checkDataArchive(req.files)
       post({ id: req.id, kind: 'dataArchiveReady', identity: r.identity, warnings: r.warnings })
@@ -75,7 +84,7 @@ scope.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     }
   } catch (err) {
     const lastName = (files: readonly { name: string }[]): string => files[files.length - 1]?.name ?? 'archive'
-    const where = 'name' in req ? req.name : 'files' in req ? lastName(req.files) : lastName(req.data.files)
+    const where = req.kind === 'dropMap' ? req.identity : 'name' in req ? req.name : 'files' in req ? lastName(req.files) : lastName(req.data.files)
     const error = err instanceof FormatError ? err.toJSON() : { level: 'error' as const, code: 'INTERNAL', message: err instanceof Error ? err.message : String(err), file: where }
     post({ id: req.id, kind: 'failed', error })
   }

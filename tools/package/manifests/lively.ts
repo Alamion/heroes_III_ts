@@ -37,8 +37,11 @@ const CONTROLS = (): (SettingDef | ActionDef)[] => [...SETTINGS, ...ACTIONS].sor
 
 function control(def: SettingDef | ActionDef, t: Record<StringKey, string>): Record<string, unknown> {
   if (def.type === 'action') return { type: 'button', text: t[def.label], value: t[def.label] }
-  if (def.type === 'file') return { type: 'folderDropdown', text: t[def.label], folder: LIVELY_USER_FOLDER, filter: def.fileFilter, value: null }
-  if (def.type === 'enum') return { type: 'dropdown', text: t[def.label], items: def.options.map((o) => t[o.label]), value: def.options.findIndex((o) => o.value === def.default) }
+  // Lively has no conditions: a hint says when a setting applies (spec 007 folder settings).
+  const help = def.hint !== undefined ? { help: t[def.hint] } : {}
+  // A map folder reaches Lively as one .zip (spec 007 research R1): folderDropdown copies single files.
+  if (def.type === 'file') return { type: 'folderDropdown', text: t[def.label], folder: LIVELY_USER_FOLDER, filter: def.fileFilter, value: null, ...help }
+  if (def.type === 'enum') return { type: 'dropdown', text: t[def.label], items: def.options.map((o) => t[o.label]), value: def.options.findIndex((o) => o.value === def.default), ...help }
   if (def.type === 'int' && def.input === 'number') return { type: 'textbox', text: t[def.label], value: String(def.default), ...(def.hint !== undefined ? { help: t[def.hint] } : {}) }
   if (def.type === 'int') return { type: 'slider', text: t[def.label], min: def.min, max: def.max, step: def.step, value: def.default, ...(def.hint !== undefined ? { help: t[def.hint] } : {}) }
   return { type: 'checkbox', text: t[def.label], value: def.default }
