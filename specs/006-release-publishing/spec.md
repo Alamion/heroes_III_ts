@@ -338,7 +338,8 @@ module) and see the message instead of an empty screen.
   field) instead of placeholders; no e-mail address appears in any package or store text.
 - **FR-018**: The KDE plugin MUST show a readable message naming the missing Qt WebEngine component
   and the packages to install (Fedora, Debian/Ubuntu, Arch), in English or Russian, when that
-  component is not available; a host simulation MUST cover this case.
+  component is not available; a check MUST cover this case (a structural check of the packaged QML,
+  and a real-session acceptance run with a simulated missing module; research R7).
 - **FR-019**: The constitution MUST be amended (principle I) to allow the maintainer to upload
   screenshots of the project's own output — the `docs/img/` kind, under the same size limits — to
   store pages; they still MUST NOT be copied into packages, release assets or build output.

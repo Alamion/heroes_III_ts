@@ -123,3 +123,157 @@ Notes for the plan:
 - Package previews are already procedural art with no game imagery (`tools/package/previews.ts`).
 - Store-page screenshots of the map are renders of game files uploaded to a third-party service;
   constitution I allows them only in `docs/img/` → amendment (FR-019), owner agreed 2026-09-24.
+
+## Plan decisions (`/speckit-plan`, 2026-09-26)
+
+Measured in the code before deciding: `yarn package` writes archives only for Lively (`.zip`) and KDE
+(`.tar.gz`) and folders for web and Wallpaper Engine (`tools/package/cli.ts` `artifactName`); the zip
+and tar writers are already deterministic (`tools/shared/archive.ts`); `yarn verify packages` fails on
+any absolute URL except two XML namespaces (`checkNoExternalUrls`) and on the word "official"
+(`checkNoAffiliation`); the KDE shell imports `QtWebEngine` in `main.qml` itself, so a missing module
+fails the whole wallpaper before any QML runs; the Pages workflow deploys on every push to `testing`;
+tools may import only `settings.ts` and `strings.ts` from adapters (`TOOL_IMPORTABLE_ADAPTER_FILES`).
+
+### R1. One release workflow, checks as code
+
+- **Decision**: `.github/workflows/release.yml`, triggered by `push: tags: ['v*']` and by
+  `workflow_dispatch` with a `tag` input (re-runs, a missed Pages deploy). Three jobs: `release`
+  (verify → build → check → assets → publish), `pages` (needs `release`, skipped for pre-releases).
+  Every rule of FR-003 lives in `tools/release/` as TypeScript (`yarn release check --tag vX.Y.Z`),
+  so it runs the same locally and in CI and is unit-tested; the workflow only calls commands.
+  `.github/workflows/pages.yml` becomes `ci.yml`: the same checks on pushes to `testing` and on pull
+  requests, no deploy (FR-007).
+- **Rationale**: YAML logic cannot be tested locally; the repository already has a CLI runner with
+  exit codes and JSON output. A tag push by a person (not by `GITHUB_TOKEN`) triggers workflows, and
+  `gh release create` from the CLI creates the tag through the API as the user, which triggers too.
+- **Alternatives**: one workflow for CI and release with `if:` branches (harder to read, easy to
+  deploy by mistake); a reusable action from the marketplace for releases (`softprops/action-gh-release`)
+  — `gh` is preinstalled on runners and does create/upload/`--clobber` directly.
+
+### R2. Version rules
+
+- **Decision**: a ~60-line SemVer parser/comparator in `tools/release/semver.ts` (no dependency).
+  Checks: tag = `v` + `package.json` version; `git merge-base --is-ancestor <commit> origin/testing`
+  (checkout with `fetch-depth: 0`); a **final** version must be greater than every existing final
+  `v*` tag other than itself; a pre-release skips that comparison (spec edge case: allowed next to a
+  newer final) but must not equal an existing tag of another commit; `CHANGELOG.md` has a non-empty
+  section for the version. Existing tags are read from git, not from the Releases API, so a check
+  needs no token and a deleted release cannot unlock an old version.
+- Lively's integer `Version` = `major × 10000 + minor × 100 + patch`; minor and patch ≥ 100 fail the
+  check (they would break monotonicity).
+- **Alternatives**: the `semver` npm package (a dev dependency for 60 lines); the Releases API for
+  "latest release" (needs a token, ignores tags without releases).
+
+### R3. Changelog format and conversion
+
+- **Decision**: `CHANGELOG.md` with `## [X.Y.Z] - YYYY-MM-DD` sections (an optional
+  `## [Unreleased]` on top is ignored). Section bodies use a small Markdown subset: `###` headings,
+  `-` bullets (one nesting level), paragraphs, `**bold**`, `*italic*`, `` `code` ``, `[text](url)`.
+  Own converter `tools/release/markup.ts` renders that subset to Markdown (GitHub, unchanged), Steam
+  BBCode and KDE Store BBCode; anything outside the subset is an error naming the line, which is
+  what makes FR-013's markup check possible.
+- Steam profile: `[h2]` for headings, `[list][*]…[/list]`, `[b] [i] [code] [url=…]…[/url]`. KDE
+  profile: headings as `[b]…[/b]` on their own line (the `[h1]` support noted above is unverified),
+  otherwise the same tags; never `[table]` (FR-012).
+- Draft helper `yarn release notes-draft`: `git log <last final tag>..HEAD`, keeps `feat`/`fix`
+  subjects, strips the spec scope (`feat(005): x` → `x`), groups into "Added"/"Fixed", prints Markdown
+  to stdout; never writes or publishes (FR-010).
+- **Alternatives**: `@bscotch/steam-bbcode` / `markdown-to-bbcode` — general converters that accept
+  any Markdown and silently degrade tables and images; the store check needs the opposite.
+
+### R4. Project links in one module
+
+- **Decision**: `src/adapters/shared/project.ts` (DOM-free constants): repository, issues, new-issue
+  chooser, releases, latest release, Pages URLs, `WORKSHOP_ID = '3808342201'`,
+  `KDE_STORE_URL = 'https://store.kde.org/p/2374098/'`, `workshopUrl()`. It joins
+  `TOOL_IMPORTABLE_ADAPTER_FILES` (the packager, the store texts and the checks read it; the browser
+  panel links to issues). `checkNoExternalUrls` allows exactly these URLs; every other URL still
+  fails. An unset store value is `null`; texts leave the line out (FR-014b); the check rejects empty
+  strings and `example`/`TODO` placeholders.
+- **Rationale**: FR-014a/b ask for these values "next to the settings"; `settings.ts` is about user
+  settings, `strings.ts` about language — a third small file keeps both clean.
+
+### R5. Store texts from the string table
+
+- **Decision**: new keys in `strings.ts` (en and ru): `store_links` (repository, README, releases),
+  `store_feedback` (issues only), `store_kde_requirements` (Qt WebEngine: Fedora `qt6-qtwebengine`,
+  Debian/Ubuntu `qml6-module-qtwebengine`, Arch `qt6-webengine`), `kde_webengine_missing`. Store
+  texts reuse `package_description`, `help_files`, `help_privacy`, `help_wallpaper_engine`,
+  `help_kde`, joined English then Russian (FR-012). Strings stay plain text with `{url}`
+  placeholders; the markup profile wraps links. `tools/release/store-texts.ts` builds
+  `workshop-title.txt`, `workshop-description.bbcode`, `kde-store-description.bbcode`,
+  `changenote-<version>.bbcode` (Steam; the KDE changelog takes the same text through the KDE
+  profile, `kde-changelog-<version>.bbcode`).
+- Limits (FR-013): title ≤ 128, descriptions and change notes ≤ 8000. Steamworks names them
+  `cch…Max` over UTF-8 buffers, so whether Steam counts characters or bytes is unverified; the check
+  counts **UTF-8 bytes** of the BBCode source, the stricter reading (Cyrillic takes two bytes, and
+  the Russian half is about half of every text). `yarn verify store-texts` fails naming the text,
+  the limit and the excess, and reports the headroom of each text when it passes.
+
+### R6. Every shipped archive is named and zipped
+
+- **Decision**: `artifactName` gives every host an archive:
+  `heroes3-living-map-web-<v>.zip`, `…-wallpaper-engine-<v>.zip`, `…-lively-<v>.zip`,
+  `…-kde-<v>.tar.gz`, all through the deterministic writers. The folders stay for local use.
+  `SHA256SUMS` (the `sha256sum -c` format) covers the four archives and the store texts.
+- `project.json` gets `workshopid` when `WORKSHOP_ID` is set (FR-014a); the packages check compares
+  it with the constant.
+
+### R7. KDE without Qt WebEngine
+
+- **Decision**: `main.qml` imports only `QtQuick`, `org.kde.plasma.plasmoid` and `strings.js`; the
+  web view moves to `WebView.qml` (imports `QtWebEngine` and `"."` for `SharedProfile`) and is loaded
+  through `Loader { source: "WebView.qml" }`. On `Loader.Error` the shell shows a centred message
+  from `kde_webengine_missing` in the desktop language and logs `[h3dynam] webengine-missing`. The
+  pause and settings calls go through functions of the loaded item.
+- Verification: no Qt runtime exists in CI (and locally only `qt6-qtdeclarative` without the `qml`
+  tool), so the case is covered by (a) a structural check in `yarn verify packages` — `main.qml`
+  has no `QtWebEngine` import, loads `WebView.qml` by `source`, has an error branch, and the message
+  names all three packages in both languages — and (b) `yarn accept kde --simulate-missing-webengine`
+  on a real Plasma session: installs a variant whose `WebView.qml` imports a module that does not
+  exist, applies it and waits for the log line in the journal, then restores. FR-018's "host
+  simulation" is read as these two checks (the host simulations drive the page in Chromium, not QML).
+- **Alternatives**: `Qt.createQmlObject` with an inline import (same effect, harder to read);
+  shipping a `qmltestrunner` test (needs `qt6-qtdeclarative-devel` and Plasma's QML modules in CI).
+
+### R8. Feedback surfaces
+
+- Package readmes gain a header line with the version and a footer with `store_links` and
+  `store_feedback` (FR-004, FR-015). Lively: `Author: 'Alamion'`, `Contact:` the issues URL,
+  `Version:` the integer of R2. KDE `metadata.json`: `Authors: [{ Name: 'Alamion' }]`, `Website`: the
+  repository, `BugReportUrl`: the new-issue chooser (both are standard `KPluginMetaData` keys). The
+  Wallpaper Engine surface is the Workshop description (store text) and the readme; `project.json`'s
+  `description` stays the short package description the editor pre-fills.
+- Browser panel: a footer line `v<version> · Report a problem` linking the new-issue chooser in a
+  new tab (`rel="noopener"`). The version reaches the web build through a Vite `define`
+  (`__H3_VERSION__`, also defined by the dev harness config).
+- Issue forms: `.github/ISSUE_TEMPLATE/bug.yml` (host dropdown, version, map, what happened, expected,
+  screenshot), `suggestion.yml`, `config.yml` with `blank_issues_enabled: false`.
+
+### R9. Pages from releases only
+
+- `release.yml`'s `pages` job uploads `dist/packages/web` of the same run (the tree the web archive
+  was made from) with `actions/upload-pages-artifact` and deploys with `actions/deploy-pages`.
+- One-time repository setting: the `github-pages` environment's deployment branch rule must allow
+  tags `v*` (today it allows `testing`); the checklist names this step, and the first run fails with
+  a clear "not allowed to deploy" otherwise.
+- Actions are pinned by major tag as today (`checkout@v4`, `setup-node@v4`, Pages actions); no
+  third-party action receives a secret — `GITHUB_TOKEN` with `contents: write` is used by `gh` only.
+
+### R10. Release checklist and README
+
+- `docs/releasing.md`: prepare (`yarn release notes-draft`, edit `CHANGELOG.md`, bump `package.json`,
+  `yarn release check --tag vX --local`), tag (`git tag vX && git push origin vX`, or
+  `gh release create vX --target testing --notes-file …`), watch the run, Workshop update (unpack
+  over the editor's project folder, "Publish update", paste `changenote-*.bbcode`), KDE Store update
+  (replace the file, set Version, add the changelog, how each form field is filled — the list
+  above), screenshots (constitution I as amended), one-time settings (Pages environment rule).
+- README: status table shows all four hosts working; "Getting started" links the latest release,
+  the Workshop and KDE Store pages; the "Prebuilt packages are not published yet" paragraph goes.
+
+### R11. Constitution amendment
+
+- 1.3.1 → **1.4.0** (MINOR: the documentation-screenshot exception is extended): screenshots of the
+  project's own output, the `docs/img/` kind and size limits, MAY be uploaded by the maintainer to
+  store pages; they MUST NOT enter packages, release assets or build output. The packages check
+  already rejects images other than the generated previews; the release asset list is fixed by R6.
