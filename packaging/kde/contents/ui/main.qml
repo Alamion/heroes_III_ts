@@ -71,10 +71,6 @@ WallpaperItem {
         active: !root.onLockScreen
         source: "WebView.qml"
         onLoaded: item.paused = Qt.binding(() => root.paused)
-        onStatusChanged: {
-            if (status === Loader.Error)
-                console.log("[h3dynam] webengine-missing")
-        }
     }
 
     Connections {
@@ -88,6 +84,18 @@ WallpaperItem {
 
     // Shown when WebView.qml cannot load: the Qt WebEngine QML module is not installed.
     Text {
+        id: missing
+        // Logged once when shown. The Loader fails while it is being created, before a status handler
+        // would see the change, so the message itself reports it (spec 006: accept kde reads the line).
+        property bool reported: false
+        function report() {
+            if (visible && !reported) {
+                reported = true
+                console.log("[h3dynam] webengine-missing")
+            }
+        }
+        onVisibleChanged: report()
+        Component.onCompleted: report()
         anchors.centerIn: parent
         width: parent.width * 0.6
         visible: view.status === Loader.Error

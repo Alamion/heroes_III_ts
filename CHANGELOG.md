@@ -14,7 +14,7 @@ your own copy of the game. No game files are included.
 
 ### Maps
 
-- Maps of Restoration of Erathia, Armageddon's Blade, Shadow of Death and **Horn of the Abyss**
+- Maps of Restoration of Erathia, Armageddon's Blade, Shadow of Death and Horn of the Abyss
   (HotA 1.8), with underground levels and maps of every size up to 252×252
 - Terrain, rivers, roads, objects, heroes and towns as in the original game, with its animation:
   water, lava and rivers cycle their colours, objects animate at the game's speed
@@ -29,15 +29,13 @@ your own copy of the game. No game files are included.
 
 ### Where it runs
 
-- **Browser**: open the page, choose or drop the files; the browser remembers them
-- **Wallpaper Engine** and **Lively Wallpaper** on Windows, **KDE Plasma 6** on Linux
+- Browser - open the page, choose or drop the files; the browser remembers them
+- Wallpaper Engine and Lively Wallpaper on Windows, KDE Plasma 6 on Linux
 - Pauses while a full-screen window covers the desktop, so it costs nothing while you work
 - English and Russian
 
 ### Good to know
 
 - Your files are read on your computer and never uploaded
-- Wallpaper Engine can only read files inside the wallpaper's own folder: copy them there (see the
-  package readme)
+- Wallpaper Engine can only read files inside the wallpaper's own folder: copy them there (see the package readme)
 - Suggestions and bug reports: [GitHub Issues](https://github.com/Alamion/heroes_III_ts/issues/new/choose)
-

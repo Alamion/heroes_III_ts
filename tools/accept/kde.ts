@@ -112,6 +112,7 @@ export async function acceptKdeCommand(args: ParsedArgs): Promise<CommandResult>
   const repoRoot = process.cwd()
   if (!has('kpackagetool6')) return { ok: true, exitCode: 4, outcome: 'skip', skipReason: 'kpackagetool6 not found', steps }
   const version = packageVersion(repoRoot)
+  const commandStart = Date.now()
   const simulate = flag(args, 'simulate-missing-webengine')
   const outDir = resolve(repoRoot, simulate ? 'dist/accept-kde-no-webengine' : 'dist/packages')
   const files = await assemble(repoRoot, 'kde')
@@ -150,7 +151,7 @@ export async function acceptKdeCommand(args: ParsedArgs): Promise<CommandResult>
     }
   }
 
-  if (simulate) return simulateMissingWebEngine(args, repoRoot, steps)
+  if (simulate) return simulateMissingWebEngine(args, repoRoot, steps, commandStart)
 
   if (!flag(args, 'apply')) {
     steps.push({ id: 'apply', outcome: 'manual', evidence: 'run with --apply to switch a screen to the wallpaper, or pick it in "Configure Desktop and Wallpaper"' })
@@ -256,7 +257,7 @@ function journalSince(since: number): string {
   }
 }
 
-async function simulateMissingWebEngine(args: ParsedArgs, repoRoot: string, steps: Step[]): Promise<CommandResult> {
+async function simulateMissingWebEngine(args: ParsedArgs, repoRoot: string, steps: Step[], commandStart: number): Promise<CommandResult> {
   if (!has('gdbus') || !has('journalctl')) {
     steps.push({ id: 'simulate', outcome: 'fail', evidence: 'gdbus and journalctl are needed' })
     await reinstallReal(repoRoot, steps)
@@ -271,10 +272,11 @@ async function simulateMissingWebEngine(args: ParsedArgs, repoRoot: string, step
     return { ok: false, host: 'kde', steps }
   }
   steps.push({ id: 'save-previous', outcome: 'pass', evidence: previous })
-  const start = Date.now()
   try {
     plasmaScript(`var d = desktopForScreen(${screen}); d.wallpaperPlugin = ${js(KDE_PLUGIN_ID)}; d.reloadConfig();`)
-    const seen = await waitFor(() => journalSince(start - 2000).includes('[h3dynam] webengine-missing'), seconds * 1000)
+    // Since the command started: when the screen already shows this wallpaper, the variant loads (and
+    // reports) during the shell restart, before this point.
+    const seen = await waitFor(() => journalSince(commandStart).includes('[h3dynam] webengine-missing'), seconds * 1000)
     steps.push(seen
       ? { id: 'message', outcome: 'pass', evidence: `"[h3dynam] webengine-missing" in the ${SHELL_UNIT} journal` }
       : { id: 'message', outcome: 'fail', evidence: `no "[h3dynam] webengine-missing" in the journal within ${seconds} s` })
