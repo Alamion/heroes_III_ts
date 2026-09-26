@@ -52,8 +52,8 @@ planned (see [Roadmap](#roadmap)).
 | --- | --- |
 | Browser | Works. Tested in Chromium-based browsers. |
 | KDE Plasma 6 | Works. Accepted on a real Plasma 6 session (Fedora 43, three screens, fractional scaling). |
-| Wallpaper Engine | Built and tested in a simulation on Linux; **not yet checked on real Windows**. |
-| Lively Wallpaper | Built and tested in a simulation on Linux; **not yet checked on real Windows**. |
+| Wallpaper Engine | Works. Checked on real Windows (Wallpaper Engine 2.8.42). |
+| Lively Wallpaper | Works. Checked on real Windows (Lively 2.2). |
 
 ## You need the game
 
@@ -188,13 +188,9 @@ is git-ignored). [AGENTS.md](AGENTS.md) lists every command, including inspectio
 
 ## Roadmap
 
-1. Check Wallpaper Engine and Lively on Windows.
-2. One map across several screens; the lock screen.
-3. Save games of the Complete edition.
-4. Interactive extras: scrolling on idle, battles, captured towns and mines.
-
-Horn of the Abyss maps and archives are done ([spec 005](specs/005-hota-support/)), and so is a
-folder of maps with rotation and filters ([spec 007](specs/007-map-folder/)).
+1. One map across several screens; the lock screen.
+2. Save games of the Complete edition.
+3. Interactive extras: scrolling on idle, battles, captured towns and mines.
 
 ## Credits and prior work
 
