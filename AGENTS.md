@@ -210,7 +210,7 @@ yarn verify fidelity --map test_map.h3m --all-regions [--kind still|clip] [--cap
 yarn verify fidelity --map M --level Z --region x0,y0,x1,y1
 yarn verify budget [--no-build] [--throttle 4] [--viewport 1920x1080]   # + package sizes and package start-up
 yarn verify packages [--host …] [--no-build] [--reproducible]
-yarn verify hosts [--host …] [--files synthetic|real] [--map NAME] [--only 14,16] [--no-build]    # host simulations, invariants 1–21
+yarn verify hosts [--host …] [--files synthetic|real] [--map NAME] [--only 14,16] [--no-build] [--jobs N]   # host simulations, invariants 1–21; N contexts at once (default half the cores), timing-sensitive ones alone; report `timing` lists slow invariants and waits that hit their timeout
 yarn verify store-texts                      # store texts and change notes: limits (UTF-8 bytes), BBCode tags, project links only
 yarn verify all
 ```

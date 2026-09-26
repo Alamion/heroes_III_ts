@@ -1,10 +1,11 @@
-// `yarn verify hosts [--host …] [--files synthetic|real] [--map NAME] [--no-build] [--require]` (spec 004
+// `yarn verify hosts [--host …] [--files synthetic|real] [--map NAME] [--no-build] [--require] [--jobs N]` (spec 004
 // contracts/cli.md): host simulations of built packages in headless Chromium.
 
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { log } from '../../../src/core/util/log.ts'
-import { flag, opt } from '../../shared/cli-runner.ts'
+import { availableParallelism } from 'node:os'
+import { flag, intOpt, opt } from '../../shared/cli-runner.ts'
 import type { CommandResult, ParsedArgs } from '../../shared/cli-runner.ts'
 import { hasChromium, launchBrowser } from '../../shared/browser.ts'
 import { usage } from '../../shared/errors.ts'
@@ -28,6 +29,9 @@ export async function hostsCommand(args: ParsedArgs): Promise<CommandResult> {
   const only = onlyArg === undefined ? undefined : new Set(onlyArg.split(',').map((x) => Number(x.trim())))
   if (only !== undefined && [...only].some((x) => !Number.isFinite(x))) throw usage('--only takes invariant ids, e.g. --only 14,16.1')
   if (mapName !== undefined && which !== 'real') throw usage('--map needs --files real')
+  // Spec 006 T068: invariants run in a pool; default half the cores (the pages are mostly waiting).
+  const jobs = intOpt(args, 'jobs', Math.max(1, Math.floor(availableParallelism() / 2)))
+  if (jobs < 1) throw usage('--jobs must be at least 1')
   const outDir = resolve(repoRoot, 'dist/packages')
   const reportDir = join(repoRoot, 'check-reports', 'hosts', new Date().toISOString().replace(/[:.]/g, '-'))
   mkdirSync(reportDir, { recursive: true })
@@ -70,7 +74,7 @@ export async function hostsCommand(args: ParsedArgs): Promise<CommandResult> {
       log.info(`simulating ${host}`)
       const driver = await DRIVERS[host](host === 'wallpaper-engine' || host === 'kde' ? fileBrowser : browser, join(outDir, host))
       try {
-        const invariants = await runInvariants({ driver, files, renderer, reportDir, ...(only !== undefined ? { only } : {}) })
+        const invariants = await runInvariants({ driver, files, renderer, reportDir, jobs, ...(only !== undefined ? { only } : {}) })
         results.push({ host, outcome: invariants.every((i) => i.outcome !== 'fail') ? 'pass' : 'fail', invariants })
       } finally {
         await driver.dispose()
@@ -83,7 +87,16 @@ export async function hostsCommand(args: ParsedArgs): Promise<CommandResult> {
     rmSync(synthetic.dir, { recursive: true, force: true })
   }
   const ok = results.every((r) => r.outcome === 'pass')
-  const report = { schema: '004-hosts', outcome: ok ? 'pass' : 'fail', files: which, hosts: results }
+  // Spec 006 T066: where the time goes (full profiles are in the report file).
+  const timed = results.flatMap((r) => r.invariants.map((i) => ({ host: r.host, id: i.id, s: Math.round((i.ms ?? 0) / 100) / 10, timeouts: (i.profile?.waits ?? []).filter((w) => w.timedOut > 0).map((w) => `${w.where}×${w.timedOut}`) })))
+  const timing = {
+    totalS: Math.round(timed.reduce((a, t) => a + t.s, 0)),
+    slowest: [...timed].sort((a, b) => b.s - a.s).slice(0, 10),
+    timedOut: timed.filter((t) => t.timeouts.length > 0),
+  }
+  const report = { schema: '004-hosts', outcome: ok ? 'pass' : 'fail', files: which, timing, hosts: results }
   writeFileSync(join(reportDir, 'report.json'), `${JSON.stringify(report, null, 2)}\n`)
-  return { ok, ...report, report: join(reportDir, 'report.json') }
+  // stdout keeps the outcome and timing; per-wait profiles only in the report file.
+  const brief = results.map((r) => ({ ...r, invariants: r.invariants.map(({ profile: _p, ...i }) => i) }))
+  return { ok, schema: report.schema, outcome: report.outcome, files: which, timing, hosts: brief, report: join(reportDir, 'report.json') }
 }

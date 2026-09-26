@@ -23,7 +23,7 @@ export const VERIFY_COMMANDS: Record<string, CommandSpec> = {
     load: async () => (await import('./fidelity/index.ts')).fidelityCommand,
   },
   hosts: {
-    help: 'host simulations of built packages [--host web|wallpaper-engine|lively|kde|all] [--files synthetic|real] [--no-build] [--require]',
+    help: 'host simulations of built packages [--host web|wallpaper-engine|lively|kde|all] [--files synthetic|real] [--no-build] [--require] [--only 14,16] [--jobs N (default: half the cores)]',
     booleanFlags: ['no-build', 'require'],
     load: async () => (await import('./hosts/index.ts')).hostsCommand,
   },

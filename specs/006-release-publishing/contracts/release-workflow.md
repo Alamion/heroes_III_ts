@@ -13,23 +13,23 @@
 - On: `push: tags: ['v*']`; `workflow_dispatch` with input `tag` (required).
 - Concurrency: group `release-<tag>`, no cancel (a second run waits, then replaces assets).
 
-Job `release` (`contents: write`):
-1. `actions/checkout@v4` at the tag, `fetch-depth: 0`; `git fetch origin testing`.
-2. Node 22 + yarn cache, `yarn install --frozen-lockfile`.
-3. `yarn release check --tag $TAG` — fails before anything is built.
-4. `yarn build`, `yarn test`, `yarn package`.
-5. `yarn verify packages --no-build --reproducible`, `yarn verify hosts --no-build` (all hosts),
-   `yarn verify store-texts`.
-6. `yarn release assets` → `dist/release/<version>/`.
-7. `yarn release publish --tag $TAG --dir dist/release/<version>` with `GH_TOKEN: ${{ github.token }}`.
-8. `actions/upload-pages-artifact@v3` of `dist/packages/web` (only when final).
-Outputs: `version`, `prerelease`.
+Jobs (split for speed, research "Check speed"):
 
-Job `pages` (needs `release`, `if: needs.release.outputs.prerelease == 'false'`;
-`pages: write`, `id-token: write`; environment `github-pages`): `actions/deploy-pages@v4`.
+1. `check`: checkout at the tag with `fetch-depth: 0`, `git fetch origin testing`, install,
+   `yarn release check --tag $TAG`. Outputs `version`, `prerelease`. Nothing else starts if it fails.
+2. `hosts` (needs `check`; matrix `host: [web, wallpaper-engine, lively, kde]`, `fail-fast`):
+   `yarn package --host <host>`, `yarn verify hosts --host <host> --no-build`.
+3. `build` (needs `check`, parallel to `hosts`): `yarn build`, `yarn test`, `yarn package`,
+   `yarn verify packages --no-build --reproducible`, `yarn verify store-texts`, `yarn release assets`;
+   uploads `dist/release/<version>/` as the artifact `release-assets` and, for a final version,
+   `dist/packages/web` as the Pages artifact.
+4. `release` (needs `check`, `hosts`, `build`; `contents: write`): downloads `release-assets`,
+   `yarn release publish --tag $TAG --dir dist/release/<version>` with `GH_TOKEN: ${{ github.token }}`.
+5. `pages` (needs `check`, `release`; only when not a pre-release; `pages: write`, `id-token: write`;
+   environment `github-pages`): `actions/deploy-pages@v4`.
 
-Guarantees: nothing is published before step 7; a failed step 3–6 leaves no release, no asset and
-no Pages change (SC-002); step 7 and the Pages job are safe to repeat (FR-008).
+Guarantees: nothing is published before every job of 1–3 has passed; a failure there leaves no
+release, no asset and no Pages change (SC-002); `release` and `pages` are safe to repeat (FR-008).
 
 ## Issue forms (`.github/ISSUE_TEMPLATE/`)
 

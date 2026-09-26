@@ -21,6 +21,79 @@ export interface InvariantResult {
   name: string
   outcome: 'pass' | 'fail' | 'skip'
   details: string[]
+  /** Wall time of the invariant, page open to close (spec 006 T066). */
+  ms?: number
+  /** Where the time went: page open, and waits by call site (spec 006 T066). */
+  profile?: WaitProfile
+}
+
+/** Waits of one invariant, grouped by call site (file:line). */
+export interface WaitProfile {
+  openMs: number
+  waits: { where: string; kind: 'function' | 'timeout' | 'evaluate'; count: number; ms: number; timedOut: number }[]
+}
+
+/** The first stack frame outside Playwright and this profiler: the invariant or driver line. */
+function callSite(): string {
+  const lines = (new Error().stack ?? '').split('\n').slice(1)
+  for (const l of lines) {
+    // Skip the profiler's own frames (callSite and the wrappers installed by profilePage).
+    if (/callSite|p\.waitForFunction|p\.waitForTimeout|p\.evaluate/.test(l)) continue
+    const m = /(tools\/checks\/hosts\/[\w.-]+\.ts):(\d+)/.exec(l)
+    if (m !== null) return `${m[1]?.split('/').pop()}:${m[2]}`
+  }
+  return 'unknown'
+}
+
+/**
+ * Wraps a page's waits so every waitForFunction, waitForTimeout and long evaluate is timed by call site,
+ * and a wait that ended by its timeout — not its condition — is counted (spec 006 T066: the host
+ * simulations spent most of their time waiting).
+ */
+function profilePage(page: Page, profile: WaitProfile): void {
+  const record = (where: string, kind: WaitProfile['waits'][number]['kind'], ms: number, timedOut: boolean) => {
+    let w = profile.waits.find((x) => x.where === where && x.kind === kind)
+    if (w === undefined) profile.waits.push((w = { where, kind, count: 0, ms: 0, timedOut: 0 }))
+    w.count++
+    w.ms += ms
+    if (timedOut) w.timedOut++
+  }
+  const p = page as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>
+  const wff = p.waitForFunction?.bind(page) as (...a: unknown[]) => Promise<unknown>
+  p.waitForFunction = async (...a: unknown[]) => {
+    const where = callSite()
+    const t0 = Date.now()
+    try {
+      const r = await wff(...a)
+      record(where, 'function', Date.now() - t0, false)
+      return r
+    } catch (err) {
+      const timedOut = err instanceof Error && /Timeout/i.test(err.name + err.message)
+      record(where, 'function', Date.now() - t0, timedOut)
+      throw err
+    }
+  }
+  const wft = p.waitForTimeout?.bind(page) as (...a: unknown[]) => Promise<unknown>
+  p.waitForTimeout = async (...a: unknown[]) => {
+    const where = callSite()
+    const t0 = Date.now()
+    try {
+      return await wft(...a)
+    } finally {
+      record(where, 'timeout', Date.now() - t0, false)
+    }
+  }
+  const ev = p.evaluate?.bind(page) as (...a: unknown[]) => Promise<unknown>
+  p.evaluate = async (...a: unknown[]) => {
+    const t0 = Date.now()
+    try {
+      return await ev(...a)
+    } finally {
+      const ms = Date.now() - t0
+      // Only slow evaluates are waits in disguise (controller.idle(), decodes).
+      if (ms >= 500) record(callSite(), 'evaluate', ms, false)
+    }
+  }
 }
 
 export interface FileSet {
@@ -97,6 +170,8 @@ export interface InvariantContext {
   reportDir: string
   /** Invariant ids to run (`--only`); all when undefined. */
   only?: ReadonlySet<number>
+  /** Invariants run at once (spec 006 T068); 1 = one after another. Serial invariants always run alone. */
+  jobs?: number
 }
 
 type Check = (ctx: InvariantContext, hp: HostPage, fail: (msg: string) => void) => Promise<void>
@@ -105,11 +180,13 @@ const all = (files: FileSet): HostFiles => ({ spriteArchive: files.spriteArchive
 
 async function loaded(ctx: InvariantContext, hp: HostPage, fail: (m: string) => void): Promise<Snapshot> {
   await ctx.driver.supplyFiles(hp, all(ctx.files))
-  // All three files loaded (the data archive may arrive after the map is already shown).
+  // The three supplied files loaded (the data archive may arrive after the map is already shown). The
+  // HotA slot is not supplied here and stays "missing": waiting for every slot made each call run into
+  // its 60 s timeout (spec 006 T067, measured).
   await hp.page
     .waitForFunction(() => {
       const st = (window as unknown as Wallpaper).__h3wallpaper.controller.state()
-      return st.phase === 'showing' && Object.values(st.slots).every((x) => x.status === 'loaded')
+      return st.phase === 'showing' && (['spriteArchive', 'dataArchive', 'map'] as const).every((k) => st.slots[k]?.status === 'loaded')
     }, null, { timeout: 60_000 })
     .catch(() => undefined)
   await idle(hp.page)
@@ -154,9 +231,14 @@ async function nextShown(ctx: InvariantContext, hp: HostPage): Promise<string | 
 
 const MIXED_USABLE = ['small.h3m', 'medium two.h3m', 'Карты/Большая.h3m', 'nested/deeper/xl.H3M', 'nested/odd.h3m']
 
-const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[]; opts?: { locale?: string; noCache?: boolean; readDelays?: Record<string, number>; timeScale?: number } }[] = [
+/**
+ * `serial`: the invariant measures time, frames or a race, so it runs alone after the parallel pool
+ * (spec 006 T068) — a loaded CPU would make it flaky, not wrong.
+ */
+const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[]; serial?: boolean; opts?: { locale?: string; noCache?: boolean; readDelays?: Record<string, number>; timeScale?: number } }[] = [
   {
     id: 1,
+    serial: true,
     name: 'placeholder without files, no frames',
     run: async (_ctx, hp, fail) => {
       await hp.page.waitForTimeout(800)
@@ -199,6 +281,7 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
   },
   {
     id: 3,
+    serial: true,
     name: 'paused or hidden: no frames, no callbacks',
     run: async (ctx, hp, fail) => {
       await loaded(ctx, hp, fail)
@@ -222,6 +305,7 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
   },
   {
     id: 4,
+    serial: true,
     name: 'settings apply live without re-decoding',
     run: async (ctx, hp, fail) => {
       const s0 = await loaded(ctx, hp, fail)
@@ -286,6 +370,7 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
   },
   {
     id: 6,
+    serial: true,
     name: 'bad files produce messages, page stays responsive',
     run: async (ctx, hp, fail) => {
       const bad = ctx.files.bad
@@ -323,6 +408,7 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
   },
   {
     id: 8,
+    serial: true,
     name: 'one catch-up frame after a clock jump',
     run: async (ctx, hp, fail) => {
       await loaded(ctx, hp, fail)
@@ -433,6 +519,7 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
   },
   {
     id: 13,
+    serial: true,
     name: 'every file setting arriving at once still resolves HotA sprites (spec 005 FR-004)',
     // The HotA archive is the largest file and could win the race by luck; holding its read back
     // makes the check fail deterministically whenever the controller loads the slots together.
@@ -559,6 +646,7 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
   },
   {
     id: 16,
+    serial: true,
     name: 'spec 007: map switches never show an empty frame; memory stays flat',
     run: async (ctx, hp, fail) => {
       await folderShown(ctx, hp, ctx.files.folders.five, fail)
@@ -655,6 +743,7 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
   },
   {
     id: 19,
+    serial: true,
     name: 'spec 007: the map interval counts visible time only',
     // One controller minute = 100 ms, so the interval of 1 minute can be watched.
     opts: { timeScale: 1 / 600 },
@@ -675,6 +764,11 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
       for (const how of ['host', 'hidden'] as const) {
         if (how === 'host') await ctx.driver.setPaused(hp, true)
         else await setHidden(hp.page, true)
+        // A switch that started while visible may still finish; only new switches count (spec 006 T067:
+        // a fixed 150 ms made this race-prone under load).
+        await hp.page
+          .waitForFunction(() => (window as unknown as Wallpaper).__h3wallpaper.controller.state().folder?.switching === false, null, { timeout: 5_000 })
+          .catch(() => undefined)
         await hp.page.waitForTimeout(150)
         const a = await hp.page.evaluate(() => (window as unknown as { __shownLog: string[] }).__shownLog.length)
         await hp.page.waitForTimeout(1000)
@@ -715,12 +809,27 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
 ]
 
 export async function runInvariants(ctx: InvariantContext): Promise<InvariantResult[]> {
-  const results: InvariantResult[] = []
-  for (const check of CHECKS) {
-    if (check.hosts !== undefined && !check.hosts.includes(ctx.driver.host)) continue
-    if (ctx.only !== undefined && !ctx.only.has(check.id)) continue
+  const selected = CHECKS.filter((c) => (c.hosts === undefined || c.hosts.includes(ctx.driver.host)) && (ctx.only === undefined || ctx.only.has(c.id)))
+  const jobs = Math.max(1, ctx.jobs ?? 1)
+  const byId = new Map<number, InvariantResult>()
+  // A pool of `jobs` invariants at a time, each in its own browser context; then the serial ones alone.
+  const pool = jobs === 1 ? selected : selected.filter((c) => c.serial !== true)
+  const queue = [...pool]
+  await Promise.all(
+    Array.from({ length: Math.min(jobs, queue.length) }, async () => {
+      for (let c = queue.shift(); c !== undefined; c = queue.shift()) byId.set(c.id, await runCheck(ctx, c))
+    }),
+  )
+  if (jobs > 1) for (const c of selected.filter((x) => x.serial === true)) byId.set(c.id, await runCheck(ctx, c))
+  return selected.map((c) => byId.get(c.id) as InvariantResult)
+}
+
+async function runCheck(ctx: InvariantContext, check: (typeof CHECKS)[number]): Promise<InvariantResult> {
+  {
     const details: string[] = []
     let hp: HostPage | undefined
+    const started = Date.now()
+    const profile: WaitProfile = { openMs: 0, waits: [] }
     try {
       hp = await ctx.driver.open({
         seed: SEED,
@@ -730,6 +839,8 @@ export async function runInvariants(ctx: InvariantContext): Promise<InvariantRes
         ...(check.opts?.readDelays !== undefined ? { readDelays: check.opts.readDelays } : {}),
         ...(check.opts?.timeScale !== undefined ? { timeScale: check.opts.timeScale } : {}),
       })
+      profile.openMs = Date.now() - started
+      profilePage(hp.page, profile)
       await check.run(ctx, hp, (m) => details.push(m))
       const csp = await hp.page.evaluate(() => (window as unknown as Wallpaper).__cspViolations)
       if (check.id !== 10 && csp.length > 0) details.push(`CSP violations: ${csp.join('; ')}`)
@@ -738,8 +849,11 @@ export async function runInvariants(ctx: InvariantContext): Promise<InvariantRes
     } finally {
       await hp?.close().catch((err: unknown) => details.push(`page closed unexpectedly: ${err instanceof Error ? err.message : String(err)}`))
     }
-    log.info(`${ctx.driver.host} invariant ${check.id}: ${details.length === 0 ? 'pass' : details.join('; ').slice(0, 300)}`)
-    results.push({ id: check.id, name: check.name, outcome: details.length === 0 ? 'pass' : 'fail', details })
+    const ms = Date.now() - started
+    profile.waits.sort((a, b) => b.ms - a.ms)
+    const timeouts = profile.waits.filter((w) => w.timedOut > 0)
+    log.info(`${ctx.driver.host} invariant ${check.id}: ${details.length === 0 ? 'pass' : details.join('; ').slice(0, 300)} (${(ms / 1000).toFixed(1)} s)`)
+    for (const w of timeouts) log.warn(`${ctx.driver.host} invariant ${check.id}: ${w.timedOut}× wait at ${w.where} ended by timeout (${(w.ms / 1000).toFixed(1)} s)`)
+    return { id: check.id, name: check.name, outcome: details.length === 0 ? 'pass' : 'fail', details, ms, profile }
   }
-  return results
 }

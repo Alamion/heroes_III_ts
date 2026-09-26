@@ -281,3 +281,36 @@ tools may import only `settings.ts` and `strings.ts` from adapters (`TOOL_IMPORT
   project's own output, the `docs/img/` kind and size limits, MAY be uploaded by the maintainer to
   store pages; they MUST NOT enter packages, release assets or build output. The packages check
   already rejects images other than the generated previews; the release asset list is fixed by R6.
+
+## Check speed (T066–T070, 2026-09-26)
+
+`yarn verify hosts` for all four hosts took **42 min** locally (91 invariants, one after another) with
+only ~3.5 min of CPU in the node process: the time went into waiting. A release run with it could not
+meet SC-001 (< 20 min).
+
+Measured with per-invariant timing and a profile of every wait by call site (T066; `timing` in the
+report, a `warn` line for each wait that ends by its timeout):
+
+- **The cause**: `loaded()` in `tools/checks/hosts/invariants.ts` waited until *every* file slot was
+  `loaded`, including the HotA slot, which these invariants never supply. The condition could not
+  become true, so each call ran into its 60 s timeout and the invariant then passed on its later
+  checks. 10 of 24 web invariants lost 60 s each (11 min 43 s → **1 min 54 s** for the web host after
+  waiting only for the three supplied slots). No invariant was weakened: the same state is checked
+  right after the wait, as before.
+- Invariant 19 (map interval counts visible time only) failed once under the profiler: a map switch
+  that had started while visible could finish within the fixed 150 ms after the pause. It now waits
+  until the running switch has finished before it starts counting; the rule it checks — no *new*
+  switch while hidden — is unchanged.
+- Invariant 16 (100 map switches with frame sampling and memory) takes ~29 s of real work and stays.
+- `--jobs N` (T068, default half the cores): invariants of a host run in a pool of browser contexts;
+  the ones that measure time, frames or races run alone afterwards (`serial: true`: 1, 3, 4, 6, 8, 13,
+  16, 19 — 4 and 6 have millisecond thresholds that a loaded CPU exceeds). Lively's driver copies
+  files into its shared `userfiles/` folder atomically (temp file + rename), since parallel invariants
+  copy the same names.
+- Result, all hosts locally (20 cores, `--jobs 10`): **42 min → 5 min**, 91 of 91 pass, no wait ends
+  by timeout (two consecutive runs).
+- CI (T069): `release.yml` runs the rules first (`check`), then the host simulations as a matrix of
+  four runners (`hosts`, ~2 min each on 4-core runners with `--jobs 2`) in parallel with `build`
+  (type-check, tests, packages with `--reproducible`, store texts, assets); `release` publishes only
+  after both, and `pages` follows. Expected tag-to-release time: ~10 min, within SC-001; to be
+  confirmed on the first pre-release run (T064).
