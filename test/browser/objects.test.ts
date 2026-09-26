@@ -37,7 +37,7 @@ describe.skipIf(!chromium)('WebGL objects (synthetic)', () => {
   let renderer: HeadlessRenderer
   beforeAll(async () => {
     files = writeSyntheticFiles([{ name: 'objects.h3m', size: 36, underground: true }])
-    renderer = await HeadlessRenderer.open({ rebuild: true, width: 640, height: 480 })
+    renderer = await HeadlessRenderer.open({ width: 640, height: 480 })
   }, 300_000)
   afterAll(async () => {
     await renderer?.close()

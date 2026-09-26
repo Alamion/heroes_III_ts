@@ -60,7 +60,7 @@ describe.skipIf(!chromium)('engine prepareMap / showPreparedMap (spec 007)', () 
 
   beforeAll(async () => {
     files = writeSyntheticFiles(MAPS)
-    session = await openSession({ mode: 'preview', viewport: { width: 640, height: 480 }, rebuild: true })
+    session = await openSession({ mode: 'preview', viewport: { width: 640, height: 480 } })
     urls = await exposeFiles(session.context, [files.archive, files.dataArchive, ...MAPS.map((m) => files.maps[m.name] as string)])
     await openPage()
   }, 180_000)

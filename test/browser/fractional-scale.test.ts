@@ -24,7 +24,7 @@ describe.skipIf(!chromium)('fractional device scale', () => {
 
   beforeAll(async () => {
     files = writeSyntheticFiles([{ name: 'synthetic-36.h3m', size: 36, underground: false }])
-    renderer = await HeadlessRenderer.open({ rebuild: true, width: 512, height: 512 })
+    renderer = await HeadlessRenderer.open({ width: 512, height: 512 })
   }, 120_000)
 
   afterAll(async () => {

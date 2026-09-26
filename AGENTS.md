@@ -55,7 +55,11 @@ with the map border on top, a browser dev harness (sprite archive, data archive 
 map), inspection CLIs and headless checks (layers, determinism, fidelity with objects, budgets). The
 capture tooling verifies level and pixel mapping before storing a capture. Platform adapters
 ([specs/004-platform-adapters/](specs/004-platform-adapters/)) are built on Linux: a browser version
+<<<<<<< HEAD
 (GitHub Pages from final releases), Wallpaper Engine, Lively and a KDE Plasma 6 plugin, one host-neutral
+=======
+(GitHub Pages; deployed on release tags once spec 006 lands, not on pushes), Wallpaper Engine, Lively and a KDE Plasma 6 plugin, one host-neutral
+>>>>>>> testing
 wallpaper controller, `yarn package`, `yarn verify packages|hosts` (host simulations) and `yarn accept kde`.
 KDE is accepted on a real Plasma session; Wallpaper Engine and Lively were checked on the real Windows hosts
 (2026-09-19, and HotA + map folder on 2026-09-25); still open there: WE-5/7/10/11, LV-5, cold start timings
