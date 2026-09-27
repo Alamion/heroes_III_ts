@@ -388,18 +388,31 @@ class, uses 729 DEFs with 3 537 distinct frames.
 A sprite's full frame is anchored **bottom-right** on its tile: `left = (x + 1)·32 − fullWidth`. A
 hero stands one tile left of its anchor (hero templates have their visitable cell at x−1).
 
-### Draw order — [object-order.ts](../src/core/render/object-order.ts)
+### Draw order — [draw-order.ts](../src/core/state/draw-order.ts)
 
-This took the longest to get right. The final order is:
+This took the longest to get right. The order is a property of the map's objects: `buildRenderObjects`
+gives every object a `drawRank` once, over the whole map, and the renderer sorts a view by it.
+
+The base order (`compareObjects`, a total order):
 
 1. flat objects (`isOverlay`) first;
-2. **non-visitable before visitable**;
-3. anchor row (y);
-4. heroes after other objects in the same row;
+2. anchor row (y);
+3. heroes after other objects in the same row;
+4. visitable after non-visitable objects **of the same row** — base-game maps only: on HotA maps the
+   object later in the file is in front within a row (the HotA editor moves the object last placed
+   or moved to the end of the list);
 5. map file order;
 6. for a hero: flag, then body.
 
-How it was found:
+On top of it, **who stands below whom** (`drawRanks`): of two objects, the one whose blocked tiles
+lie directly below more blocked tiles of the other is drawn in front of it, whatever the rows and the
+file order. On HotA maps this holds only between objects of different rows. The pairwise rule is not
+transitive, so it is applied as constraints on the base order through a topological sort (lowest base
+rank first; a cycle is broken at its lowest base rank). A pairwise sort per view matched the game
+better still (364 819 against 411 097 differing pixels over 59 stills), but its result depends on the
+sort algorithm and on which objects are in view, so the order would not be deterministic.
+
+How it was found (2026-09-17, spec 003):
 
 - The starting point was the key used by VCMI and h3lwp: (flat, y, heroes, visitable, x).
 - On six stills, every overlapping pair of objects was decided from exact body colours. The VCMI
@@ -409,6 +422,13 @@ How it was found:
   after all non-visitable ones.** Differing pixels over 32 views dropped from 543 604 to 422 813.
 - **Hero flags go before the body.** The body's flagpole covers the last column of the flag. That
   change took the owned-hero still from 29 differing pixels to 1.
+
+Revised 2026-09-28 (spec 005 research "Draw order: who stands below whom"): "every visitable object
+after all non-visitable ones" put a black market, a golem and a Marletto tower of `[HotA] Gold Rush`
+over the forest in front of them. Visitability decides only within a row; the blocked-tile rule
+(described by VCMI from H3 maps) explains the Arrogance library. Over 59 stills (Arrogance,
+test_map, Merchant Princes, Shadow Valleys, test_map_hota, Gold Rush) differing pixels fell from
+503 613 to 411 097.
 
 One case is still open: dense mountain clusters, where no tested key reproduces the game (see
 [deviations](#known-deviations-and-open-questions)).

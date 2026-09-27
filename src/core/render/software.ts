@@ -7,7 +7,7 @@ import type { Atlas } from './atlas.ts'
 import type { Camera } from './camera.ts'
 import { VERTEX_SIZE, VERTICES_PER_QUAD } from './draw-plan.ts'
 import type { DrawPlan } from './draw-plan.ts'
-import { FLAG_INDEX, SHADOW_KIND_ORDER, SHADOW_TINT, shadowChannel, shadowKindOfAlpha, shadowTintOfWeight } from '../data/animation.ts'
+import { FLAG_MARKER_ALPHA, SHADOW_KIND_ORDER, SHADOW_TINT, shadowChannel, shadowKindOfAlpha, shadowTintOfWeight } from '../data/animation.ts'
 import type { ShadowKind, ShadowTint } from '../data/animation.ts'
 import type { ObjectAtlas } from './object-atlas.ts'
 import { OBJECT_VERTEX_SIZE, OBJECT_VERTICES_PER_QUAD } from './object-plan.ts'
@@ -213,9 +213,10 @@ export function drawObjects(out: Uint8Array, objects: SceneObjects, cam: Camera,
         const a = atlas.palettes[p + 3] as number
         if (a === 0) continue
         const i = sy * width + sx
+        const body = a === 255 || a === FLAG_MARKER_ALPHA
         // A shadow keeps the owner of the object it darkens, so that object's frame stays searchable.
-        if (owners !== undefined && (a === 255 || owners[i] === -1)) owners[i] = object
-        if (a !== 255) {
+        if (owners !== undefined && (body || owners[i] === -1)) owners[i] = object
+        if (!body) {
           const kind = counts[shadowKindOfAlpha(a) ?? 'light']
           kind[i] = (kind[i] as number) + 1
           tints[i] = Math.min(255, (tints[i] as number) + tint)
@@ -224,7 +225,7 @@ export function drawObjects(out: Uint8Array, objects: SceneObjects, cam: Camera,
         for (const kind of SHADOW_KIND_ORDER) counts[kind][i] = 0
         tints[i] = 0
         const o = i * 4
-        if (idx === FLAG_INDEX) {
+        if (a === FLAG_MARKER_ALPHA) {
           out[o] = flagColors[owner * 3] as number
           out[o + 1] = flagColors[owner * 3 + 1] as number
           out[o + 2] = flagColors[owner * 3 + 2] as number

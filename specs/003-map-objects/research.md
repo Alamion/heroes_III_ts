@@ -116,6 +116,10 @@ more memory and cache work for no gain over a per-vertex owner.
 
 **Measured (T047): flat → non-visitable → visitable → row y → heroes → map order; see Measurements.**
 
+**Revised 2026-09-28** (spec 005 research "Draw order: who stands below whom"): visitability decides
+only within a row, and a blocked-tile rule (an object standing directly below another's blocked tiles
+is in front) refines the order; `src/core/state/draw-order.ts`.
+
 **Original hypothesis** (SPIKE on dense zones of `test_map.h3m`): one comparator in
 `src/core/render/object-order.ts`, keys in order:
 

@@ -12,7 +12,6 @@ import { frameOf } from './animation.ts'
 import type { TileRange } from './camera.ts'
 import type { ObjectAtlasLayout } from './object-atlas.ts'
 import { QUAD_CORNERS } from './draw-plan.ts'
-import { compareObjects } from './object-order.ts'
 
 /**
  * Floats per vertex: the terrain layout (draw-plan.ts VERTEX_SIZE), then page, owner slot (0–7,
@@ -62,17 +61,17 @@ export interface ObjectPlan {
   entries: DrawListEntry[] | undefined
 }
 
-/** Objects of `level` that can reach into `range`, in draw order. */
-export function orderedObjects(index: ObjectIndex, level: number, range: TileRange, compare: (a: RenderObject, b: RenderObject) => number = compareObjects): number[] {
-  return index.query(level, range).sort((a, b) => compare(index.objects[a] as RenderObject, index.objects[b] as RenderObject))
+/** Objects of `level` that can reach into `range`, in draw order (`RenderObject.drawRank`). */
+export function orderedObjects(index: ObjectIndex, level: number, range: TileRange): number[] {
+  return index.query(level, range).sort((a, b) => (index.objects[a] as RenderObject).drawRank - (index.objects[b] as RenderObject).drawRank)
 }
 
 /**
  * `frames` overrides the frame of individual render objects (by index into the render-object list),
  * for the fidelity state search.
  */
-export function buildObjectPlan(index: ObjectIndex, layout: ObjectAtlasLayout, level: number, range: TileRange, tick: number, opts: { drawList?: boolean; frames?: ReadonlyMap<number, number>; compare?: (a: RenderObject, b: RenderObject) => number } = {}): ObjectPlan {
-  const ids = orderedObjects(index, level, range, opts.compare)
+export function buildObjectPlan(index: ObjectIndex, layout: ObjectAtlasLayout, level: number, range: TileRange, tick: number, opts: { drawList?: boolean; frames?: ReadonlyMap<number, number> } = {}): ObjectPlan {
+  const ids = orderedObjects(index, level, range)
   const vertices = new Float32Array(ids.length * OBJECT_VERTICES_PER_QUAD * OBJECT_VERTEX_SIZE)
   const quadObjects = new Int32Array(ids.length)
   const entries: DrawListEntry[] | undefined = opts.drawList === true ? [] : undefined

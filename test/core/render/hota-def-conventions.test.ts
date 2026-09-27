@@ -1,8 +1,7 @@
 // HotA sprite conventions (spec 005 FR-015).
 
 import { describe, expect, it } from 'vitest'
-import { SHADOW_KINDS, shadowChannel } from '../../../src/core/data/animation.ts'
-import { flagIndexFor, HOTA_FLAG_AT_255 } from '../../../src/core/data/hota-def-conventions.ts'
+import { SHADOW_KINDS, isFlagMarker, shadowChannel } from '../../../src/core/data/animation.ts'
 
 describe('HotA shadow indices', () => {
   it('gives indices 3 and 2 their own strengths, between and around the base ones', () => {
@@ -29,18 +28,14 @@ describe('HotA shadow indices', () => {
   })
 })
 
-describe('HotA flag colour index', () => {
-  it('moves the flag slot to 255 only for the listed sprites', () => {
-    expect(flagIndexFor('avwjugg.def', 5)).toBe(255)
-    expect(flagIndexFor('AVWJUGG.DEF', 5)).toBe(255)
-    expect(flagIndexFor('avccasx0.def', 5)).toBe(5)
-    expect(flagIndexFor('ah00_.def', 5)).toBe(5)
-  })
-
-  it('keeps the list small, since index 255 is an ordinary colour elsewhere', () => {
-    // 1052 of 1369 base-game adventure sprites use index 255 as a normal colour, so this rule can
-    // only ever be a short, explicit list (spec 005 R10).
-    expect(HOTA_FLAG_AT_255.size).toBeLessThan(20)
-    for (const name of HOTA_FLAG_AT_255) expect(name).toBe(name.toLowerCase())
+describe('HotA flag markers', () => {
+  it('reads index 5 as a flag only when the sprite marks it', () => {
+    // Base game (255,255,0); HotA Inferno towns (0,255,0), Factory town forms (255,0,0).
+    expect(isFlagMarker(255, 255, 0)).toBe(true)
+    expect(isFlagMarker(0, 255, 0)).toBe(true)
+    expect(isFlagMarker(255, 0, 0)).toBe(true)
+    // The one-way portal exits fill their gate with (6,8,5) at index 5 (spec 005 research "Flag markers").
+    expect(isFlagMarker(6, 8, 5)).toBe(false)
+    expect(isFlagMarker(23, 20, 11)).toBe(false)
   })
 })

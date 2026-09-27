@@ -1,35 +1,13 @@
-// HotA sprite conventions that cannot be derived from the sprite itself
-// (specs/005-hota-support/contracts/render-data.md).
+// HotA sprite conventions (specs/005-hota-support/contracts/render-data.md). Only a name alias needs
+// a table; the render conventions surveyed need none, the sprite says them itself:
 //
-// Two conventions were surveyed. Only one of them needs a table:
-//
-// - Shadows in palette indices 2 and 3. Not listed here: the sprite says it itself. A special index
-//   is a shadow only when its palette entry is a marker colour (`isShadowMarker` in
-//   `animation.ts`); most HotA sprites keep ordinary colours there (spec 005 research, "Special
-//   indices are shadows only when marked").
-// - The player-flag colour at index 255 instead of index 5. This one *is* a per-file rule: index
-//   255 is an ordinary colour elsewhere (1052 of 1369 base-game adventure sprites use it), and the
-//   sprites that follow the rule use index 5 as well, so nothing in the pixels distinguishes them.
-//
-// The list below is therefore ported from MMArchiveCLI (MIT, see THIRD_PARTY_NOTICES.md) and is
-// **not independently verified**: a wrong entry would tint a sprite's index-255 pixels with the
-// owner's colour. It is deliberately short and covers only names that source lists.
-
-/** Sprites whose player-flag colour sits at palette index 255 instead of `FLAG_INDEX` (5). */
-export const HOTA_FLAG_AT_255: ReadonlySet<string> = new Set([
-  'avswplnt.def',
-  'avxmn6o0.def',
-  'avxmn7o0.def',
-  'avxmn9b0.def',
-  'avxmn10b.def',
-  'avxmn12b.def',
-  'avwjugg.def',
-  'avwtobtw.def',
-  'avxseec0.def',
-])
-
-/** Sprites whose index-5 pixels are an ordinary colour and must not be made transparent. */
-export const HOTA_KEEP_SELECTION: ReadonlySet<string> = new Set(['ava0037.def'])
+// - Shadows in palette indices 2 and 3: a special index is a shadow only when its palette entry is a
+//   marker colour (`isShadowMarker` in `animation.ts`).
+// - The player flag: index 5 is a flag only when its palette entry is a flag marker
+//   (`isFlagMarker`). A list ported from MMArchiveCLI named nine sprites whose flag would sit at
+//   index 255; none of them is an ownable object and all nine keep ordinary colours at 5 (dark) and
+//   255 (near white), so the list turned their portals and plants grey. It was removed
+//   (2026-09-28, owner's report on `test_map_hota.h3m`; spec 005 research "Flag markers").
 
 /**
  * Sprite names HotA's own object tables get wrong. Measured (spec 005 T057): three shipped maps
@@ -42,9 +20,4 @@ export const HOTA_SPRITE_ALIASES: ReadonlyMap<string, string> = new Map([['avwco
 /** The name an archive actually stores this sprite under. */
 export function resolveSpriteName(defName: string): string {
   return HOTA_SPRITE_ALIASES.get(defName.toLowerCase()) ?? defName
-}
-
-/** Palette index carrying the flag colour in this sprite. */
-export function flagIndexFor(defName: string, baseIndex: number): number {
-  return HOTA_FLAG_AT_255.has(defName.toLowerCase()) ? 255 : baseIndex
 }

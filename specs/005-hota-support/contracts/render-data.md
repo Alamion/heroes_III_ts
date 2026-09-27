@@ -49,8 +49,8 @@ TownForms = { village, fort, citadel, castle, capitol }   // DEF names per facti
 HotaDefConventions = {
   // shadowAt2And3 was dropped (research "Special indices are shadows only when marked", "Four shadow
   // strengths"): the palette marker decides, and indices 3 and 2 have their own strengths.
-  flagAt255:     readonly string[],   // player-flag slot is index 255 instead of 5
-  keepSelection: readonly string[],   // index 5 is not made transparent
+  // flagAt255 and keepSelection were dropped (research "Flag markers"): index 5 is a flag only when
+  // the palette marks it (`isFlagMarker`), otherwise an ordinary colour.
 }
 ```
 

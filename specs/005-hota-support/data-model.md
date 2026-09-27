@@ -179,8 +179,8 @@ A typed, name-keyed table:
 | Set | Effect |
 | --- | --- |
 | ~~Shadows at palette 2/3~~ | **Superseded 2026-09-24** (research "Four shadow strengths"): no table. A special index is a shadow when its palette holds a marker; index 3 is its own *faint* strength (`(c>>1)+(c>>2)+(c>>3)`) and index 2 a *medium* one (`(c>>1)+(c>>3)`), not copies of base 1 and 4. |
-| Flag colour at index 255 | For these DEFs, the player-flag slot is index 255 instead of 5. |
-| Keep selection palette | For the one listed DEF, index 5 is not made transparent. |
+| ~~Flag colour at index 255~~ | **Removed 2026-09-28** (research "Flag markers"): wrong for all nine listed DEFs. Index 5 is a flag when its palette holds a flag marker, otherwise an ordinary colour. |
+| ~~Keep selection palette~~ | **Removed 2026-09-28**: never used; covered by the flag-marker rule. |
 
 **Rule**: selection is by DEF name, never by archive or heuristic, so a base-game sprite is never
 re-interpreted (M7). The table is seeded from the MIT source and then **replaced by the result of our
