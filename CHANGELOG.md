@@ -7,6 +7,13 @@ text becomes the Steam Workshop and KDE Store change notes (see [docs/releasing.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-27
+
+### Fixed
+
+- Some Horn of the Abyss reefs (and one HotA mine) no longer show a bright red edge: that edge is
+  their shadow, and it is now drawn as a shadow, as in the game
+
 ## [0.1.1] - 2026-09-27
 
 ### Fixed
