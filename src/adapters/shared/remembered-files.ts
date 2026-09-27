@@ -8,7 +8,8 @@ import type { FileSlot } from './messages.ts'
 
 export const FILES_DB = 'h3dynam-files'
 const STORE = 'userFiles'
-const SLOTS: readonly FileSlot[] = ['spriteArchive', 'dataArchive', 'map']
+// The HotA archive is remembered like the others (spec 005 US3; it was left out of this list until spec 008).
+const SLOTS: readonly FileSlot[] = ['spriteArchive', 'dataArchive', 'hotaArchive', 'map']
 
 interface Stored {
   slot: FileSlot
@@ -70,6 +71,11 @@ export function indexedDbRememberedFiles(factory: IDBFactory | undefined = typeo
       const d = await open()
       if (d === undefined) return
       await request(d.transaction(STORE, 'readwrite').objectStore(STORE).clear())
+    },
+    async remove(slot) {
+      const d = await open()
+      if (d === undefined) return
+      await request(d.transaction(STORE, 'readwrite').objectStore(STORE).delete(slot))
     },
   }
 }

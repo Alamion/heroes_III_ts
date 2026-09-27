@@ -5,6 +5,7 @@
 // compressed size (specs/005-hota-support/contracts/archives.md).
 
 import { lodNameHash } from '../../../src/core/formats/lod/name-hash.ts'
+import { hotaLzmaEntry } from './lzma.ts'
 import { ByteWriter, zlib } from './writer.ts'
 
 /** Compression types of an obfuscated index: 0 raw, 1 unknown, 2 LZMA, 3 zlib. */
@@ -13,8 +14,10 @@ export const HOTA_COMPRESSION = { raw: 0, unknown: 1, lzma: 2, zlib: 3 } as cons
 export interface SyntheticHotaEntry {
   name: string
   data: Uint8Array
-  /** Defaults to zlib when the entry has data, raw when empty. */
+  /** Defaults to zlib when the entry has data, raw when empty; lzma uses HotA's framing (spec 008). */
   compression?: number
+  /** Spec 008: damages the stored bytes (the framing byte of an LZMA entry, the header of a zlib one). */
+  corrupt?: boolean
 }
 
 export interface SyntheticHotaLodOptions {
@@ -30,7 +33,8 @@ export function writeHotaLod(entries: SyntheticHotaEntry[], opts: SyntheticHotaL
   const filler = opts.filler ?? 0xa5
   const stored = entries.map((e) => {
     const compression = e.compression ?? (e.data.length === 0 ? HOTA_COMPRESSION.raw : HOTA_COMPRESSION.zlib)
-    const payload = compression === HOTA_COMPRESSION.raw ? e.data : zlib(e.data)
+    const payload = compression === HOTA_COMPRESSION.raw ? e.data : compression === HOTA_COMPRESSION.lzma ? hotaLzmaEntry(e.data) : zlib(e.data)
+    if (e.corrupt === true && payload.length > 0) payload[0] = (payload[0] as number) ^ 0x41
     return { compression, payload }
   })
 

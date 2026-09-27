@@ -4,6 +4,7 @@ import { ByteReader } from '../../util/byte-reader.ts'
 import type { ByteSource } from '../../util/byte-source.ts'
 import { FORMAT_ERROR_CODES, FormatError } from '../../util/errors.ts'
 import { inflate } from '../../util/inflate.ts'
+import { HOTA_LZMA_PROPERTIES, lzmaDecodeRaw } from '../../util/lzma.ts'
 import { hashDisplayName, lodNameHash, parseHashDisplayName } from './name-hash.ts'
 
 export interface LodEntry {
@@ -34,10 +35,30 @@ const MAX_ENTRIES = 100_000
  */
 const PLAIN_INDEX_KEYS = new Set<number>([0, 0x7e0213])
 
-/** Compression types of an obfuscated index. Only 0 and 3 occur in HotA 1.8.1 (research M1). */
+/**
+ * Compression types of an obfuscated index. HotA 1.8.1 uses only 0 and 3 (005 research M1); other
+ * builds (1.8.0 in a user's report) also store 2, raw LZMA1 (spec 008 research R1).
+ */
 const COMPRESSION_RAW = 0
+const COMPRESSION_LZMA = 2
 const COMPRESSION_ZLIB = 3
-const COMPRESSION_NAMES: Record<number, string> = { 1: 'unknown type 1', 2: 'LZMA' }
+const COMPRESSION_NAMES: Record<number, string> = { 1: 'unknown type 1' }
+/** An LZMA entry: a 0 byte, the stream, then two i64 (size, stored size + 5) — hota-lod-convert. */
+const LZMA_FOOTER = 16
+
+/**
+ * One entry of an unknown compression type or with data past the end of the file does not make the
+ * archive unreadable (spec 008 FR-010): it is left out with a warning, so a name it held falls
+ * through to the next archive of a set. Only when most entries are bad is the archive itself wrong
+ * (a cut file), and opening fails.
+ */
+const maxBadEntries = (count: number): number => Math.floor(count / 2)
+
+/** An index entry left out of lookups, with the reason (spec 008). */
+export interface UnreadableEntry {
+  entry: LodEntry
+  error: FormatError
+}
 
 export class LodArchive {
   readonly source: ByteSource
@@ -45,6 +66,8 @@ export class LodArchive {
   readonly kind: LodIndexKind
   readonly entries: readonly LodEntry[]
   readonly warnings: readonly string[]
+  /** Index entries that cannot be read; lookups do not see them (spec 008). */
+  readonly unreadable: readonly UnreadableEntry[]
   private readonly byHash: ReadonlyMap<number, LodEntry>
   /** Raw header + index bytes (used for source identity). */
   readonly indexBytes: Uint8Array
@@ -55,6 +78,7 @@ export class LodArchive {
     kind: LodIndexKind,
     entries: LodEntry[],
     warnings: string[],
+    unreadable: UnreadableEntry[],
     indexBytes: Uint8Array,
   ) {
     this.source = source
@@ -62,11 +86,13 @@ export class LodArchive {
     this.kind = kind
     this.entries = entries
     this.warnings = warnings
+    this.unreadable = unreadable
     this.indexBytes = indexBytes
     // Hashing the wanted name is what makes an obfuscated archive addressable without a name
     // dictionary; for a plain archive the hash of the stored name is the same key.
     const map = new Map<number, LodEntry>()
-    for (const e of entries) if (!map.has(e.nameHash)) map.set(e.nameHash, e)
+    const bad = new Set(unreadable.map((u) => u.entry))
+    for (const e of entries) if (!bad.has(e) && !map.has(e.nameHash)) map.set(e.nameHash, e)
     this.byHash = map
   }
 
@@ -93,7 +119,10 @@ export class LodArchive {
     const tr = new ByteReader(table, { file: source.name, format: 'lod', version: String(version) })
     const entries: LodEntry[] = []
     const warnings: string[] = []
+    const unreadable: UnreadableEntry[] = []
     const seen = new Set<string>()
+    const entryError = (code: (typeof FORMAT_ERROR_CODES)[keyof typeof FORMAT_ERROR_CODES], at: number, structure: string, message: string): FormatError =>
+      new FormatError({ code, file: source.name, offset: at, format: 'lod', structure, message, version: String(version) })
     for (let i = 0; i < count; i++) {
       const at = LOD_HEADER_SIZE + i * LOD_ENTRY_SIZE
       const entry =
@@ -117,35 +146,45 @@ export class LodArchive {
               tr.skipKnown(15, 'entry filler')
               return { name: hashDisplayName(nameHash), nameHash, offset, size, compressedSize, type }
             })
+      let problem: FormatError | undefined
+      const where = `entries[${i}] (${entry.name})`
       if (kind === 'obfuscated') {
         // A wrong key is indistinguishable from corruption, so every field is checked before use.
-        const where = `entries[${i}] (${entry.name})`
+        // These two never hold in a correctly keyed archive (hota-lod-convert asserts them as well),
+        // so they fail the archive at once: that is how a wrong key is caught.
         if (entry.offset < 0 || entry.size < 0 || entry.compressedSize < 0) {
-          fail(FORMAT_ERROR_CODES.INVALID_VALUE, at, where, `negative field after de-obfuscation with key 0x${xorKey.toString(16)}: offset ${entry.offset}, size ${entry.size}, compressed ${entry.compressedSize}`)
+          throw entryError(FORMAT_ERROR_CODES.INVALID_VALUE, at, where, `negative field after de-obfuscation with key 0x${xorKey.toString(16)}: offset ${entry.offset}, size ${entry.size}, compressed ${entry.compressedSize}`)
         }
         if ((entry.compressedSize === 0) !== (entry.type === COMPRESSION_RAW)) {
-          fail(FORMAT_ERROR_CODES.INVALID_VALUE, at, where, `compression type ${entry.type} disagrees with compressed size ${entry.compressedSize}`)
+          throw entryError(FORMAT_ERROR_CODES.INVALID_VALUE, at, where, `compression type ${entry.type} disagrees with compressed size ${entry.compressedSize}`)
         }
+        // A compression type this reader does not know may come with a newer HotA: left out.
         if (entry.type > COMPRESSION_ZLIB) {
-          fail(FORMAT_ERROR_CODES.INVALID_VALUE, at, where, `unknown compression type ${entry.type}`)
+          problem = entryError(FORMAT_ERROR_CODES.INVALID_VALUE, at, where, `unknown compression type ${entry.type}`)
         }
       }
       const stored = entry.compressedSize === 0 ? entry.size : entry.compressedSize
-      if (entry.name.length === 0) {
-        fail(FORMAT_ERROR_CODES.INVALID_VALUE, at, `entries[${i}].name`, 'empty entry name')
+      if (problem === undefined && entry.name.length === 0) {
+        problem = entryError(FORMAT_ERROR_CODES.INVALID_VALUE, at, `entries[${i}].name`, 'empty entry name')
       }
-      if (entry.offset + stored > source.size) {
-        fail(FORMAT_ERROR_CODES.TRUNCATED, at, `entries[${i}]`, `entry "${entry.name}" data ${entry.offset}+${stored} beyond end of file (${source.size})`)
+      if (problem === undefined && entry.offset + stored > source.size) {
+        problem = entryError(FORMAT_ERROR_CODES.TRUNCATED, at, `entries[${i}]`, `entry "${entry.name}" data ${entry.offset}+${stored} beyond end of file (${source.size})`)
       }
-      const key = entry.name.toLowerCase()
-      if (seen.has(key)) warnings.push(`duplicate entry name "${entry.name}" at index ${i}; the first one is used`)
-      seen.add(key)
+      if (problem !== undefined) {
+        unreadable.push({ entry, error: problem })
+        if (unreadable.length > maxBadEntries(count)) throw unreadable[0]?.error ?? problem
+        warnings.push(`entry ${where} is left out: ${problem.detail}`)
+      } else {
+        const key = entry.name.toLowerCase()
+        if (seen.has(key)) warnings.push(`duplicate entry name "${entry.name}" at index ${i}; the first one is used`)
+        seen.add(key)
+      }
       entries.push(entry)
     }
     const indexBytes = new Uint8Array(header.length + table.length)
     indexBytes.set(header, 0)
     indexBytes.set(table, header.length)
-    return new LodArchive(source, version, kind, entries, warnings, indexBytes)
+    return new LodArchive(source, version, kind, entries, warnings, unreadable, indexBytes)
   }
 
   /** Looks an entry up by name, or by the `#<hex>` form of its hash. */
@@ -175,21 +214,29 @@ export class LodArchive {
   /** Returns the entry's uncompressed bytes (byte-exact). */
   async read(nameOrEntry: string | LodEntry): Promise<Uint8Array> {
     const entry = typeof nameOrEntry === 'string' ? this.get(nameOrEntry) : nameOrEntry
-    if (this.kind === 'obfuscated' && entry.type !== COMPRESSION_RAW && entry.type !== COMPRESSION_ZLIB) {
-      // Not present in HotA 1.8.1 (research M1); reported per entry so the rest stays readable.
-      throw new FormatError({
-        code: FORMAT_ERROR_CODES.UNSUPPORTED_VERSION,
-        file: this.source.name,
-        offset: entry.offset,
-        format: 'lod',
-        structure: `entry "${entry.name}"`,
-        message: `compression type ${entry.type} (${COMPRESSION_NAMES[entry.type] ?? 'unknown'}) is not supported`,
-      })
+    const ctx = { file: this.source.name, format: 'lod' as const, offset: entry.offset, structure: `entry "${entry.name}"`, version: String(this.version) }
+    const fail = (message: string, code: (typeof FORMAT_ERROR_CODES)[keyof typeof FORMAT_ERROR_CODES] = FORMAT_ERROR_CODES.DECOMPRESS_FAILED): never => {
+      throw new FormatError({ code, ...ctx, message })
+    }
+    if (this.kind === 'obfuscated' && entry.type !== COMPRESSION_RAW && entry.type !== COMPRESSION_ZLIB && entry.type !== COMPRESSION_LZMA) {
+      // Reported per entry so the rest stays readable.
+      fail(`compression type ${entry.type} (${COMPRESSION_NAMES[entry.type] ?? 'unknown'}) is not supported`, FORMAT_ERROR_CODES.UNSUPPORTED_VERSION)
     }
     if (entry.compressedSize === 0) {
       return this.source.read(entry.offset, entry.size)
     }
     const stored = await this.source.read(entry.offset, entry.compressedSize)
-    return inflate(stored, 'deflate', { file: this.source.name, format: 'lod', offset: entry.offset, structure: `entry "${entry.name}"` }, entry.size)
+    if (this.kind === 'obfuscated' && entry.type === COMPRESSION_LZMA) {
+      if (stored.length < 1 + 5 + LZMA_FOOTER) fail(`LZMA entry of ${stored.length} bytes is shorter than its framing`)
+      if (stored[0] !== 0) fail(`LZMA entry starts with byte ${stored[0]}, expected 0`)
+      const footer = new DataView(stored.buffer, stored.byteOffset + stored.length - LZMA_FOOTER, LZMA_FOOTER)
+      const size = footer.getBigInt64(0, true)
+      const storedPlus5 = footer.getBigInt64(8, true)
+      if (size !== BigInt(entry.size) || storedPlus5 !== BigInt(entry.compressedSize) + 5n) {
+        fail(`LZMA footer says size ${size} and stored ${storedPlus5}, the index says ${entry.size} and ${entry.compressedSize}+5`)
+      }
+      return lzmaDecodeRaw(stored.subarray(1, stored.length - LZMA_FOOTER), HOTA_LZMA_PROPERTIES, entry.size, { ...ctx, offset: entry.offset + 1 })
+    }
+    return inflate(stored, 'deflate', ctx, entry.size)
   }
 }

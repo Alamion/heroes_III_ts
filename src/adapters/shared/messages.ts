@@ -25,6 +25,8 @@ export type MessageCode =
   | 'FOLDER_UNREADABLE'
   /** Spec 007: the host cannot list folders and the setting names one ({file} = the value). */
   | 'FOLDER_NEEDS_ZIP'
+  /** Spec 008: the map shown is a HotA map and the HotA archive is missing ({file} = the map). */
+  | 'HOTA_ARCHIVE_NEEDED'
 
 export interface UserMessage {
   code: MessageCode

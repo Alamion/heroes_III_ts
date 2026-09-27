@@ -115,6 +115,10 @@ export interface Engine {
   discardPreparedMap(prepared: PreparedMap): void
   /** h3bitmap.lod: Objects.txt, artraits.txt and game.pal; objects are drawn only with it. */
   loadDataArchive(file: Blob, name?: string): Promise<LoadResult>
+  /** Spec 008: forgets the data archive; objects are hidden until another one arrives. */
+  unloadDataArchive(): void
+  /** Spec 008: forgets the HotA archive and decodes the loaded archives again without it. */
+  unloadHotaArchive(): Promise<LoadResult>
   setObjectsVisible(visible: boolean): void
   /** Objects drawn in the last frame, in draw order (collected with preserveDrawingBuffer only). */
   drawList(): DrawListEntry[]
@@ -495,6 +499,31 @@ export function createEngine(options: EngineOptions): Engine {
       emit()
       await scheduleObjects()
       return { ok: true, identity: r.identity, fromCache: false, warnings: r.warnings }
+    },
+    unloadDataArchive() {
+      generations.data++
+      dataFile = undefined
+      primaryData = undefined
+      status.dataArchive = null
+      objectsKey = undefined
+      renderer.setObjects(undefined)
+      emit()
+      scheduler.invalidate()
+    },
+    async unloadHotaArchive() {
+      if (hotaFile === undefined) return { ok: true, identity: '', fromCache: false, warnings: [] }
+      hotaFile = undefined
+      status.hotaArchive = null
+      emit()
+      if (primarySprite !== undefined) {
+        const r = await engine.loadArchive(primarySprite.file, primarySprite.name)
+        if (!r.ok) return r
+      }
+      if (primaryData !== undefined) {
+        const r = await engine.loadDataArchive(primaryData.file, primaryData.name)
+        if (!r.ok) return r
+      }
+      return { ok: true, identity: '', fromCache: false, warnings: [] }
     },
     setObjectsVisible(v) {
       renderer.setObjectsVisible(v)

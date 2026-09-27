@@ -43,19 +43,58 @@
   flex: 1;
 }
 .h3p-file {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin: 2px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'kind buttons' 'name buttons';
+  align-items: center;
+  column-gap: 8px;
+  margin: 4px 0;
+  padding: 3px 0 3px 6px;
+  border-left: 2px solid rgba(232, 220, 192, 0.25);
 }
-.h3p-file span:last-child {
-  opacity: 0.8;
-  text-align: right;
+.h3p-file-kind {
+  grid-area: kind;
+  font-size: 12px;
+  opacity: 0.75;
+}
+.h3p-file-name {
+  grid-area: name;
   overflow-wrap: anywhere;
 }
-.h3p-file.h3p-missing span:last-child {
-  opacity: 0.5;
+.h3p-file-buttons {
+  grid-area: buttons;
+  display: flex;
+  gap: 4px;
+}
+.h3p-file.h3p-missing .h3p-file-name {
+  opacity: 0.55;
   font-style: italic;
+}
+.h3p-file.h3p-failed {
+  border-left-color: #d9543a;
+}
+.h3p-file.h3p-needed {
+  border-left-color: #d9a032;
+}
+.h3p .h3p-remove {
+  padding: 3px 7px;
+}
+.h3p-slot-note {
+  font-size: 12px;
+  margin: 0 0 6px 8px;
+}
+.h3p-slot-error {
+  color: #f0a08c;
+}
+.h3p-slot-warn {
+  color: #f0c870;
+}
+.h3p-alert {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  border-left: 3px solid #d9a032;
+  background: rgba(217, 160, 50, 0.14);
 }
 .h3p button,
 .h3p select,

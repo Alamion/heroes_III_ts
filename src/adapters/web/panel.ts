@@ -4,7 +4,7 @@
 
 import type { ControllerSnapshot } from '../shared/controller.ts'
 import type { FileSlot } from '../shared/messages.ts'
-import { SLOT_KIND_KEYS } from '../shared/messages.ts'
+import { messageText, SLOT_KIND_KEYS } from '../shared/messages.ts'
 import { SETTINGS, validateSettings } from '../shared/settings.ts'
 import type { SettingKey, WallpaperSettings } from '../shared/settings.ts'
 import { NEW_ISSUE_URL } from '../shared/project.ts'
@@ -17,6 +17,14 @@ export const PANEL_IDLE_MS = 4000
 export interface PanelHandlers {
   onSetting(key: SettingKey, value: string | number | boolean): void
   onFiles(files: File[]): void
+  /** Spec 008: a file chosen with one slot's own button. */
+  onPick(slot: FileSlot, file: File): void
+  /** Spec 008: one slot's remove button. */
+  onRemove(slot: FileSlot): void
+  /** Spec 008: the folder slot's remove button. */
+  onRemoveFolder(): void
+  /** Spec 008: a .zip of maps chosen with the folder slot's button. */
+  onZip(file: File): void
   onForget(): void
   onNewPlace(): void
   onLanguage(choice: LanguageChoice): void
@@ -34,8 +42,8 @@ export interface Panel {
 }
 
 const FILE_SLOTS: readonly FileSlot[] = ['spriteArchive', 'dataArchive', 'hotaArchive', 'map']
-/** Slots listed only once a file fills them: the HotA archive is optional. */
-const OPTIONAL_SLOTS: ReadonlySet<FileSlot> = new Set(['hotaArchive'])
+/** What each slot's own picker offers first; "all files" stays available in the dialog. */
+const SLOT_ACCEPT: Record<FileSlot, string> = { spriteArchive: '.lod', dataArchive: '.lod', hotaArchive: '.lod', map: '.h3m' }
 
 export function createPanel(root: HTMLElement, handlers: PanelHandlers, version = 'dev'): Panel {
   const doc = root.ownerDocument
@@ -47,6 +55,7 @@ export function createPanel(root: HTMLElement, handlers: PanelHandlers, version 
   let last: { state: ControllerSnapshot; choice: LanguageChoice } | undefined
   /** Last settings rendered: controls are rebuilt only when language or visibility changes. */
   let renderedKey = ''
+  let wasHotaNeeded = false
 
   const input = doc.createElement('input')
   input.type = 'file'
@@ -68,6 +77,29 @@ export function createPanel(root: HTMLElement, handlers: PanelHandlers, version 
     folderInput.value = ''
   })
   root.append(folderInput)
+  // Spec 008: one picker per slot, and one for a .zip of maps.
+  let pickSlot: FileSlot = 'map'
+  const slotInput = doc.createElement('input')
+  slotInput.type = 'file'
+  slotInput.id = 'h3p-slot-input'
+  slotInput.hidden = true
+  slotInput.addEventListener('change', () => {
+    const file = slotInput.files?.[0]
+    if (file !== undefined) handlers.onPick(pickSlot, file)
+    slotInput.value = ''
+  })
+  root.append(slotInput)
+  const zipInput = doc.createElement('input')
+  zipInput.type = 'file'
+  zipInput.id = 'h3p-zip-input'
+  zipInput.accept = '.zip'
+  zipInput.hidden = true
+  zipInput.addEventListener('change', () => {
+    const file = zipInput.files?.[0]
+    if (file !== undefined) handlers.onZip(file)
+    zipInput.value = ''
+  })
+  root.append(zipInput)
 
   const el_ = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] => {
     const e = doc.createElement(tag)
@@ -151,14 +183,62 @@ export function createPanel(root: HTMLElement, handlers: PanelHandlers, version 
     close.addEventListener('click', () => panel.toggle())
     el.append(close, el_('h2', undefined, format(lang, 'panel_title')))
 
+    // Spec 008 FR-001: a HotA map without HotA.lod says so at the top, and again at the HotA slot.
+    const hotaMessage = state.messages.find((m) => m.code === 'HOTA_ARCHIVE_NEEDED')
+    if (state.hotaNeeded && hotaMessage !== undefined) {
+      const alert = el_('div', 'h3p-alert', messageText(lang, hotaMessage))
+      alert.id = 'h3p-hota-alert'
+      alert.setAttribute('role', 'alert')
+      el.append(alert)
+    }
+
     el.append(el_('h3', undefined, format(lang, 'panel_files')))
+    // Spec 008 FR-004: every slot has its own picker, its file name and a remove button.
     for (const slot of FILE_SLOTS) {
       const s = state.slots[slot]
-      if (OPTIONAL_SLOTS.has(slot) && s.status !== 'loaded') continue
-      const row = el_('div', `h3p-file${s.status === 'loaded' ? '' : ' h3p-missing'}`)
+      const busy = s.status === 'reading' || s.status === 'loading'
+      const needed = slot === 'hotaArchive' && state.hotaNeeded
+      const row = el_('div', `h3p-file${s.status === 'loaded' ? '' : ' h3p-missing'}${s.status === 'failed' ? ' h3p-failed' : ''}${needed ? ' h3p-needed' : ''}`)
       row.dataset.slot = slot
-      row.append(el_('span', undefined, format(lang, SLOT_KIND_KEYS[slot])), el_('span', undefined, s.name ?? format(lang, 'panel_none')))
+      row.dataset.status = s.status
+      const empty = slot === 'hotaArchive' ? 'panel_hota_optional' : 'panel_none'
+      const name = el_('span', 'h3p-file-name', s.name ?? format(lang, empty))
+      name.id = `h3p-name-${slot}`
+      if (busy) name.textContent = format(lang, 'msg_LOADING', { file: s.name ?? '' })
+      const buttons = el_('span', 'h3p-file-buttons')
+      const pick = el_('button', undefined, format(lang, 'panel_pick'))
+      pick.id = `h3p-pick-${slot}`
+      pick.title = format(lang, SLOT_KIND_KEYS[slot])
+      pick.addEventListener('click', () => {
+        pickSlot = slot
+        slotInput.accept = SLOT_ACCEPT[slot]
+        slotInput.click()
+      })
+      buttons.append(pick)
+      if (s.name !== null) {
+        const remove = el_('button', 'h3p-remove', '×')
+        remove.id = `h3p-remove-${slot}`
+        remove.title = format(lang, 'panel_remove')
+        remove.setAttribute('aria-label', `${format(lang, 'panel_remove')}: ${s.name}`)
+        remove.addEventListener('click', () => handlers.onRemove(slot))
+        buttons.append(remove)
+      }
+      row.append(el_('span', 'h3p-file-kind', format(lang, SLOT_KIND_KEYS[slot])), name, buttons)
       el.append(row)
+      // The reason a slot failed, next to it.
+      const problem = s.status === 'failed' ? state.messages.find((m) => m.level === 'error' && m.file === s.name) : undefined
+      if (problem !== undefined) el.append(el_('div', 'h3p-slot-note h3p-slot-error', messageText(lang, problem)))
+      if (needed) {
+        const note = el_('div', 'h3p-slot-note h3p-slot-warn', format(lang, 'panel_hota_needed'))
+        note.id = 'h3p-hota-needed'
+        el.append(note)
+      }
+      const skipped = slot === 'hotaArchive' ? (state.folder?.hotaSkipped ?? 0) : 0
+      if (skipped > 0 && state.settings.mapsource === 'folder') {
+        const note = el_('div', 'h3p-slot-note h3p-slot-warn', format(lang, 'panel_hota_skipped', { detail: String(skipped) }))
+        note.id = 'h3p-hota-skipped'
+        el.append(note)
+      }
     }
     const actions = el_('div', 'h3p-row')
     const choose = el_('button', undefined, format(lang, 'panel_choose'))
@@ -176,19 +256,30 @@ export function createPanel(root: HTMLElement, handlers: PanelHandlers, version 
     if (sourceRow !== undefined) el.append(sourceRow)
     if (state.settings.mapsource === 'folder') {
       const f = state.folder
-      const folderRow = el_('div', 'h3p-row')
+      // Spec 008: the folder is a slot like the files — its name, pickers and a remove button.
+      const folderRow = el_('div', `h3p-file${f !== null && f.entries !== null && f.entries > 0 ? '' : ' h3p-missing'}`)
+      folderRow.dataset.slot = 'folder'
+      const folderName = el_('span', 'h3p-file-name', f === null || f.name === '' ? format(lang, 'panel_none') : f.entries === null ? format(lang, 'msg_LOADING', { file: f.name }) : format(lang, 'panel_folder_summary', { file: f.name, detail: String(f.entries) }))
+      folderName.id = 'h3p-folder-summary'
+      const folderButtons = el_('span', 'h3p-file-buttons')
       const chooseFolder = el_('button', undefined, format(lang, 'panel_choose_folder'))
       chooseFolder.id = 'h3p-choose-folder'
       chooseFolder.addEventListener('click', () => folderInput.click())
-      folderRow.append(chooseFolder)
-      el.append(folderRow)
-      if (f !== null && f.entries !== null) {
-        const summary = el_('div', 'h3p-hint', format(lang, 'panel_folder_summary', { file: f.name, detail: String(f.entries) }))
-        summary.id = 'h3p-folder-summary'
-        el.append(summary)
-      } else {
-        el.append(el_('div', 'h3p-hint', format(lang, 'panel_drop_folder')))
+      const chooseZip = el_('button', undefined, format(lang, 'panel_choose_zip'))
+      chooseZip.id = 'h3p-choose-zip'
+      chooseZip.addEventListener('click', () => zipInput.click())
+      folderButtons.append(chooseFolder, chooseZip)
+      if (f !== null && f.name !== '') {
+        const remove = el_('button', 'h3p-remove', '×')
+        remove.id = 'h3p-remove-folder'
+        remove.title = format(lang, 'panel_remove')
+        remove.setAttribute('aria-label', `${format(lang, 'panel_remove')}: ${f.name}`)
+        remove.addEventListener('click', () => handlers.onRemoveFolder())
+        folderButtons.append(remove)
       }
+      folderRow.append(el_('span', 'h3p-file-kind', format(lang, 'panel_folder_slot')), folderName, folderButtons)
+      el.append(folderRow)
+      if (f === null || f.entries === null || f.entries === 0) el.append(el_('div', 'h3p-hint', format(lang, 'panel_drop_folder')))
       if (f?.shown != null) {
         const title = f.shown.title !== '' ? `${f.shown.title} (${f.shown.path})` : f.shown.path
         const now = el_('div', 'h3p-current', format(lang, 'panel_current_map', { file: title }))
@@ -259,12 +350,16 @@ export function createPanel(root: HTMLElement, handlers: PanelHandlers, version 
       last = { state, choice }
       // Rebuild only when something shown in the panel changed (keeps focus while dragging sliders).
       const folder = state.folder === null ? null : { name: state.folder.name, entries: state.folder.entries, shown: state.folder.shown?.path ?? null }
-      const key = JSON.stringify([state.language, choice, state.slots, state.settings.viewmode, state.settings.mapsource, folder, state.phase === 'showing', ...(doc.activeElement instanceof HTMLInputElement && el.contains(doc.activeElement) ? [] : [state.settings])])
+      const slotMessages = state.messages.filter((m) => m.level === 'error' || m.code === 'HOTA_ARCHIVE_NEEDED').map((m) => [m.code, m.file])
+      const key = JSON.stringify([state.language, choice, state.slots, state.hotaNeeded, state.folder?.hotaSkipped ?? 0, slotMessages, state.settings.viewmode, state.settings.mapsource, folder, state.phase === 'showing', ...(doc.activeElement instanceof HTMLInputElement && el.contains(doc.activeElement) ? [] : [state.settings])])
       if (key !== renderedKey) {
         renderedKey = key
         render(state, choice)
       }
       if (state.phase !== 'showing' && !pinnedHidden) el.classList.remove('h3p-hidden')
+      // A HotA map without its archive: the panel comes back once to point at the HotA slot.
+      if (state.hotaNeeded && !wasHotaNeeded && !pinnedHidden) panel.activity()
+      wasHotaNeeded = state.hotaNeeded
     },
     toggle() {
       pinnedHidden = !el.classList.contains('h3p-hidden')

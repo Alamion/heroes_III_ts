@@ -81,6 +81,7 @@ export const en = {
   msg_FOLDER_FILTERED: 'No map in {file} matches the filters ({detail}).',
   msg_FOLDER_UNREADABLE: 'None of the maps in {file} can be shown: {detail}',
   msg_FOLDER_NEEDS_ZIP: 'This wallpaper app cannot read a folder ({file}): zip the maps into one file and enter the .zip in "Folder of maps".',
+  msg_HOTA_ARCHIVE_NEEDED: '{file} is a Horn of the Abyss map: add the HotA archive (HotA.lod from the Data folder of your HotA installation), otherwise its terrains and objects are drawn wrong or not at all.',
 
   // Browser panel
   panel_title: APP_NAME,
@@ -98,6 +99,12 @@ export const en = {
   panel_folder_summary: '{file}: {detail} maps',
   panel_current_map: 'Now: {file}',
   panel_drop_folder: 'Drop a folder of maps or a .zip of maps onto the page, or choose a folder with the button.',
+  panel_pick: 'Choose…',
+  panel_remove: 'Remove',
+  panel_hota_optional: 'only for HotA maps',
+  panel_hota_needed: 'This is a HotA map: choose HotA.lod here',
+  panel_hota_skipped: '{detail} HotA map(s) are skipped until HotA.lod is chosen',
+  panel_folder_slot: 'Folder of maps',
 
   // Packages and documentation
   package_title: APP_NAME,
@@ -200,6 +207,7 @@ export const ru: Record<StringKey, string> = {
   msg_FOLDER_FILTERED: 'Ни одна карта в {file} не подходит под фильтры ({detail}).',
   msg_FOLDER_UNREADABLE: 'Ни одну карту из {file} не удалось показать: {detail}',
   msg_FOLDER_NEEDS_ZIP: 'Эта программа обоев не умеет читать папку ({file}): заархивируйте карты в один файл и укажите .zip в «Папке с картами».',
+  msg_HOTA_ARCHIVE_NEEDED: '{file} — карта Horn of the Abyss: добавьте архив HotA (HotA.lod из папки Data вашей установки HotA), иначе её земли и объекты будут нарисованы неверно или не будут нарисованы вовсе.',
 
   panel_title: APP_NAME,
   panel_files: 'Файлы',
@@ -216,6 +224,12 @@ export const ru: Record<StringKey, string> = {
   panel_folder_summary: '{file}: карт — {detail}',
   panel_current_map: 'Сейчас: {file}',
   panel_drop_folder: 'Перетащите папку с картами или .zip с картами на страницу либо выберите папку кнопкой.',
+  panel_pick: 'Выбрать…',
+  panel_remove: 'Убрать',
+  panel_hota_optional: 'нужен только для карт HotA',
+  panel_hota_needed: 'Это карта HotA: выберите здесь HotA.lod',
+  panel_hota_skipped: 'Карт HotA пропущено: {detail} — выберите HotA.lod',
+  panel_folder_slot: 'Папка с картами',
 
   package_title: APP_NAME,
   package_description: 'Анимированная карта приключений Heroes of Might and Magic III (Герои 3, HoMM3) из ваших файлов игры — издания Complete, а для карт Horn of the Abyss (HotA) ещё и HotA: местность, объекты, герои и города, как в оригинальной игре. Фанатский проект, не связан с издателями игры. Игровые файлы не входят в комплект.',

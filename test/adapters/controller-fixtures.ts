@@ -5,7 +5,9 @@ import type { ControllerDeps, ControllerEngine, RememberedFile, Timers } from '.
 import { UserFileError } from '../../src/adapters/shared/file-url.ts'
 import type { OverlayState } from '../../src/adapters/shared/overlay.ts'
 import type { EngineStats, EngineStatus, LoadResult, PrepareResult, PreparedMap } from '../../src/runtime/engine.ts'
+import { summarizeMapFile } from '../../src/runtime/file-kind.ts'
 import type { FileKind } from '../../src/runtime/file-kind.ts'
+import type { MapSummary } from '../../src/core/formats/h3m/summary.ts'
 
 export class FakeEngine implements ControllerEngine {
   calls: string[] = []
@@ -36,6 +38,11 @@ export class FakeEngine implements ControllerEngine {
   loadDataArchive = (_b: Blob, n?: string) => this.load('data', n ?? '')
   loadHotaArchive = (_b: Blob, n?: string) => this.load('hota', n ?? '')
   loadMap = (_b: Blob, n?: string) => this.load('map', n ?? '')
+  unloadDataArchive = () => void this.calls.push('unload:data')
+  unloadHotaArchive = async (): Promise<LoadResult> => {
+    this.calls.push('unload:hota')
+    return { ok: true, identity: '', fromCache: false, warnings: [] }
+  }
   /** Spec 007: prepared handles not yet shown or discarded, and the map shown last. */
   prepared = new Set<PreparedMap>()
   shownMap: string | null = null
@@ -102,6 +109,7 @@ export const KINDS: Record<string, FileKind> = {
   'a.h3m': { kind: 'map', version: 'SoD' },
   'b.h3m': { kind: 'map', version: 'AB' },
   'hota.h3m': { kind: 'unsupportedMap', versionCode: 0x20, format: 'HotA' },
+  'hotamap.h3m': { kind: 'map', version: 'HotA' },
   'junk.bin': { kind: 'unknown' },
 }
 
@@ -130,6 +138,16 @@ export function setup(extra: Partial<ControllerDeps> = {}) {
       load: async () => [...remembered],
       save: async (f) => void remembered.push(f),
       clear: async () => void remembered.splice(0),
+      remove: async (slot) => {
+        const i = remembered.findIndex((f) => f.slot === slot)
+        if (i >= 0) remembered.splice(i, 1)
+      },
+    },
+    // Real summaries for synthetic maps; the fake map names of KINDS get one from their kind (spec 008).
+    summarize: async (blob, name) => {
+      const fake = blob.size < 64 ? KINDS[await blob.text()] : undefined
+      if (fake?.kind !== 'map') return summarizeMapFile(blob, name)
+      return { version: fake.version, size: 36, sizeClass: 's', levels: 1, title: name, needsHota: fake.version === 'HotA' } as MapSummary
     },
     ...extra,
   }

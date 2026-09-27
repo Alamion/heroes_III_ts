@@ -21,6 +21,13 @@ repository links and the author live in `src/adapters/shared/project.ts`, the on
 check allows. The KDE Store offers an update only when the product's Version field changes. Feedback
 goes to GitHub Issues only (issue forms in `.github/ISSUE_TEMPLATE/`).
 
+First user feedback ([specs/008-browser-feedback/](specs/008-browser-feedback/)): a HotA map shown
+without HotA.lod raises a sticky `HOTA_ARCHIVE_NEEDED` on every host (`snapshot.hotaNeeded`; the browser
+panel repeats it at the top and at the HotA slot); the browser panel has a picker, the file name and a
+remove button per slot (`controller.removeFile`, `supplyFiles(files, slot)`, `removeFolder`) besides
+multi-select and drop; the browser remembers the HotA archive too (it never did before); HotA archives
+with LZMA entries load. Host invariants 22–23.
+
 A folder of maps ([specs/007-map-folder/](specs/007-map-folder/)) is implemented: `mapsource` =
 `single|folder`, `mapfolder` (a folder, or a `.zip` standing for one), `maprotation` (minutes of
 visible time, 0–1440), size and underground filters, the `mapnext` action (`N` in the browser). Facts
@@ -85,7 +92,13 @@ are HotA 1.8.1):
   header offset 12 (0 and `0x7E0213` mean "plain": the second is uninitialised filler in
   `h3sprite.lod`). Names are FNV-1a-32 of the lower-cased name, so lookups hash and need no
   dictionary; `yarn h3 lod list` resolves names from the git-ignored `context/` list when present.
-  Only raw and zlib entries occur; LZMA raises a typed error. Archives are an ordered **set** with
+  1.8.1 has only raw and zlib entries; 1.8.0 stores 2970 of its 5169 entries as type 2, raw LZMA1,
+  decoded by `src/core/util/lzma.ts` (spec 008; verified entry by entry against liblzma; the owner keeps
+  it as `public/dev-assets/HotA-1.8.0.lod`, other versions are on h3hota.com/ru/download, extract with
+  `innoextract`). An entry that cannot be read never fails the archive: a bad
+  index entry is left out with a warning, a failed read falls through to the next archive of the
+  set (`ArchiveSet.read`), optional entries (sprites, HotA tiles) are skipped (`readOptional`,
+  `ENTRY_UNREADABLE`). Archives are an ordered **set** with
   HotA in front — it overrides `grastl.def`, `watrtl.def` (80 frames, not 33), `clrrvr.def`,
   `icyrvr.def` and `game.pal` (two flag colours), while `artraits.txt` and several town sprites
   exist only in the base archive.
@@ -278,6 +291,7 @@ real game files must skip with a clear message when absent.
 - `По праву силы.h3m` — non-ASCII file name; HotA `0x20` sub-version 9 with an **active event
   system** (one of four such maps locally)
 - `[HotA] The Devil Is in the Detail.h3m` — HotA map, 252×252, format `0x20` sub-version 9
+- `HotA-1.8.0.lod` — `HotA.lod` of HotA 1.8.0 (LZMA entries), read entry by entry by `test/real/hota-archives.test.ts`
 - `test_map_hota.h3m` — the primary HotA check map (built by the owner, format `0x20` sub-version
   10, two levels, HotA novelties in the lower-left corner of the underground level)
 
