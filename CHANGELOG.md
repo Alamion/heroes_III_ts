@@ -7,6 +7,8 @@ text becomes the Steam Workshop and KDE Store change notes (see [docs/releasing.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-27
+
 ### Fixed
 
 - HotA archives of other HotA versions (for example 1.8.0) no longer fail with "LZMA is not
