@@ -62,10 +62,11 @@ describe('object atlas', async () => {
     expect(entry(4)).toEqual([0, 0, 0, SHADOW_MARKER_ALPHA.dark])
   })
 
-  it('recognises the marker colours, including the one-off reef marker, and nothing else', () => {
-    const markers: [number, number, number][] = [[255, 150, 255], [255, 151, 255], [255, 100, 255], [255, 50, 255], [255, 0, 255], [180, 0, 255], [0, 255, 0]]
+  it('recognises the marker colours, including the one-off reef marker and the red HotA markers, and nothing else', () => {
+    const markers: [number, number, number][] = [[255, 150, 255], [255, 151, 255], [255, 100, 255], [255, 50, 255], [255, 0, 255], [180, 0, 255], [0, 255, 0], [255, 0, 0], [128, 0, 0]]
     for (const [r, g, b] of markers) expect(isShadowMarker(r, g, b)).toBe(true)
-    const colours: [number, number, number][] = [[7, 2, 2], [24, 4, 3], [163, 180, 198], [255, 0, 0], [128, 0, 0]]
+    // Real colours HotA sprites keep at special indices, the red ones included.
+    const colours: [number, number, number][] = [[7, 2, 2], [24, 4, 3], [163, 180, 198], [255, 12, 13], [214, 3, 7]]
     for (const [r, g, b] of colours) expect(isShadowMarker(r, g, b)).toBe(false)
   })
 

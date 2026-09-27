@@ -7,9 +7,10 @@
  * atlases cached before that draw HotA sprites' dark details as shadows. 8: shadow indices 2 and 3
  * got their own strengths (marker alphas), so older atlases draw them too dark or too light. 9: the
  * `recent` store bounds the per-map entries (spec 007 research R10: a map folder would otherwise keep
- * a world and an object atlas of every map it ever showed).
+ * a world and an object atlas of every map it ever showed). 10: red shadow markers of HotA reefs
+ * (`isShadowMarker`), so older atlases draw those shadows as red pixels.
  */
-export const CACHE_SCHEMA = 9
+export const CACHE_SCHEMA = 10
 
 export type CacheStore = 'atlas' | 'world' | 'objects' | 'recent'
 

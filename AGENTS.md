@@ -43,7 +43,7 @@ it relies on:
   `prepareMap` (off-screen, the worker keeps shown + prepared worlds) and `showPreparedMap` (one-step
   swap). The single-map path still uses `loadMap`.
 - The decode cache keeps worlds and object atlases of the 8 most recently used maps (`recent` store,
-  `CACHE_SCHEMA` 9).
+  `CACHE_SCHEMA` 10).
 - Host simulations accept the test option `timeScale` (real ms per controller ms) so a check can watch
   the one-minute map interval.
 
@@ -172,7 +172,6 @@ runtime and core, never each other; nothing else imports tools or adapters.
 ## Commands
 
 ```bash
-yarn dev            # dev harness (h3sprite.lod, h3bitmap.lod, a map; arrows/drag scroll, U level, O objects)
 yarn build          # type-check (tsc -b) + production build into dist/
 yarn preview        # preview production build
 yarn test           # Vitest, run once (real-file and browser suites skip with a reason)

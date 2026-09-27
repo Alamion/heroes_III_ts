@@ -173,16 +173,25 @@ Requirements: Node.js 22+, Yarn 1, and for the checks a Chromium browser
 
 ```bash
 yarn install
-yarn dev                 # dev page: pick the files, scroll with arrows or drag
-yarn test                # unit tests (tests that need real game files are skipped without them)
-yarn build               # type-check and build
-yarn package --host all  # packages in dist/packages/
-yarn preview:web         # serve the browser version as GitHub Pages does
+yarn test                    # unit tests (tests that need real game files are skipped without them)
+yarn build                   # type-check and build
+yarn package --host web      # one package in dist/packages/ (hosts: web, wallpaper-engine, lively, kde, all)
+yarn preview:web             # open the browser version locally, served as GitHub Pages does
+yarn accept kde              # build and install the KDE package here; restarts plasmashell after an upgrade
+yarn verify all              # headless checks: layers, maps, determinism, packages, hosts, budget, fidelity
 ```
 
-To run the tests and checks on real files, put your game files in `public/dev-assets/` (the folder
-is git-ignored). [AGENTS.md](AGENTS.md) lists every command, including inspection tools
-(`yarn h3 …`) and headless checks (`yarn verify …`).
+The tools and tests look for game files in `public/dev-assets/` (git-ignored) and in the game
+installations named in `reference-env.config.json` (copy it from `reference-env.config.example.json`
+and set `bundleDir`, and `hotaBundleDir` for HotA). To look at a piece of a map without a browser:
+
+```bash
+yarn h3 render test_map.h3m --level 0 --region 0,0,18,16 --palette-step 0 --out view.png
+yarn h3 map info test_map.h3m
+```
+
+[AGENTS.md](AGENTS.md) lists every command, including the other inspection tools (`yarn h3 …`), the
+headless checks (`yarn verify …`) and the captures from the original game (`yarn ref …`).
 
 ## Documentation
 
@@ -196,7 +205,8 @@ is git-ignored). [AGENTS.md](AGENTS.md) lists every command, including inspectio
   [reference environment](specs/001-reference-environment/),
   [foundation](specs/002-foundation-rewrite/), [map objects](specs/003-map-objects/),
   [platform adapters](specs/004-platform-adapters/), [HotA support](specs/005-hota-support/),
-  [releases and publishing](specs/006-release-publishing/), [map folder](specs/007-map-folder/).
+  [releases and publishing](specs/006-release-publishing/), [map folder](specs/007-map-folder/),
+  [browser feedback](specs/008-browser-feedback/).
 - [CHANGELOG.md](CHANGELOG.md): what changed in each release; [docs/releasing.md](docs/releasing.md):
   how a release is made and the stores are updated.
 - [TODO.md](TODO.md): roadmap and open items.

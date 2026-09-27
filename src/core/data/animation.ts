@@ -53,7 +53,11 @@ export const SHADOW_KINDS: ReadonlyMap<number, ShadowKind> = new Map([
  * instead — at index 2 in 630 of 1227 HotA object sprites, at 3 in 694, at 6 in 955, at 7 in 951 —
  * and the game draws those opaque (a door drawn with index 2, `(7,2,2)`, shows as that colour,
  * measured on the owner's probe map, 2026-09-24; spec 005 research). Base reef and rock sprites
- * store `(255,151,255)`, one step off the usual marker, hence the tolerance.
+ * store `(255,151,255)`, one step off the usual marker, hence the tolerance. Six HotA sprites mark in
+ * red instead: `(255,0,0)` at index 1 (the reefs `avlrfx01`–`03`, `05`, `06` and `avxmn2pink0`) and
+ * `(128,0,0)` at index 4 (`avxmn2pink0`); no HotA or base sprite uses either colour elsewhere at a
+ * special index, and the game draws those reef pixels as shadows, not red (capture of
+ * `test_map_hota.h3m`, 2026-09-27; spec 005 research "Red shadow markers").
  */
 const SHADOW_MARKER_COLOURS: readonly (readonly [number, number, number])[] = [
   [255, 150, 255],
@@ -62,6 +66,8 @@ const SHADOW_MARKER_COLOURS: readonly (readonly [number, number, number])[] = [
   [255, 0, 255],
   [180, 0, 255],
   [0, 255, 0],
+  [255, 0, 0],
+  [128, 0, 0],
 ]
 const MARKER_TOLERANCE = 2
 
