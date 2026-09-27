@@ -128,11 +128,12 @@ void main() {
   vec4 color = texture2D(u_palette, vec2((index + 0.5) / 256.0, (v_row + 0.5) / u_rows));
   float alpha = floor(color.a * 255.0 + 0.5);
   if (alpha == 0.0) discard;
-  bool body = alpha == 255.0;
+  // 254 = the flag entry (animation.ts FLAG_MARKER_ALPHA), drawn in the owner's colour.
+  bool body = alpha >= 254.0;
   if (u_mode == 0) {
     // Colour target: body pixels only.
     if (!body) discard;
-    gl_FragColor = index == 5.0 ? vec4(v_flag, 1.0) : color;
+    gl_FragColor = alpha == 254.0 ? vec4(v_flag, 1.0) : vec4(color.rgb, 1.0);
   } else {
     // Shadow-count target (blend ONE, ONE_MINUS_SRC_ALPHA): body resets, shadows add one step of
     // their kind (animation.ts SHADOW_MARKER_ALPHA; R = dark + 16 × medium, G = light + 16 × faint)

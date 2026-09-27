@@ -397,7 +397,8 @@ it:
   (1052 of 1369 base-game adventure sprites use it), and the sprites that follow the rule use index
   5 as well, so nothing in the pixels separates them. That list stays a short, ported,
   **unverified** table in `src/core/data/hota-def-conventions.ts`, and its risk is recorded there:
-  a wrong entry would tint a sprite's index-255 pixels with the owner's colour.
+  a wrong entry would tint a sprite's index-255 pixels with the owner's colour. **Removed
+  2026-09-28**: every entry was wrong (see "Flag markers").
 
 ### R11 — Palettes and player colours
 
@@ -898,6 +899,96 @@ from 6 665 to 6 279 differing pixels (51 to 34 bad tiles), and the diff is empty
 reefs. What is left there is the boats (their frame) and a thin edge under `ZReef*`/`WATERBALL`, the
 accepted reef deviation. `avxmn2pink0` is not on any local map; its `(128,0,0)` reading follows the
 same pattern and is not measured. Cache schema 10.
+
+### Flag markers (found by the owner on portals and new buildings, 2026-09-28)
+
+The owner's `test_map_hota.h3m`, edited on 2026-09-28, showed grey fills in the one-way portal exits
+`avxmn5o0`, `6o0`, `8o0` and grey patches on `avwrhsmc`, the arena `avsarna0`, the library
+`avslibs0` and in some frames of the monster `avwstone`. All of them use index 5 with an ordinary
+dark colour (`(6,8,5)` fills the portal gates, 614 pixels), and the renderer drew every index-5
+pixel in the owner's flag colour, neutral grey for unowned objects.
+
+A survey of every object DEF (type `0x43`) that uses index 5: the base game marks it `(255,255,0)` in
+all 183 sprites; HotA 1.8.1 marks it `(255,255,0)` in 156, `(0,255,0)` in 7 (the Inferno town forms
+and three garrisons) and `(255,0,0)` in 2 (Factory town forms `avcforz0`, `avcftrx0`) — owned Inferno
+towns show red flags at the gate, so the green marker is a flag. The other 154 HotA sprites hold an
+ordinary colour there. `isFlagMarker` knows the three markers; the atlas gives the flag entry palette
+alpha 254 (`FLAG_MARKER_ALPHA`), which the shader and the software rasterizer read instead of the
+index number, so an ordinary colour at 5 is drawn exactly. Remapping the pixels to a free index was
+tried first and dropped: some sprites use all 248 non-special indices, and the nearest colour was off
+by up to 16 per channel.
+
+The same view showed `avxmn6o0` still grey: it was on the MMArchiveCLI list of sprites whose flag
+would sit at index 255 (R10, unverified). None of the nine listed sprites is ownable (portals,
+plants, a monster, a tower), all keep a dark colour at 5 and a near-white one at 255, so the list
+made both grey. It was removed, and with it `flagIndexFor` and the unused `keepSelection`. Cache
+schema 11.
+
+### Draw order: who stands below whom (owner's reports on Gold Rush and test_map_hota, 2026-09-28)
+
+The owner saw a black market, a golem and a Marletto tower of `[HotA] Gold Rush.h3m` (left, middle)
+drawn over the forest in front of them, and wrong overlaps in the lower-left corner of
+`test_map_hota.h3m`. The first came from the spec 003 rule "every visitable object after all
+non-visitable ones": the black market (6,41) is visitable, the forest `avlpntr5` (5,42) a row lower.
+A new still of Gold Rush (`x0-15_y30-46`, HotA baseline) was taken, and each candidate order was
+run through `yarn verify fidelity` over every still with objects: 31 of Arrogance, 11 of test_map,
+Merchant Princes, 2 of Shadow Valleys, 8 of test_map_hota, Gold Rush (59). Differing pixels:
+
+| Order | All | SoD maps | test_map_hota | Gold Rush |
+| --- | ---: | ---: | ---: | ---: |
+| flat → visitable → row → hero → file (spec 003) | 503 613 | 476 152 | 23 388 | 4 073 |
+| flat → row → hero → file | — | 510 738 | 23 388 | — |
+| VCMI's old key: flat → row → hero → visitable → x | — | 516 953 | 38 281 | — |
+| flat → row → hero → visitable → file (base order) | 468 166 | 441 403 | 23 388 | 3 375 |
+| base + blocked-tile rule, global | 415 516 | 385 632 | 27 176 | 2 708 |
+| base + blocked-tile rule across rows only | 465 001 | 440 130 | 21 496 | 3 375 |
+| base + rule; HotA maps across rows only | 410 503 | 385 632 | 21 496 | 3 375 |
+| **as above, HotA maps without the visitable key (adopted, see below)** | **411 097** | 385 632 | 21 496 | 3 969 |
+| base + rule as a pairwise sort per view (not adopted) | 364 819 | 338 868 | 23 669 | 2 282 |
+
+The blocked-tile rule comes from VCMI's current comparator (GPL, studied, not copied): of two
+objects, the one whose blocked tiles lie directly below more blocked tiles of the other is drawn in
+front, before rows and file order are looked at. It is not transitive. Applied per view as the
+comparator of a sort it matched the captures best, but the result then depends on the sort
+algorithm and on which objects are in view (constitution III wants a deterministic total order), so
+it is applied as constraints on the base order: one topological sort over the whole map, lowest
+base rank first, a cycle broken at its lowest base rank. Two further global variants were worse:
+a merge sort with the pairwise comparator from file order (1 035 331) or from base order (591 041),
+and keeping only constraints that contradict the base order changed nothing (416 831).
+
+Per pair (an analysis of which object the capture shows where the render differs), the SoD gain
+comes from pairs **within one row**, while on test_map_hota every pair the rule turned wrong was in
+one row and the game kept file order there (`avlhpn07`/`avlhpn06` at row 126, `avlrhl00`/`avlmhs04`
+at 123, and three more). Hence HotA maps apply the rule only across rows. The evidence for that split
+is two HotA maps; whether it is the HotA executable or the maps that differ is not known (a SoD map
+captured under the HotA baseline would tell).
+
+**Within a row, HotA follows file order, not visitability** (owner's probe, same day). The owner
+placed pairs in the surface's lower-left corner of the edited `test_map_hota.h3m` (sha `08d07fcc`):
+a crypt and an autumn tree, a pyramid and a palm, each pair twice in one row but in the opposite
+order of placement. The file stores them in that order (row 120: crypt #2361, tree #2362; row 122:
+tree #2363, crypt #2364; pyramids likewise), and the still `x0-18_y113-129` shows the object later
+in the file in front every time — the non-visitable tree over the visitable crypt in row 120. The
+HotA editor puts the object last placed or moved at the end of the list, so "the last moved object
+is in front" is readable from the file. HotA maps therefore drop the visitable key of the base
+order (base-game maps keep it: Arrogance 203 816 with it, 273 167 without). That view went from
+1 394 to 353 differing pixels, the older test_map_hota views stayed at 21 496, Gold Rush went from
+3 375 to 3 969: two same-row pairs there (`avsuniv0` #266 in front of `avlmtgn5` #328, `grsmnt05`
+#326 in front of `avlmtgn1` #327) show the earlier object in front, which neither file order nor
+visitability explains alone. Applying the blocked-tile rule within HotA rows as well brought Gold
+Rush to 2 715 but the older views to 27 176 (HotA total 30 244 against 25 818), so it stays off.
+
+Still open on test_map_hota's dense highland corner (21 496 pixels): pairs where the capture shows the
+object of the **higher** row and later in the file in front (`avlhll01` (3,116) over `avlhll02`
+(4,117), `avlmhs05` (10,123) over `avlmhs01` (14,124)). No tested key explains them — not blocked
+rows, sprite pixel bottoms or tops. The game may draw per tile (H3 keeps a draw list per map tile),
+which a whole-sprite renderer can only approximate.
+
+Heroes in towns (same report, `[HotA] A Cold Day in Hell.h3m`): a hero standing in a town is stored
+with the town's own coordinates — in every local map that has one, 23 maps, SoD and HotA editors
+alike, none one tile left. The game shows it in the gate, so `fromH3m` moves it to the town's
+entrance + (1, 0) (the hero anchor is one tile right of its visit tile). Main towns in the player
+header already give the entrance, which is why generated heroes stood right.
 
 ### Hosts: the HotA archive must be loaded first (found on a real KDE session, 2026-09-23)
 

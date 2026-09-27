@@ -21,6 +21,25 @@ export const OBJECT_PHASE_MODEL: 'global' | 'perDef' | 'perObject' = 'perObject'
 export const FLAG_INDEX = 5
 
 /**
+ * Palette colours that make `FLAG_INDEX` a flag. Base-game sprites mark it `(255,255,0)` (183 of
+ * them use the index); in HotA 156 sprites do the same, the Inferno towns and three HotA garrisons
+ * mark it `(0,255,0)` and two Factory town forms `(255,0,0)`, all drawn in the owner's colour. The
+ * other HotA sprites that use index 5 keep an ordinary colour there — the one-way portal exits
+ * `avxmn5o0`/`6o0`/`8o0` fill their gate with `(6,8,5)` — and the game draws it as that colour
+ * (owner's report on `test_map_hota.h3m`, 2026-09-28; before, those pixels took the neutral grey).
+ */
+const FLAG_MARKER_COLOURS: readonly (readonly [number, number, number])[] = [
+  [255, 255, 0],
+  [0, 255, 0],
+  [255, 0, 0],
+]
+
+/** Whether a sprite's palette entry at `FLAG_INDEX` marks a flag rather than an ordinary colour. */
+export function isFlagMarker(r: number, g: number, b: number): boolean {
+  return FLAG_MARKER_COLOURS.some((m) => Math.abs(r - m[0]) <= MARKER_TOLERANCE && Math.abs(g - m[1]) <= MARKER_TOLERANCE && Math.abs(b - m[2]) <= MARKER_TOLERANCE)
+}
+
+/**
  * Shadow strengths, weakest first. In the base game's black shadow the pixel below keeps
  * 7/8, 3/4, 5/8 or 1/2 of each 5/6-bit channel.
  */
@@ -82,6 +101,9 @@ export function isShadowMarker(r: number, g: number, b: number): boolean {
   if (SHADOW_MARKER_COLOURS.some(near)) return true
   return r <= 8 && g >= 180 && Math.abs(g - b) <= 8
 }
+
+/** Palette alpha marking the flag entry of object palettes: opaque, drawn in the owner's colour. */
+export const FLAG_MARKER_ALPHA = 254
 
 /** Palette alpha marking shadow entries in object palettes (not used as opacity). */
 export const SHADOW_MARKER_ALPHA: Readonly<Record<ShadowKind, number>> = { faint: 32, light: 64, medium: 96, dark: 128 }

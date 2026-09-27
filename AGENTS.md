@@ -43,7 +43,7 @@ it relies on:
   `prepareMap` (off-screen, the worker keeps shown + prepared worlds) and `showPreparedMap` (one-step
   swap). The single-map path still uses `loadMap`.
 - The decode cache keeps worlds and object atlases of the 8 most recently used maps (`recent` store,
-  `CACHE_SCHEMA` 10).
+  `CACHE_SCHEMA` 11).
 - Host simulations accept the test option `timeScale` (real ms per controller ms) so a check can watch
   the one-minute map interval.
 
@@ -75,13 +75,19 @@ Facts measured against the original game that code must respect (details in
   its start; lava rotates 246–254, mud river 228–239, lava river 240–248. Stills may catch sprites
   one step apart.
 - Map border (`edg.def`) is a deterministic 4×4 pattern drawn over objects; roads are drawn 16 px down.
-- Objects: bottom-right anchor; order flat → non-visitable → visitable → row → heroes (flag, then body) → map order;
+- Objects: bottom-right anchor; order: flat → row → heroes (flag, then body) → visitable after
+  non-visitable **of the row** (base game only; HotA: file order alone, the editor moves the last
+  moved object to the end of the list) → map order, refined by "who stands below whom" (an object
+  whose blocked tiles lie directly below the other's is in front; HotA maps: only across rows), one
+  `drawRank` per object for the whole map (`src/core/state/draw-order.ts`);
   flag pixels (index 5) use `game.pal` entries 64–71 (players) and 72 (neutral); shadow index 1
   keeps `(c>>1)+(c>>2)`, index 4 `c>>1` of each 5/6-bit channel (HotA adds 3 → `+(c>>3)` on top of
   index 1's, 2 → `(c>>1)+(c>>3)`); object frames advance every 180 ms
   with a random phase per object per launch (seeded here); towns use `AVC?0` without fort, `AVC?x0`
   with one.
 - Heroes: `ah00_.def`–`ah17_.def` body + `af0?.def` flag (colour baked in); not in `Objects.txt`.
+  A hero standing in a town is stored with the **town's** coordinates (every local map, SoD and HotA
+  editors); the game shows it in the gate, so `fromH3m` moves it to entrance + (1, 0).
 - Accepted deviations (003 research, owner review 2026-09-17): draw order in dense mountain clusters,
   reef frames/shadows (the render keeps its reef shadows). Fidelity reports these views as `fail`;
   do not chase them.
@@ -116,9 +122,12 @@ are HotA 1.8.1):
   1, 2 like 4" as MMArchiveCLI says. On HotA maps shadows are **tinted by the soil under the object**
   (entrance, else lowest blocked tile; never the shadow pixel): sand adds `(3,1,0)`/`(1,0,0)` to the
   shifts, wasteland blends towards `(3,2,0)` with α = 38/77/115/154 / 256 (`shadowChannel`,
-  `RenderObject.shadowTint`); base-game maps stay black. A short ported list
-  covers the sprites whose flag colour sits at index 255, and one sprite name in HotA's tables is a
-  typo (`avwcoat.def` → `avwccoat.def`). 74 D32F and 269 P32F truecolour entries exist, some under
+  `RenderObject.shadowTint`); base-game maps stay black. Index 5 is a **flag only when marked**
+  (`isFlagMarker`: `(255,255,0)`, HotA also `(0,255,0)` Inferno and `(255,0,0)` Factory towns); 154
+  HotA sprites keep an ordinary colour there (portal exits, arena, library, monsters), drawn as that
+  colour. The object atlas marks the flag entry with palette alpha 254 (`FLAG_MARKER_ALPHA`), which
+  both renderers read. MMArchiveCLI's "flag at index 255" list was wrong for all nine of its sprites
+  and was removed. One sprite name in HotA's tables is a typo (`avwcoat.def` → `avwccoat.def`). 74 D32F and 269 P32F truecolour entries exist, some under
   `.def`/`.pcx` names, but none is an adventure-map sprite. 30 DEFs declare a last frame whose size
   counts the 32-byte header.
 - Towns: **five** forms per faction in HotA (village, fort `f0`, citadel `c0`, castle `x0`, capitol
@@ -144,9 +153,9 @@ are HotA 1.8.1):
 src/core/util      ByteReader, FormatError, logger, clock, seeded RNG, web globals
 src/core/data      typed game tables (terrain, palette rotation, object classes, thresholds)
 src/core/formats   lod/ def/ pcx/ pal/ h3m/ text/ (Objects.txt, artraits.txt) zip/ (map folders as .zip)
-src/core/state     world state, sprite footprints, floating tiles, random outcomes, render objects, object index
+src/core/state     world state, sprite footprints, floating tiles, random outcomes, render objects, draw order, object index
 src/core/sim       simulation events
-src/core/render    atlas, object atlas, camera, draw plans, draw order, animation, palette, software rasterizer, WebGL renderer
+src/core/render    atlas, object atlas, camera, draw plans, animation, palette, software rasterizer, WebGL renderer
 src/runtime        engine facade, decode worker, IndexedDB cache, frame scheduler, map catalogue + rotation (spec 007)
 src/adapters/shared        wallpaper controller, settings + strings (en/ru, DOM-free), overlay, file URLs, remembered files
 src/adapters/web           browser version (panel, drop, remembered files; ESM build)

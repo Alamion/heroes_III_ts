@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { decodeFrame } from '../../../src/core/formats/def/def.ts'
 import { buildObjectAtlas, objectAtlasGpuBytes } from '../../../src/core/render/object-atlas.ts'
-import { SHADOW_KINDS, SHADOW_MARKER_ALPHA, isShadowMarker } from '../../../src/core/data/animation.ts'
+import { FLAG_INDEX, FLAG_MARKER_ALPHA, SHADOW_KINDS, SHADOW_MARKER_ALPHA, isShadowMarker } from '../../../src/core/data/animation.ts'
+import { toDisplayColor } from '../../../src/core/render/atlas.ts'
 import { parseDef } from '../../../src/core/formats/def/def.ts'
 import { objectPalette, writeObjectDef } from '../../fixtures/synthetic/object-defs.ts'
 import { objectScene } from './objects-helpers.ts'
@@ -60,6 +61,22 @@ describe('object atlas', async () => {
     // The marked indices of the same sprite stay shadows.
     expect(entry(1)).toEqual([0, 0, 0, SHADOW_MARKER_ALPHA.light])
     expect(entry(4)).toEqual([0, 0, 0, SHADOW_MARKER_ALPHA.dark])
+  })
+
+  it('marks index 5 as the flag only when the sprite marks it, and keeps an ordinary colour there otherwise', () => {
+    // HotA one-way portal exits fill their gate with (6,8,5) at index 5; the game draws it dark,
+    // not in the neutral flag colour (spec 005 research "Flag markers").
+    const flagged = parseDef(writeObjectDef({ width: 32, height: 32, frames: 1, seed: 11, shadow: true, palette: objectPalette(11) }), 'flagged.def')
+    const palette = objectPalette(12)
+    palette.set([6, 8, 5], FLAG_INDEX * 3)
+    const plain = parseDef(writeObjectDef({ width: 32, height: 32, frames: 1, seed: 12, shadow: true, palette }), 'plain.def')
+    const own = buildObjectAtlas([flagged, plain])
+    const entry = (name: string): number[] => {
+      const row = own.layout.sprites[name]?.row as number
+      return Array.from(own.palettes.subarray((row * 256 + FLAG_INDEX) * 4, (row * 256 + FLAG_INDEX) * 4 + 4))
+    }
+    expect(entry('flagged.def')[3]).toBe(FLAG_MARKER_ALPHA)
+    expect(entry('plain.def')).toEqual([...toDisplayColor(6, 8, 5), 255])
   })
 
   it('recognises the marker colours, including the one-off reef marker and the red HotA markers, and nothing else', () => {

@@ -2,8 +2,7 @@
 // needs, cropped, shelf-packed into 2048² index pages, plus one RGBA palette row per sprite. GPU
 // memory depends on the distinct sprites of the map, not on the number of objects.
 
-import { FLAG_INDEX, SHADOW_KINDS, SHADOW_MARKER_ALPHA, isShadowMarker } from '../data/animation.ts'
-import { HOTA_FLAG_AT_255 } from '../data/hota-def-conventions.ts'
+import { FLAG_INDEX, FLAG_MARKER_ALPHA, SHADOW_KINDS, SHADOW_MARKER_ALPHA, isFlagMarker, isShadowMarker } from '../data/animation.ts'
 import { decodeFrame } from '../formats/def/def.ts'
 import type { DefSprite } from '../formats/def/def.ts'
 import { toDisplayColor } from './atlas.ts'
@@ -61,7 +60,7 @@ export interface ObjectAtlas {
   layout: ObjectAtlasLayout
   /** pageCount pages of pageSize² palette indices. */
   pages: Uint8Array[]
-  /** 256 × rowCount × 4 RGBA palettes: index 0 transparent, shadow indices black with a kind marker alpha. */
+  /** 256 × rowCount × 4 RGBA palettes: index 0 transparent, shadow indices black with a kind marker alpha, a flag index `FLAG_MARKER_ALPHA`. */
   palettes: Uint8Array
 }
 
@@ -82,21 +81,13 @@ export function buildObjectAtlas(defs: readonly DefSprite[], pageSize = OBJECT_P
   const refsBySprite: { offsets: number[][]; def: DefSprite }[] = []
   sorted.forEach((def, sprite) => {
     const seen = new Map<number, number>()
-    // A few HotA sprites carry the player-flag colour at palette index 255 instead of 5 (spec 005
-    // R10). Moving those pixels to the flag slot here keeps one flag rule in the renderer; the
-    // game merges them the same way, and the sprites concerned use both indices for the flag.
-    const flagAt255 = HOTA_FLAG_AT_255.has(def.name.toLowerCase())
     const offsets = def.groups.map((g) =>
       g.frames.map((ref) => {
         const key = ref.header.offset
         if (!seen.has(key)) {
           const frame = decodeFrame(def, ref)
-          const pixels = frame.pixels
-          if (flagAt255) {
-            for (let i = 0; i < pixels.length; i++) if (pixels[i] === 255) pixels[i] = FLAG_INDEX
-          }
           seen.set(key, pending.length)
-          pending.push({ sprite, key, width: frame.width, height: frame.height, pixels, x: frame.x, y: frame.y })
+          pending.push({ sprite, key, width: frame.width, height: frame.height, pixels: frame.pixels, x: frame.x, y: frame.y })
         }
         return seen.get(key) as number
       }),
@@ -165,9 +156,10 @@ export function buildObjectAtlas(defs: readonly DefSprite[], pageSize = OBJECT_P
         palettes[o + 3] = SHADOW_MARKER_ALPHA[shadow]
         continue
       }
-      if (i === FLAG_INDEX) {
-        // Replaced by the owner's colour when drawn.
-        palettes[o + 3] = 255
+      // Replaced by the owner's colour when drawn — only where the sprite marks a flag; otherwise
+      // the index is an ordinary colour.
+      if (i === FLAG_INDEX && isFlagMarker(def.palette[i * 3] as number, def.palette[i * 3 + 1] as number, def.palette[i * 3 + 2] as number)) {
+        palettes[o + 3] = FLAG_MARKER_ALPHA
         continue
       }
       const [r, g, b] = toDisplayColor(def.palette[i * 3] as number, def.palette[i * 3 + 1] as number, def.palette[i * 3 + 2] as number)

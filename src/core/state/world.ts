@@ -2,8 +2,9 @@
 // map; later features change it only through simulation events (constitution VI).
 
 import { NO_OWNER } from '../data/players.ts'
-import { OBJECT_CLASS, randomRule } from '../data/object-classes.ts'
+import { HERO_VISIT_OFFSET, OBJECT_CLASS, randomRule } from '../data/object-classes.ts'
 import type { RandomRule } from '../data/object-classes.ts'
+import { maskOffsets } from '../formats/h3m/types.ts'
 import type { CreatureStack, H3mMap, HeroArtifacts, ObjectBody, ObjectTemplate } from '../formats/h3m/types.ts'
 
 export type ObjectId = number
@@ -99,16 +100,34 @@ function ownerOf(body: ObjectBody): number | null {
   return raw
 }
 
+/**
+ * A hero standing in a town is stored with the town's own position (every local map, SoD and HotA
+ * editors alike); the game shows it in the town's gate. Maps a town anchor to the hero anchor there.
+ */
+function townGateAnchors(map: H3mMap): Map<string, { x: number; y: number }> {
+  const out = new Map<string, { x: number; y: number }>()
+  for (const o of map.objects) {
+    if (o.body.kind !== 'town') continue
+    const gate = maskOffsets((map.templates[o.templateIndex] as ObjectTemplate).active)[0]
+    if (gate === undefined) continue
+    out.set(`${o.x},${o.y},${o.z}`, { x: o.x + gate.dx - HERO_VISIT_OFFSET.dx, y: o.y + gate.dy - HERO_VISIT_OFFSET.dy })
+  }
+  return out
+}
+
 export function fromH3m(map: H3mMap, identity: MapIdentity, seed = 1): WorldState {
   const objects = new Map<ObjectId, WorldObject>()
   const heroes = new Map<ObjectId, HeroState>()
   const towns = new Map<ObjectId, TownState>()
+  const inTown = townGateAnchors(map)
   for (const o of map.objects) {
     const template = map.templates[o.templateIndex] as ObjectTemplate
     const owner = ownerOf(o.body)
-    objects.set(o.index, { id: o.index, x: o.x, y: o.y, z: o.z, template, classId: o.classId, subclassId: o.subclassId, owner, details: o.body, random: randomRule(o.classId) ?? null })
-    if (o.body.kind === 'hero' && o.classId !== OBJECT_CLASS.PRISON) {
-      heroes.set(o.index, { id: o.index, type: o.classId === OBJECT_CLASS.RANDOM_HERO ? null : o.body.type, owner, x: o.x, y: o.y, z: o.z, army: o.body.garrison, artifacts: o.body.artifacts })
+    const isHero = o.body.kind === 'hero' && o.classId !== OBJECT_CLASS.PRISON
+    const { x, y } = (isHero ? inTown.get(`${o.x},${o.y},${o.z}`) : undefined) ?? o
+    objects.set(o.index, { id: o.index, x, y, z: o.z, template, classId: o.classId, subclassId: o.subclassId, owner, details: o.body, random: randomRule(o.classId) ?? null })
+    if (isHero && o.body.kind === 'hero') {
+      heroes.set(o.index, { id: o.index, type: o.classId === OBJECT_CLASS.RANDOM_HERO ? null : o.body.type, owner, x, y, z: o.z, army: o.body.garrison, artifacts: o.body.artifacts })
     }
     if (o.body.kind === 'town') {
       towns.set(o.index, {
