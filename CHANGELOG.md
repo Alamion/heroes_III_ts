@@ -7,6 +7,22 @@ text becomes the Steam Workshop and KDE Store change notes (see [docs/releasing.
 
 ## [Unreleased]
 
+### Fixed
+
+- HotA archives of other HotA versions (for example 1.8.0) no longer fail with "LZMA is not
+  supported": compressed entries of that kind are read, and a single entry that still cannot be read
+  is skipped instead of failing the whole archive
+- A Horn of the Abyss map shown without `HotA.lod` now says so: on every platform, and in the browser
+  panel next to the HotA archive slot
+- The browser now remembers `HotA.lod` like the other files
+- Keyboard shortcuts in the browser work on any keyboard layout (for example Russian), and Ctrl+R
+  reloads the page again instead of moving the view
+
+### Browser
+
+- Each file has its own "Choose…" button, shows the file's name and has a button to remove it; the
+  folder of maps too. Choosing several files at once and dropping them still works
+
 ## [0.1.0] - 2026-09-26
 
 The first release: a Heroes of Might and Magic III adventure map as a living wallpaper, drawn from

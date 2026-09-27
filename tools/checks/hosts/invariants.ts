@@ -1,11 +1,13 @@
 /// <reference lib="dom" />
-// Host invariants (spec 004 contracts/host-bridge.md 1–13, spec 007 contracts/host-bridge.md 14–20, spec 006: 21):
+// Host invariants (spec 004 contracts/host-bridge.md 1–13, spec 007 contracts/host-bridge.md 14–20, spec 006: 21,
+// spec 008: 22–24):
 // checked through a host driver against a built package in headless Chromium.
 
 import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Page } from 'playwright-core'
+import { basename } from 'node:path'
 import { en, format } from '../../../src/adapters/shared/strings.ts'
 import { log } from '../../../src/core/util/log.ts'
 import { encodePng } from '../../shared/png.ts'
@@ -105,14 +107,17 @@ export interface FileSet {
   bad: { wogMap: string; truncatedMap: string; randomBytes: string; missing: string }
   /** Spec 007: synthetic map folders (test/fixtures/synthetic/map-folder.ts HOST_FOLDERS). */
   folders: Record<'mixed' | 'five' | 'sizes' | 'half' | 'broken' | 'empty', HostFolder>
+  /** Spec 008: a synthetic HotA archive with LZMA and unusable entries, and a HotA map (always synthetic). */
+  hota: { archive: string; map: string }
 }
 
 interface Snapshot {
   phase: string
   slots: Record<string, { status: string; name: string | null; identity: string | null }>
   settings: Record<string, unknown>
-  messages: { code: string }[]
+  messages: { code: string; file?: string }[]
   language: string
+  hotaNeeded?: boolean
   view: { fx: number; fy: number } | null
   source?: string
   folder?: { name: string; entries: number | null; shown: { path: string; title: string } | null; failed: number; switching: boolean } | null
@@ -499,8 +504,10 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
       // Unset: the placeholder lists the files it wants by their kind labels, and the optional
       // archive's label must not be among them. Read it before any file arrives, while the list is
       // shown; matching "HotA" anywhere would also hit a map's file name or the help text.
-      await hp.page.waitForFunction((label) => document.body.innerText.includes(label), en.kind_spriteArchive, { timeout: 30_000 }).catch(() => undefined)
-      const waiting = await overlayText(hp.page)
+      // Only the placeholder: since spec 008 the browser panel lists every slot, the optional HotA
+      // archive too (marked "only for HotA maps").
+      await hp.page.waitForFunction((label) => (document.querySelector('.h3o-placeholder') as HTMLElement | null)?.innerText.includes(label) === true, en.kind_spriteArchive, { timeout: 30_000 }).catch(() => undefined)
+      const waiting = await hp.page.evaluate(() => (document.querySelector('.h3o-placeholder') as HTMLElement | null)?.innerText ?? '')
       if (!waiting.includes(en.kind_spriteArchive)) fail(`the placeholder does not list the missing files: ${waiting.slice(0, 200)}`)
       if (waiting.includes(en.kind_hotaArchive)) fail(`the placeholder asks for the optional HotA archive: ${waiting.slice(0, 200)}`)
       // The base-game files alone still reach 'showing'.
@@ -804,6 +811,127 @@ const CHECKS: { id: number; name: string; run: Check; hosts?: readonly string[];
       const href = await link.getAttribute('href').catch(() => null)
       if (href !== NEW_ISSUE_URL) fail(`report link ${String(href)}`)
       if ((await link.getAttribute('target').catch(() => null)) !== '_blank') fail('report link does not open a new tab')
+    },
+  },
+  {
+    id: 22,
+    name: 'spec 008: a HotA map without HotA.lod says so until the archive arrives; LZMA entries decode, bad ones are skipped',
+    run: async (ctx, hp, fail) => {
+      const console: string[] = []
+      hp.page.on('console', (m) => console.push(m.text()))
+      const mapName = basename(ctx.files.hota.map)
+      await ctx.driver.supplyFiles(hp, { spriteArchive: ctx.files.spriteArchive, dataArchive: ctx.files.dataArchive, map: ctx.files.hota.map })
+      const shown = await waitPhase(hp.page, 'showing', 60_000)
+      if (shown.phase !== 'showing') fail(`the HotA map is not shown without the archive: ${shown.phase}, ${JSON.stringify(shown.messages)}`)
+      if (!(await waitMessage(hp.page, 'HOTA_ARCHIVE_NEEDED', 10_000))) fail(`no HOTA_ARCHIVE_NEEDED: ${JSON.stringify((await state(hp.page)).messages)}`)
+      const s = await state(hp.page)
+      if (s.hotaNeeded !== true) fail('hotaNeeded is not set')
+      const text = format('en', 'msg_HOTA_ARCHIVE_NEEDED', { file: mapName })
+      // Wallpaper hosts have no panel: the corner message must still be there after the usual fade time.
+      await hp.page.waitForTimeout(11_000)
+      if (!(await overlayText(hp.page)).includes(text)) fail(`the message is not on screen after 11 s: ${(await overlayText(hp.page)).slice(0, 300)}`)
+
+      await ctx.driver.supplyFiles(hp, { hotaArchive: ctx.files.hota.archive })
+      await hp.page
+        .waitForFunction(() => {
+          const st = (window as unknown as Wallpaper).__h3wallpaper.controller.state()
+          return st.slots.hotaArchive?.status === 'loaded' || st.slots.hotaArchive?.status === 'failed'
+        }, null, { timeout: 60_000 })
+        .catch(() => undefined)
+      await idle(hp.page)
+      const after = await state(hp.page)
+      if (after.slots.hotaArchive?.status !== 'loaded') fail(`the HotA archive with LZMA entries did not load: ${JSON.stringify(after.slots.hotaArchive)}, ${JSON.stringify(after.messages)}`)
+      if (after.messages.some((m) => m.code === 'HOTA_ARCHIVE_NEEDED')) fail('HOTA_ARCHIVE_NEEDED stays after the archive loaded')
+      if (after.hotaNeeded !== false) fail('hotaNeeded stays set')
+      if (after.phase !== 'showing') fail(`phase ${after.phase} after the HotA archive`)
+      if ((await overlayText(hp.page)).includes(text)) fail('the message is still on screen')
+      const missingTile = console.find((t) => /tile \S+ is missing/.test(t))
+      if (missingTile !== undefined) fail(`a HotA terrain was not drawn: ${missingTile.slice(0, 200)}`)
+      if (!console.some((t) => /watrtl\.def.*cannot be read.*using the copy/.test(t))) fail('the damaged override was not reported as replaced by the base copy')
+    },
+  },
+  {
+    id: 23,
+    name: 'spec 008: browser: each slot has its own picker, name and remove button; the HotA archive is remembered',
+    hosts: ['web'],
+    run: async (ctx, hp, fail) => {
+      const page = hp.page
+      const pick = async (slot: string, path: string): Promise<void> => {
+        // Pointer activity brings the panel back after its idle fade, so the button takes a real click.
+        await page.mouse.move(40, 40)
+        const [chooser] = await Promise.all([page.waitForEvent('filechooser', { timeout: 5_000 }), page.click(`#h3p-pick-${slot}`)])
+        await chooser.setFiles(path)
+        await idle(page)
+      }
+      const nameOf = (slot: string): Promise<string | null> => page.locator(`#h3p-name-${slot}`).textContent({ timeout: 5_000 }).catch(() => null)
+      const visible = (sel: string): Promise<boolean> => page.locator(sel).isVisible().catch(() => false)
+      await pick('spriteArchive', ctx.files.spriteArchive)
+      await pick('dataArchive', ctx.files.dataArchive)
+      await pick('map', ctx.files.hota.map)
+      const s = await waitPhase(page, 'showing', 60_000)
+      if (s.phase !== 'showing') fail(`not showing after three picks: ${s.phase}, ${JSON.stringify(s.messages)}`)
+      if ((await nameOf('map')) !== basename(ctx.files.hota.map)) fail(`map slot shows "${String(await nameOf('map'))}"`)
+      await page.mouse.move(60, 60)
+      if (!(await visible('#h3p-hota-alert'))) fail('no HotA alert at the top of the panel')
+      if (!(await visible('#h3p-hota-needed'))) fail('no HotA note at the HotA slot')
+
+      await pick('hotaArchive', ctx.files.hota.archive)
+      await page.waitForFunction(() => (window as unknown as Wallpaper).__h3wallpaper.controller.state().slots.hotaArchive?.status === 'loaded', null, { timeout: 60_000 }).catch(() => undefined)
+      await idle(page)
+      if ((await nameOf('hotaArchive')) !== basename(ctx.files.hota.archive)) fail(`HotA slot shows "${String(await nameOf('hotaArchive'))}"`)
+      if ((await visible('#h3p-hota-alert')) || (await visible('#h3p-hota-needed'))) fail('the HotA alert stays after choosing HotA.lod')
+
+      // Remembered, the HotA archive included (it was not before spec 008).
+      await page.reload()
+      await page.waitForFunction(() => (window as unknown as { __h3wallpaper?: unknown }).__h3wallpaper !== undefined)
+      await page.waitForFunction(() => {
+        const st = (window as unknown as Wallpaper).__h3wallpaper.controller.state()
+        return st.phase === 'showing' && st.slots.hotaArchive?.status === 'loaded'
+      }, null, { timeout: 60_000 }).catch(() => undefined)
+      const r = await state(page)
+      if (r.phase !== 'showing' || r.slots.hotaArchive?.status !== 'loaded') fail(`after reload: phase ${r.phase}, HotA ${JSON.stringify(r.slots.hotaArchive)}`)
+
+      await page.mouse.move(40, 40)
+      await page.click('#h3p-remove-hotaArchive')
+      await idle(page)
+      const noHota = await state(page)
+      if (noHota.slots.hotaArchive?.status !== 'missing' || noHota.hotaNeeded !== true) fail(`after removing HotA: ${JSON.stringify(noHota.slots.hotaArchive)}, hotaNeeded ${String(noHota.hotaNeeded)}`)
+      await page.mouse.move(40, 40)
+      await page.click('#h3p-remove-map')
+      await idle(page)
+      const noMap = await state(page)
+      if (noMap.phase !== 'waiting') fail(`phase ${noMap.phase} after removing the map`)
+      await page.reload()
+      await page.waitForFunction(() => (window as unknown as { __h3wallpaper?: unknown }).__h3wallpaper !== undefined)
+      await page.waitForFunction(() => (window as unknown as Wallpaper).__h3wallpaper.controller.state().slots.spriteArchive?.status === 'loaded', null, { timeout: 30_000 }).catch(() => undefined)
+      await idle(page)
+      const back = await state(page)
+      if (back.slots.map?.status !== 'missing' || back.slots.hotaArchive?.status !== 'missing') fail(`removed files came back: map ${back.slots.map?.status}, HotA ${back.slots.hotaArchive?.status}`)
+      if (back.slots.spriteArchive?.status !== 'loaded') fail(`the sprite archive was forgotten: ${back.slots.spriteArchive?.status}`)
+    },
+  },
+  {
+    id: 24,
+    name: 'spec 008: browser: shortcuts follow the physical key, so they work on a Russian layout; Ctrl+R stays the browser\'s',
+    hosts: ['web'],
+    run: async (ctx, hp, fail) => {
+      const s0 = await loaded(ctx, hp, fail)
+      // What a Russian layout sends for the O, R and H keys: the characters differ, the codes do not.
+      const press = (key: string, code: string, ctrlKey = false): Promise<boolean> =>
+        hp.page.evaluate(({ key, code, ctrlKey }) => !window.dispatchEvent(new KeyboardEvent('keydown', { key, code, ctrlKey, bubbles: true, cancelable: true })), { key, code, ctrlKey })
+      await press('щ', 'KeyO')
+      await idle(hp.page)
+      if ((await state(hp.page)).settings.objects !== !s0.settings.objects) fail('O on a Russian layout ("щ") did not toggle objects')
+      const before = JSON.stringify((await state(hp.page)).view)
+      await press('к', 'KeyR')
+      await hp.page.waitForFunction((v) => JSON.stringify((window as unknown as Wallpaper).__h3wallpaper.controller.state().view) !== v, before, { timeout: 3000 }).catch(() => fail('R on a Russian layout ("к") did not draw a new place'))
+      const placed = JSON.stringify((await state(hp.page)).view)
+      const prevented = await press('r', 'KeyR', true)
+      await hp.page.waitForTimeout(300)
+      if (prevented) fail('Ctrl+R was taken from the browser')
+      if (JSON.stringify((await state(hp.page)).view) !== placed) fail('Ctrl+R drew a new place')
+      await press('р', 'KeyH')
+      if (!(await hp.page.locator('.h3p').evaluate((el) => el.classList.contains('h3p-hidden')))) fail('H on a Russian layout ("р") did not hide the panel')
     },
   },
 ]

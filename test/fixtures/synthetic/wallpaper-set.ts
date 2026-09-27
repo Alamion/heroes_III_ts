@@ -4,6 +4,8 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { badFiles } from './bad-files.ts'
+import { syntheticHotaArchive } from './hota-archive.ts'
+import { writeHotaMapGz } from './hota-map.ts'
 import { writeSyntheticFiles } from './terrain-archive.ts'
 
 export interface WallpaperSet {
@@ -13,6 +15,8 @@ export interface WallpaperSet {
   map: string
   mapOneLevel: string
   bad: Record<'hotaMap' | 'wogMap' | 'truncatedMap' | 'plainArchive' | 'randomBytes' | 'empty', string>
+  /** Spec 008: a HotA archive with LZMA entries and entries it cannot use, and a HotA map for it. */
+  hota: { archive: string; map: string }
 }
 
 export function writeWallpaperSet(): WallpaperSet {
@@ -28,8 +32,12 @@ export function writeWallpaperSet(): WallpaperSet {
     writeFileSync(p, bad[key])
     out[key] = p
   }
+  const hota = { archive: join(files.dir, 'HotA.lod'), map: join(files.dir, 'hota-highlands.h3m') }
+  writeFileSync(hota.archive, syntheticHotaArchive())
+  writeFileSync(hota.map, writeHotaMapGz({ size: 36, hotaTerrains: true }))
   return {
     dir: files.dir,
+    hota,
     spriteArchive: files.archive,
     dataArchive: files.dataArchive,
     map: files.maps['synthetic-48.h3m'] as string,

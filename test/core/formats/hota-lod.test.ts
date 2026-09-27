@@ -73,14 +73,55 @@ describe('HotA obfuscated LOD index', () => {
   })
 
   it('reports an unsupported compression type per entry and keeps the rest readable', async () => {
-    // LZMA does not occur in HotA 1.8.1, but the format allows it (research M1, R12).
     const bytes = writeHotaLod(entries)
-    bytes[92 + 16] = HOTA_COMPRESSION.lzma
+    bytes[92 + 16] = HOTA_COMPRESSION.unknown
     const lod = await LodArchive.open(new MemorySource('HotA.lod', bytes))
     await expect(lod.read('Objects.txt')).rejects.toMatchObject({
       code: 'UNSUPPORTED_VERSION',
-      message: expect.stringContaining('LZMA'),
+      message: expect.stringContaining('type 1'),
     })
     expect(await lod.read('hglnt000.pcx')).toEqual(entries[1]?.data)
+  })
+
+  it('reads LZMA entries in HotA framing (spec 008 FR-009)', async () => {
+    // Every packet kind: literals, matches at short and long distances, reps.
+    const def = new Uint8Array(70_000)
+    let x = 12345
+    for (let i = 0; i < def.length; i++) {
+      x = (x * 1103515245 + 12345) >>> 0
+      def[i] = i % 4096 < 2048 ? (x >>> 24) & 0x0f : (def[i - 2048] as number)
+    }
+    const lzma = [
+      { name: 'avwlzma.def', data: def, compression: HOTA_COMPRESSION.lzma },
+      { name: 'small.txt', data: text('abc'), compression: HOTA_COMPRESSION.lzma },
+      ...entries,
+    ]
+    const lod = await LodArchive.open(new MemorySource('HotA.lod', writeHotaLod(lzma)))
+    expect(lod.get('avwlzma.def').type).toBe(HOTA_COMPRESSION.lzma)
+    expect(await lod.read('avwlzma.def')).toEqual(def)
+    expect(await lod.read('small.txt')).toEqual(text('abc'))
+    expect(await lod.read('Objects.txt')).toEqual(entries[0]?.data)
+  })
+
+  it('rejects a corrupt LZMA entry with a typed error, per entry', async () => {
+    const bytes = writeHotaLod([{ name: 'a.def', data: text('x'.repeat(500)), compression: HOTA_COMPRESSION.lzma }, ...entries])
+    const lod = await LodArchive.open(new MemorySource('HotA.lod', bytes))
+    const at = lod.get('a.def').offset
+    bytes[at] = 1 // the leading 0 byte of HotA's framing
+    await expect(lod.read('a.def')).rejects.toMatchObject({ code: 'DECOMPRESS_FAILED', message: expect.stringContaining('expected 0') })
+    bytes[at] = 0
+    bytes[at + lod.get('a.def').compressedSize - 16] ^= 1 // footer size
+    await expect(lod.read('a.def')).rejects.toMatchObject({ code: 'DECOMPRESS_FAILED', message: expect.stringContaining('footer') })
+    expect(await lod.read('Objects.txt')).toEqual(entries[0]?.data)
+  })
+
+  it('leaves out a bad index entry with a warning instead of failing the archive (spec 008 FR-010)', async () => {
+    const bytes = writeHotaLod(entries)
+    bytes[92 + 32 * 2 + 16] = 9 // entry 2: unknown compression type
+    const lod = await LodArchive.open(new MemorySource('HotA.lod', bytes))
+    expect(lod.unreadable).toHaveLength(1)
+    expect(lod.has('AVCcovx0.def')).toBe(false)
+    expect(lod.warnings.join()).toContain('unknown compression type 9')
+    expect(await lod.read('Objects.txt')).toEqual(entries[0]?.data)
   })
 })

@@ -85,6 +85,13 @@ const panel = createPanel(document.body, {
     }
   },
   onFiles: (files) => void controller.supplyFiles(files),
+  onPick: (slot, file) => void controller.supplyFiles([file], slot),
+  onRemove: (slot) => void controller.removeFile(slot),
+  onRemoveFolder: () => {
+    void rememberedFolder.clear()
+    controller.removeFolder()
+  },
+  onZip: (file) => useZip(file),
   onForget: () => {
     void rememberedFolder.clear()
     void controller.forgetFiles()
@@ -169,11 +176,22 @@ window.addEventListener('drop', (e) => {
 
 // Keyboard and drag scrolling (browser only; wallpaper hosts show a static view).
 const TILE = 32
+/**
+ * The shortcut a key press stands for, by the physical key (`KeyN` is N on a Russian layout too, where
+ * `key` would be "т"; spec 008). Combinations with Ctrl, Alt or Meta belong to the browser (Ctrl+R reloads).
+ */
+function shortcutKey(e: KeyboardEvent): string | null {
+  if (e.ctrlKey || e.altKey || e.metaKey) return null
+  if (e.code.startsWith('Arrow')) return e.code
+  if (/^Key[A-Z]$/.test(e.code)) return e.code.slice(3)
+  // No physical code (some virtual keyboards): fall back to the character.
+  return e.code === '' && /^[a-z]$/i.test(e.key) ? e.key.toUpperCase() : e.code === '' && e.key.startsWith('Arrow') ? e.key : null
+}
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return
   const eng = engine()
   panel.activity()
-  switch (e.key) {
+  switch (shortcutKey(e)) {
     case 'ArrowLeft':
       eng?.scrollBy(-TILE, 0)
       break
@@ -186,19 +204,15 @@ window.addEventListener('keydown', (e) => {
     case 'ArrowDown':
       eng?.scrollBy(0, TILE)
       break
-    case 'u':
     case 'U':
       eng?.toggleLevel()
       break
-    case 'r':
     case 'R':
       controller.newRandomPlace()
       break
-    case 'n':
     case 'N':
       controller.nextMap()
       break
-    case 'o':
     case 'O': {
       const next = !controller.state().settings.objects
       stored.settings.objects = next
@@ -206,7 +220,6 @@ window.addEventListener('keydown', (e) => {
       controller.applySettings({ objects: next })
       break
     }
-    case 'h':
     case 'H':
       panel.toggle()
       break

@@ -66,4 +66,22 @@ describe('ArchiveSet', () => {
     expect(decode(await set.read('grastl.def'))).toBe('base grass')
     expect(() => new ArchiveSet([])).toThrow(TypeError)
   })
+
+  it('falls back to the next archive when an entry cannot be read, and skips it when none can (spec 008 FR-010)', async () => {
+    const bytes = writeHotaLod([
+      { name: 'grastl.def', data: text('hota grass') },
+      { name: 'avccovx0.def', data: text('cove castle') },
+    ])
+    const hotaLod = await LodArchive.open(new MemorySource('HotA.lod', bytes))
+    // Corrupt both zlib streams: HotA's grastl.def is shadowed by a readable base copy, avccovx0.def is not.
+    for (const e of hotaLod.entries) bytes[e.offset] = 0
+    const set = new ArchiveSet([hotaLod, await base()])
+    expect(decode(await set.read('grastl.def'))).toBe('base grass')
+    await expect(set.read('avccovx0.def')).rejects.toMatchObject({ code: 'DECOMPRESS_FAILED' })
+    expect(await set.readOptional('avccovx0.def')).toBeUndefined()
+    expect(await set.readOptional('nope.def')).toBeUndefined()
+    expect(set.readFailures).toHaveLength(2)
+    expect(set.readFailures.join('\n')).toMatch(/grastl\.def.*using the copy in h3sprite\.lod/)
+    expect(set.readFailures.join('\n')).toMatch(/avccovx0\.def.*skipped/)
+  })
 })

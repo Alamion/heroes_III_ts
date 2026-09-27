@@ -8,11 +8,14 @@ import { HOTA_TERRAINS, terrainLayerDefs, terrainTileName, TERRAINS } from '../d
 import { parseDef } from '../formats/def/def.ts'
 import { parsePcx } from '../formats/pcx/pcx.ts'
 import type { AtlasInput } from './atlas.ts'
+import { FormatError } from '../util/errors.ts'
 
 /** The archive (or ordered archive set) the tiles are read from. */
 export interface TerrainEntrySource {
   has(name: string): boolean
   read(name: string): Promise<Uint8Array>
+  /** Undefined when the entry is absent or cannot be read (spec 008); defaults to has + read. */
+  readOptional?(name: string): Promise<Uint8Array | undefined>
 }
 
 export interface TerrainAtlasInputs {
@@ -37,14 +40,27 @@ export async function terrainAtlasInputs(source: TerrainEntrySource): Promise<Te
     let missing: string | undefined
     for (let i = 0; i < terrain.count; i++) {
       const tileName = terrainTileName(terrain.prefix, i)
-      if (!source.has(tileName)) {
+      // A tile that cannot be read or parsed counts as missing (spec 008 FR-010): the terrain is not
+      // drawn, the rest of the archive still is.
+      const bytes = source.readOptional !== undefined ? await source.readOptional(tileName) : source.has(tileName) ? await source.read(tileName) : undefined
+      const tile = bytes === undefined ? undefined : parseTile(bytes, tileName)
+      if (tile === undefined) {
         missing = tileName
         break
       }
-      tiles.push(parsePcx(await source.read(tileName), tileName))
+      tiles.push(tile)
     }
     if (missing === undefined) inputs.push({ tileSet: { name: terrain.prefix, tiles }, overlay: false })
     else incompleteHotaTerrains.push({ terrain: terrain.name, tile: missing })
   }
   return { inputs, missingDefs, incompleteHotaTerrains }
+}
+
+function parseTile(bytes: Uint8Array, name: string): ReturnType<typeof parsePcx> | undefined {
+  try {
+    return parsePcx(bytes, name)
+  } catch (err) {
+    if (err instanceof FormatError) return undefined
+    throw err
+  }
 }

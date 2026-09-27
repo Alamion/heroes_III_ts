@@ -36,6 +36,8 @@ export type ControllerEngine = Pick<
   | 'loadArchive'
   | 'loadDataArchive'
   | 'loadHotaArchive'
+  | 'unloadDataArchive'
+  | 'unloadHotaArchive'
   | 'loadMap'
   | 'prepareMap'
   | 'showPreparedMap'
@@ -62,6 +64,8 @@ export interface RememberedFiles {
   load(): Promise<RememberedFile[]>
   save(file: RememberedFile): Promise<void>
   clear(): Promise<void>
+  /** Spec 008: forgets one slot's file (the browser's per-slot remove button). */
+  remove?(slot: FileSlot): Promise<void>
 }
 
 export interface Timers {
@@ -116,6 +120,11 @@ export interface ControllerSnapshot {
   /** Where the map comes from (spec 007). */
   source: WallpaperSettings['mapsource']
   folder: FolderSnapshot | null
+  /**
+   * Spec 008 FR-001: the map shown is a HotA map and the HotA archive is not loaded, so its terrains
+   * and objects are wrong. Hosts show HOTA_ARCHIVE_NEEDED; the browser panel marks the HotA slot.
+   */
+  hotaNeeded: boolean
 }
 
 export interface FolderSnapshot {
@@ -125,6 +134,8 @@ export interface FolderSnapshot {
   shown: { path: string; title: string; size: number; levels: number } | null
   failed: number
   filtered: number
+  /** Spec 008: maps skipped because they need the HotA archive, which is not loaded. */
+  hotaSkipped: number
   switching: boolean
 }
 
@@ -133,7 +144,13 @@ export interface WallpaperController {
   applySettings(raw: RawSettings): void
   /** Applies coalesced settings now (tests and page unload). */
   flushSettings(): Promise<void>
-  supplyFiles(files: readonly (Blob & { name?: string })[]): Promise<void>
+  /**
+   * Files the user picked or dropped; each goes to the slot of its kind. With `expected` (the browser's
+   * per-slot picker, spec 008) a file of another kind is reported, and still used where it belongs.
+   */
+  supplyFiles(files: readonly (Blob & { name?: string })[], expected?: FileSlot): Promise<void>
+  /** Spec 008: empties one slot (the browser's per-slot remove button) and forgets its remembered file. */
+  removeFile(slot: FileSlot): Promise<void>
   setHostPaused(paused: boolean): void
   setHidden(hidden: boolean): void
   setFrameLimit(fps: number): void
@@ -147,6 +164,8 @@ export interface WallpaperController {
    * the source to the folder and shows a map from it.
    */
   supplyFolder(name: string, entries: () => Promise<CatalogueEntry[]>): Promise<void>
+  /** Spec 008: the browser's folder remove button; the source stays "folder" and waits for another. */
+  removeFolder(): void
   resize(cssWidth: number, cssHeight: number, dpr: number): void
   forgetFiles(): Promise<void>
   state(): ControllerSnapshot
@@ -236,6 +255,8 @@ export function createController(deps: ControllerDeps): WallpaperController {
   let activeSince: number | null = null
   let activeMs = 0
   const summarize = deps.summarize ?? summarizeMapFile
+  /** Spec 008: the single map in the engine is a HotA map. */
+  let singleNeedsHota = false
   /** Resolves once start() has applied the first settings (a folder supplied earlier waits for it). */
   let markStarted: () => void = () => {}
   const started = new Promise<void>((resolve) => (markStarted = resolve))
@@ -275,7 +296,23 @@ export function createController(deps: ControllerDeps): WallpaperController {
     engine: engine === undefined ? null : engine.stats(),
     source: settings.mapsource,
     folder: folderSnapshot(),
+    hotaNeeded: hotaNeeded(),
   })
+
+  /** The map shown needs the HotA archive and none is loaded or on its way (spec 008 FR-001). */
+  const hotaNeeded = (): boolean => {
+    if (slots.hotaArchive.status !== 'missing' && slots.hotaArchive.status !== 'failed') return false
+    if (displayed === 'folder') return folder?.shown?.summary.needsHota === true
+    return slots.map.status === 'loaded' && singleNeedsHota
+  }
+  /** Keeps HOTA_ARCHIVE_NEEDED in step with hotaNeeded(): sticky while it holds, gone once HotA loads. */
+  const syncHotaMessage = (): void => {
+    const needed = hotaNeeded()
+    const current = messages.find((m) => m.message.code === 'HOTA_ARCHIVE_NEEDED')
+    const file = displayed === 'folder' ? (folder?.shown?.path ?? '') : (slots.map.name ?? '')
+    if (needed && (current === undefined || current.message.file !== file)) addMessage({ code: 'HOTA_ARCHIVE_NEEDED', level: 'warn', file }, 'hotaArchive', true)
+    else if (!needed && current !== undefined) clearMessages((m) => m.message.code === 'HOTA_ARCHIVE_NEEDED')
+  }
 
   const folderSnapshot = (): FolderSnapshot | null => {
     if (folder === null) return null
@@ -287,6 +324,7 @@ export function createController(deps: ControllerDeps): WallpaperController {
       shown: f.shown === null ? null : { path: f.shown.path, title: f.shown.summary.title, size: f.shown.summary.size, levels: f.shown.summary.levels },
       failed: f.failed.size,
       filtered,
+      hotaSkipped: slots.hotaArchive.status === 'loaded' || f.entries === null ? 0 : f.entries.filter((e) => !f.failed.has(e.id) && f.summaries.get(e.id)?.needsHota === true && passesFilter(f.summaries.get(e.id) as MapSummary, mapFilter(settings))).length,
       switching: f.switching,
     }
   }
@@ -360,6 +398,7 @@ export function createController(deps: ControllerDeps): WallpaperController {
   }
 
   const refresh = (): void => {
+    syncHotaMessage()
     const isShowing = showing()
     deps.setCanvasHidden?.(!isShowing)
     syncEngineActivity()
@@ -378,14 +417,14 @@ export function createController(deps: ControllerDeps): WallpaperController {
     }
   }
 
-  const addMessage = (message: UserMessage, slot: FileSlot | null = null): void => {
+  const addMessage = (message: UserMessage, slot: FileSlot | null = null, sticky = !showing() && message.level === 'error'): void => {
     const logLine = `${message.code}${message.file !== undefined ? ` ${message.file}` : ''}${message.detail !== undefined ? `: ${message.detail}` : ''}`
     if (message.level === 'error') log.error(logLine)
     else if (message.level === 'warn') log.warn(logLine)
     else log.info(logLine)
     // One message per code and slot: a newer one replaces the older.
     messages = messages.filter((m) => !(m.message.code === message.code && m.slot === slot))
-    messages.push({ id: nextMessageId++, message, sticky: !showing() && message.level === 'error', slot })
+    messages.push({ id: nextMessageId++, message, sticky, slot })
   }
   const clearMessages = (pred: (m: (typeof messages)[number]) => boolean): void => {
     messages = messages.filter((m) => !pred(m))
@@ -471,6 +510,13 @@ export function createController(deps: ControllerDeps): WallpaperController {
     if (slot === 'map') {
       displayed = 'single'
       singleMap = { blob, name }
+      // Spec 008 FR-001: a HotA map says so when the HotA archive is missing (a bounded read).
+      const needsHota = await summarize(blob, name).then(
+        (s) => s.needsHota,
+        () => false,
+      )
+      if (gen !== generation[slot]) return false
+      singleNeedsHota = needsHota
       applyView(true)
     }
     // HotA maps of the folder that were waiting for the archive become eligible (spec 007 edge case).
@@ -869,7 +915,7 @@ export function createController(deps: ControllerDeps): WallpaperController {
       }, COALESCE_MS)
     },
     flushSettings: () => flush(),
-    async supplyFiles(files) {
+    async supplyFiles(files, expected) {
       startedAt ??= deps.now()
       await track(
         (async () => {
@@ -886,10 +932,15 @@ export function createController(deps: ControllerDeps): WallpaperController {
               }
               const slot = kindSlot(kind)
               if (slot === undefined) {
-                if (kind.kind === 'unsupportedMap') addMessage({ code: 'UNSUPPORTED_MAP', level: 'error', file: name, format: kind.format ?? `0x${kind.versionCode.toString(16)}` })
-                else addMessage({ code: 'UNKNOWN_FILE', level: 'error', file: name, ...(kind.kind === 'unknownArchive' ? { detail: kind.reason } : {}) })
+                if (kind.kind === 'unsupportedMap') addMessage({ code: 'UNSUPPORTED_MAP', level: 'error', file: name, format: kind.format ?? `0x${kind.versionCode.toString(16)}` }, expected ?? null)
+                else addMessage({ code: 'UNKNOWN_FILE', level: 'error', file: name, ...(kind.kind === 'unknownArchive' ? { detail: kind.reason } : {}) }, expected ?? null)
                 refresh()
                 return undefined
+              }
+              // Picked for one slot but of another kind: said, and used where it belongs (spec 008).
+              if (expected !== undefined && slot !== expected) {
+                addMessage({ code: 'WRONG_KIND', level: 'warn', file: name, expected, found: slot }, expected)
+                refresh()
               }
               // A single dropped map means "this map": the folder source gives way (spec 007).
               if (slot === 'map' && settings.mapsource === 'folder') {
@@ -946,11 +997,44 @@ export function createController(deps: ControllerDeps): WallpaperController {
         })(),
       )
     },
+    removeFolder() {
+      if (folder === null) return
+      if (displayed === 'folder') {
+        displayed = null
+        view = null
+      }
+      dropFolder()
+      refresh()
+    },
     resize(w, h, dpr) {
       if (engine === undefined) return
       engine.resize(w, h, dpr)
       // The view fractions refer to the reachable range, which depends on the view size.
       applyView(false)
+    },
+    async removeFile(slot) {
+      generation[slot]++
+      slots[slot] = { status: 'missing', name: null, identity: null }
+      clearMessages((m) => m.slot === slot || (slot === 'map' && m.message.code === 'HOTA_ARCHIVE_NEEDED'))
+      if (slot === 'map') {
+        if (displayed === 'single') displayed = null
+        singleMap = undefined
+        singleNeedsHota = false
+        view = null
+      }
+      if (slot === 'dataArchive') engine?.unloadDataArchive()
+      refresh()
+      await track(
+        Promise.all([
+          slot === 'hotaArchive' && engine !== undefined
+            ? engine.unloadHotaArchive().then((r) => {
+                if (!r.ok && r.error.code !== 'SUPERSEDED') log.warn(`decoding again without the HotA archive failed: ${r.error.message}`)
+              })
+            : undefined,
+          deps.remembered?.remove?.(slot).catch((err: unknown) => log.warn('could not forget the file', String(err))),
+        ]),
+      )
+      refresh()
     },
     async forgetFiles() {
       await Promise.all([deps.remembered?.clear(), engine?.forgetCache()])
@@ -962,6 +1046,7 @@ export function createController(deps: ControllerDeps): WallpaperController {
       if (folder !== null && folder.value === null) dropFolder()
       displayed = null
       singleMap = undefined
+      singleNeedsHota = false
       messages = []
       view = null
       startedAt = null

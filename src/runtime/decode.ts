@@ -52,7 +52,11 @@ export async function archiveSetIdentity(files: readonly ArchiveFile[]): Promise
 }
 
 function setWarnings(set: ArchiveSet, name: string): WorkerDiagnostic[] {
-  return set.warnings.map((w) => ({ level: 'warn' as const, code: 'LOD_WARNING', message: w, file: name }))
+  return [
+    ...set.warnings.map((w) => ({ level: 'warn' as const, code: 'LOD_WARNING', message: w, file: name })),
+    // Spec 008 FR-010: entries skipped or replaced by another archive's copy.
+    ...set.readFailures.map((w) => ({ level: 'warn' as const, code: 'ENTRY_UNREADABLE', message: w, file: name })),
+  ]
 }
 
 export interface ArchiveResult {
@@ -165,12 +169,26 @@ export async function decodeObjects(
   const spriteLod = await openSet(sprites.files)
   const defs: DefSprite[] = []
   const missing: string[] = []
+  const unreadable: string[] = []
   for (const name of [...new Set(objects.map((o) => o.def))].sort()) {
     // HotA's own tables name one sprite wrongly; the alias is what the archive stores it under.
     const stored = resolveSpriteName(name)
-    if (spriteLod.has(stored)) defs.push(parseDef(await spriteLod.read(stored), name))
+    // A sprite that cannot be read or parsed is skipped like a missing one (spec 008 FR-010): one
+    // bad entry of a newer HotA archive must not cost the whole object layer.
+    const bytes = await spriteLod.readOptional(stored)
+    let def: DefSprite | undefined
+    if (bytes !== undefined) {
+      try {
+        def = parseDef(bytes, name)
+      } catch (err) {
+        if (!(err instanceof FormatError)) throw err
+        unreadable.push(`${name}: ${err.detail}`)
+      }
+    }
+    if (def !== undefined) defs.push(def)
     else missing.push(name)
   }
+  unreadable.push(...spriteLod.readFailures)
   // An object whose sprite cannot be resolved is not drawn, but it is counted and named with the
   // objects that wanted it, so a check can fail on it (spec 005 FR-017).
   const unresolved = missing.map((def) => {
@@ -195,6 +213,9 @@ export async function decodeObjects(
             details: { unresolvedSprites: missing.length, unresolvedObjects, sprites: unresolved.slice(0, 50) },
           },
         ]
+  if (unreadable.length > 0) {
+    warnings.push({ level: 'warn', code: 'ENTRY_UNREADABLE', message: `${unreadable.length} archive entr${unreadable.length === 1 ? 'y' : 'ies'} could not be read and ${unreadable.length === 1 ? 'is' : 'are'} skipped: ${unreadable.slice(0, 3).join('; ')}${unreadable.length > 3 ? '; …' : ''}`, file: spritesName })
+  }
   let atlas: ObjectAtlas
   try {
     atlas = buildObjectAtlas(defs, pageSize)

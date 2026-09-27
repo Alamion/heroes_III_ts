@@ -1,7 +1,9 @@
 // `yarn verify budget` (contracts/checks-cli.md, spec US5).
 
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { basename, join, resolve } from 'node:path'
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, join, resolve, sep } from 'node:path'
+import { isMapPath } from '../../../src/runtime/catalogue.ts'
+import { writeZip } from '../../shared/archive.ts'
 import { gunzipSync } from 'node:zlib'
 import type { CommandResult, ParsedArgs } from '../../shared/cli-runner.ts'
 import { flag, intOpt, opt } from '../../shared/cli-runner.ts'
@@ -121,9 +123,16 @@ export async function budgetCommand(args: ParsedArgs): Promise<CommandResult> {
     const folderArchives = archive !== null && dataArchive !== undefined ? { archive, dataArchive } : { archive: synthetic.archive, dataArchive: synthetic.dataArchive }
     const bundleDir = gameDirs().bundleDir
     const installFolder = bundleDir !== undefined && existsSync(join(bundleDir, 'Maps')) && archive !== null ? join(bundleDir, 'Maps') : undefined
-    if (installFolder !== undefined) budgets.push(...(await folderStartEntries(fileBrowser, packagesDir, folderArchives, installFolder, 'install Maps folder', viewport, throttle)))
+    // Wallpaper Engine cannot list a folder and asks for a .zip at once (spec 007, Windows session
+    // 2026-09-25), so the folder start goes through a .zip of the same maps.
+    if (installFolder !== undefined) {
+      const zip = join(synthetic.dir, 'install-maps.zip')
+      const maps = (readdirSync(installFolder, { recursive: true, encoding: 'utf8' }) as string[]).filter((p) => isMapPath(p)).map((p) => ({ path: p.split(sep).join('/'), data: new Uint8Array(readFileSync(join(installFolder, p))) }))
+      writeFileSync(zip, writeZip(maps))
+      budgets.push(...(await folderStartEntries(fileBrowser, packagesDir, folderArchives, zip, 'install Maps folder (.zip)', viewport, throttle)))
+    }
     const syntheticFolders = writeHostFolders(join(synthetic.dir, 'folders'))
-    budgets.push(...(await folderStartEntries(fileBrowser, packagesDir, { archive: synthetic.archive, dataArchive: synthetic.dataArchive }, syntheticFolders.mixed.dir, 'synthetic folder', viewport, throttle)))
+    budgets.push(...(await folderStartEntries(fileBrowser, packagesDir, { archive: synthetic.archive, dataArchive: synthetic.dataArchive }, syntheticFolders.mixed.zip, 'synthetic folder (.zip)', viewport, throttle)))
 
     // The synthetic 252×252×2 map runs within the same budgets (SC-006 for the largest map size).
     const stressPath = synthetic.maps[STRESS_MAP] as string

@@ -58,7 +58,11 @@ the same format knowledge underlies the H3M readers here.
   copied verbatim. The FNV-1a-32 name hash is not in that source and was derived here by
   measurement. Its `data/hashes.txt` name dictionary is **not** redistributed: it is read from the
   local, git-ignored `context/` folder by the inspection CLI when present.
-- Files: `src/core/formats/lod/lod.ts`, `src/core/formats/lod/name-hash.ts`
+  Spec 008 also took from it the framing of an LZMA entry (a 0 byte, the raw stream, a 16-byte
+  footer of uncompressed size and stored size + 5) and the decoder settings (LZMA1, lc 3, lp 0,
+  pb 2, 16 MiB dictionary); the LZMA decoder itself follows the public-domain LZMA SDK reference
+  decoder (`LzmaSpec.cpp`, Igor Pavlov), written anew here.
+- Files: `src/core/formats/lod/lod.ts`, `src/core/formats/lod/name-hash.ts`, `src/core/util/lzma.ts`
 
 ```text
 MIT License

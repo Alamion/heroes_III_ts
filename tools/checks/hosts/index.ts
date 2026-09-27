@@ -52,9 +52,9 @@ export async function hostsCommand(args: ParsedArgs): Promise<CommandResult> {
       rmSync(synthetic.dir, { recursive: true, force: true })
       return { ok: !flag(args, 'require'), exitCode: flag(args, 'require') ? 3 : 4, outcome: 'skip', skipReason: 'game-files-missing' }
     }
-    files = { spriteArchive: sprite, dataArchive: data, map, ...(hotaArchive === undefined ? {} : { hotaArchive }), bad: { ...synthetic.bad, missing: join(synthetic.dir, 'Нет такого файла.lod') }, folders }
+    files = { spriteArchive: sprite, dataArchive: data, map, ...(hotaArchive === undefined ? {} : { hotaArchive }), bad: { ...synthetic.bad, missing: join(synthetic.dir, 'Нет такого файла.lod') }, folders, hota: synthetic.hota }
   } else {
-    files = { spriteArchive: synthetic.spriteArchive, dataArchive: synthetic.dataArchive, map: synthetic.map, bad: { ...synthetic.bad, missing: join(synthetic.dir, 'Нет такого файла.lod') }, folders }
+    files = { spriteArchive: synthetic.spriteArchive, dataArchive: synthetic.dataArchive, map: synthetic.map, bad: { ...synthetic.bad, missing: join(synthetic.dir, 'Нет такого файла.lod') }, folders, hota: synthetic.hota }
   }
 
   if (!flag(args, 'no-build')) {
