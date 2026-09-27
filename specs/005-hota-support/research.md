@@ -883,6 +883,22 @@ neighbouring body in the dense underground forests and hills of highlands (21 64
 views) and town sprites' bodies (about 500 pixels a town) — draw order and overlap, the same class as
 the base game's accepted dense-cluster deviation.
 
+### Red shadow markers (found by the owner on the reefs, 2026-09-27)
+
+The owner's reef row on the surface of `test_map_hota.h3m` (x 124–143, y 40–48) showed a pure red
+edge along the shadow side of some reefs. Those sprites mark their shadow in red instead of magenta:
+`(255,0,0)` at index 1 in `avlrfx01`, `02`, `03`, `05`, `06` and `avxmn2pink0` (`avlrfx04` keeps
+`(255,150,255)`), and `avxmn2pink0` also holds `(128,0,0)` at index 4 (1 048 pixels). `isShadowMarker`
+did not know the colours, so the pixels were drawn opaque. A survey of every object DEF in HotA.lod
+1.8.1 finds neither colour at any other special index that pixels use, and none in the base game.
+
+A still of the edited map (`2026-09-27T19-06-31-706Z_x124-142_y36-52`) shows no red: the game draws
+them as shadows. With both colours added to the markers (index 1 stays light, 4 dark) the view went
+from 6 665 to 6 279 differing pixels (51 to 34 bad tiles), and the diff is empty around the five
+reefs. What is left there is the boats (their frame) and a thin edge under `ZReef*`/`WATERBALL`, the
+accepted reef deviation. `avxmn2pink0` is not on any local map; its `(128,0,0)` reading follows the
+same pattern and is not measured. Cache schema 10.
+
 ### Hosts: the HotA archive must be loaded first (found on a real KDE session, 2026-09-23)
 
 On a real Plasma session a HotA map showed without 602 of its objects (340 HotA-only sprites "not

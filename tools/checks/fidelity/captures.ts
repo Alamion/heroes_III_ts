@@ -2,7 +2,7 @@
 // derived at run time from the local stills (research.md "Implementation findings").
 
 import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { findCaptures, scanRecords } from '../../reference-env/store/lookup.ts'
 import { recordBaseline } from '../../reference-env/data/baselines.ts'
 import type { Baseline, CaptureRecord, FrameTimeline } from '../../reference-env/model/types.ts'
@@ -55,11 +55,12 @@ export function loadCapture(dir: string, record: CaptureRecord): LoadedCapture {
 }
 
 export function findFor(capturesDir: string, map: string, level: 0 | 1, region: Region, kind: 'still' | 'clip' | undefined): { dir: string; record: CaptureRecord }[] {
-  return findCaptures(capturesDir, { map, level, region, source: 'game', ...(kind !== undefined ? { kind } : {}) }).map((m) => ({ dir: m.dir, record: m.record }))
+  return findCaptures(capturesDir, { map: basename(map), level, region, source: 'game', ...(kind !== undefined ? { kind } : {}) }).map((m) => ({ dir: m.dir, record: m.record }))
 }
 
 export function allGameCaptures(capturesDir: string, map: string): { dir: string; record: CaptureRecord }[] {
-  const m = map.normalize('NFC').toLowerCase().replace(/\.h3m$/, '')
+  // Captures are keyed by the map's name; a map given as a path matches by its file name.
+  const m = basename(map).normalize('NFC').toLowerCase().replace(/\.h3m$/, '')
   return scanRecords(capturesDir).filter(({ record: r }) => r.source === 'game' && (r.map.key.toLowerCase() === m || r.map.name.toLowerCase().replace(/\.h3m$/, '') === m))
 }
 
