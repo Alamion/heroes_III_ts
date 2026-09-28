@@ -7,6 +7,16 @@ text becomes the Steam Workshop and KDE Store change notes (see [docs/releasing.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-28
+
+### Fixed
+
+- Horn of the Abyss portal exits, the arena, the library and several other HotA objects and monsters
+  no longer show grey patches: those pixels were mistaken for a flag
+- A hero standing in a town is drawn in the town gate, not one tile to the right
+- Objects overlap as in the game more often: a building no longer shows through the forest in front
+  of it, and on HotA maps the object placed or moved last in the editor is in front
+
 ## [0.1.2] - 2026-09-27
 
 ### Fixed
