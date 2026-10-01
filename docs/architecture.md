@@ -390,48 +390,44 @@ hero stands one tile left of its anchor (hero templates have their visitable cel
 
 ### Draw order — [draw-order.ts](../src/core/state/draw-order.ts)
 
-This took the longest to get right. The order is a property of the map's objects: `buildRenderObjects`
-gives every object a `drawRank` once, over the whole map, and the renderer sorts a view by it.
+This took the longest to get right (spec 005 research "Draw order: tiles and columns"). Two facts
+about the original engine decide it:
 
-The base order (`compareObjects`, a total order):
+- **It draws the map tile by tile.** Two objects can overlap in one order in one tile and in the
+  other order in the next tile: 19 % of the object pairs that overlap in several tiles do so in 80
+  game stills. No single order of whole objects can reproduce that, so
+  [object-plan.ts](../src/core/render/object-plan.ts) cuts every sprite at map tile borders and
+  orders the pieces. Pieces of different tiles never overlap, so one sort of all pieces by the
+  per-tile order is the draw order.
+- **Every shadow is drawn before every body.** A shadow never darkens another object's body. The
+  software rasterizer draws shadows in a first pass, bodies in a second; the WebGL shadow-count
+  target does the same with two draw calls (`u_mode` 1 and 2).
+
+Within a tile (`comparePieces`):
 
 1. flat objects (`isOverlay`) first;
 2. anchor row (y);
-3. heroes after other objects in the same row;
-4. visitable after non-visitable objects **of the same row** — base-game maps only: on HotA maps the
-   object later in the file is in front within a row (the HotA editor moves the object last placed
-   or moved to the end of the list);
-5. map file order;
-6. for a hero: flag, then body.
+3. column depth: the row of the object's lowest blocked tile in that tile's column (`columnDepth`);
+   a column without one counts as the object's own row;
+4. a piece that only overhangs the tile in front of one whose object blocks the tile;
+   where both only overhang it, a visitable object in front (windmill blades over trees);
+5. heroes after other objects;
+6. map file order (in HotA the editor moves the last placed or moved object to the end);
+7. for a hero: flag, then body.
 
-On top of it, **who stands below whom** (`drawRanks`): of two objects, the one whose blocked tiles
-lie directly below more blocked tiles of the other is drawn in front of it, whatever the rows and the
-file order. On HotA maps this holds only between objects of different rows. The pairwise rule is not
-transitive, so it is applied as constraints on the base order through a topological sort (lowest base
-rank first; a cycle is broken at its lowest base rank). A pairwise sort per view matched the game
-better still (364 819 against 411 097 differing pixels over 59 stills), but its result depends on the
-sort algorithm and on which objects are in view, so the order would not be deterministic.
+The keys were first fitted to 16 000 tiles that 80 stills of 19 SoD and HotA maps decide
+(`yarn verify fidelity --pairs`), then the order of keys 3–4 and the two refinements were chosen by
+running whole-corpus variants (2026-10-01): pair votes weight a tile's pixels and can mislead, the
+corpus total cannot. The same rule is best for both games (`yarn verify corpus` reports totals per
+baseline). Over the 80 stills the differing pixels fell from 776 086 to about 427 000 (82 stills now: 428 131); `yarn verify corpus`
+keeps it from sliding back. The piece order is cached per view range, since the plan is rebuilt on
+every animation tick.
 
-How it was found (2026-09-17, spec 003):
-
-- The starting point was the key used by VCMI and h3lwp: (flat, y, heroes, visitable, x).
-- On six stills, every overlapping pair of objects was decided from exact body colours. The VCMI
-  key agreed on 210 of 243 pairs, and "y, then map order" on 215. Neither was the rule.
-- The decisive evidence came from side-by-side views of Arrogance: a library drawn over the trees
-  in front of it, and a windmill over the mountains below it. **Every visitable object is drawn
-  after all non-visitable ones.** Differing pixels over 32 views dropped from 543 604 to 422 813.
-- **Hero flags go before the body.** The body's flagpole covers the last column of the flag. That
-  change took the owned-hero still from 29 differing pixels to 1.
-
-Revised 2026-09-28 (spec 005 research "Draw order: who stands below whom"): "every visitable object
-after all non-visitable ones" put a black market, a golem and a Marletto tower of `[HotA] Gold Rush`
-over the forest in front of them. Visitability decides only within a row; the blocked-tile rule
-(described by VCMI from H3 maps) explains the Arrogance library. Over 59 stills (Arrogance,
-test_map, Merchant Princes, Shadow Valleys, test_map_hota, Gold Rush) differing pixels fell from
-503 613 to 411 097.
-
-One case is still open: dense mountain clusters, where no tested key reproduces the game (see
-[deviations](#known-deviations-and-open-questions)).
+How it was found, for the record: spec 003 (2026-09-17) settled on "every visitable object after all
+non-visitable ones" from Arrogance views; 2026-09-28 replaced it with a row order and a pairwise
+"who stands below whom" rule (VCMI's description); 2026-09-30 found the per-tile drawing and the
+shadow pass, which explained what no whole-object order could. **Hero flags go before the body**:
+the body's flagpole covers the last column of the flag (29 → 1 differing pixels, spec 003).
 
 ### Player colours
 

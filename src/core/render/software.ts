@@ -189,13 +189,22 @@ export function drawObjects(out: Uint8Array, objects: SceneObjects, cam: Camera,
   const originX = plan.range.x0 * TILE_SIZE - cam.offsetX
   const originY = plan.range.y0 * TILE_SIZE - cam.offsetY
   const v = plan.vertices
+  // Every shadow is drawn before every body, so a shadow never falls on another object's body
+  // (spec 005 research "Shadows before bodies"): pass 0 draws shadows, pass 1 bodies.
+  for (let pass = 0; pass < 2; pass++)
   for (let q = 0; q < plan.quadCount; q++) {
     const b = q * OBJECT_VERTICES_PER_QUAD * OBJECT_VERTEX_SIZE
     const x0 = (v[b] as number) + originX
     const y0 = (v[b + 1] as number) + originY
-    const w = Math.abs(v[b + 6] as number)
-    const h = Math.abs(v[b + 7] as number)
-    const { startU, stepU, startV, stepV } = cellWalk(v, b)
+    // The quad covers a piece of its cell (object-plan.ts OBJECT_VERTEX_SIZE): offset and size.
+    const lx0 = v[b + 12] as number
+    const ly0 = v[b + 13] as number
+    const w = (v[b + 14] as number) - lx0
+    const h = (v[b + 15] as number) - ly0
+    const walk = cellWalk(v, b)
+    const startU = walk.startU + walk.stepU * lx0
+    const startV = walk.startV + walk.stepV * ly0
+    const { stepU, stepV } = walk
     const row = v[b + 8] as number
     const page = atlas.pages[v[b + 9] as number] as Uint8Array
     const owner = v[b + 10] as number
@@ -214,6 +223,7 @@ export function drawObjects(out: Uint8Array, objects: SceneObjects, cam: Camera,
         if (a === 0) continue
         const i = sy * width + sx
         const body = a === 255 || a === FLAG_MARKER_ALPHA
+        if (body !== (pass === 1)) continue
         // A shadow keeps the owner of the object it darkens, so that object's frame stays searchable.
         if (owners !== undefined && (body || owners[i] === -1)) owners[i] = object
         if (!body) {

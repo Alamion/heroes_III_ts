@@ -55,7 +55,7 @@ interface ObjectResources {
   vertexBuffer: WebGLBuffer
   bufferQuads: number
   gpuBytes: number
-  attrs: { position: number; local: number; cell: number; row: number; page: number; owner: number; tint: number }
+  attrs: { position: number; local: number; cell: number; row: number; page: number; owner: number; tint: number; piece: number }
   loc: { translate: WebGLUniformLocation; viewport: WebGLUniformLocation; scale: WebGLUniformLocation; flags: WebGLUniformLocation; mode: WebGLUniformLocation }
   /** Surface-sized colour and shadow-count targets and the resolve program (research.md T046). */
   targets: { width: number; height: number; color: WebGLTexture; colorFb: WebGLFramebuffer; shadow: WebGLTexture; shadowFb: WebGLFramebuffer } | undefined
@@ -271,7 +271,11 @@ export class TerrainRenderer {
       gl.clearColor(0, 0, 0, 1)
       gl.enable(gl.BLEND)
       gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+      // Every shadow before every body (software.ts drawObjects): mode 1 adds shadow steps, mode 2
+      // resets them under bodies.
       gl.uniform1i(ores.loc.mode, 1)
+      gl.drawArrays(gl.TRIANGLES, 0, objectPlan.quadCount * OBJECT_VERTICES_PER_QUAD)
+      gl.uniform1i(ores.loc.mode, 2)
       gl.drawArrays(gl.TRIANGLES, 0, objectPlan.quadCount * OBJECT_VERTICES_PER_QUAD)
       gl.bindFramebuffer(gl.FRAMEBUFFER, null)
       gl.disable(gl.BLEND)
@@ -355,6 +359,7 @@ export class TerrainRenderer {
     attr(a.page, 1, 36)
     attr(a.owner, 1, 40)
     attr(a.tint, 1, 44)
+    attr(a.piece, 4, 48)
     gl.uniform2f(res.loc.translate, translate[0], translate[1])
     gl.uniform2f(res.loc.viewport, cam.width, cam.height)
     gl.uniform1f(res.loc.scale, cam.scale)
@@ -483,6 +488,7 @@ export class TerrainRenderer {
         page: gl.getAttribLocation(program, 'a_page'),
         owner: gl.getAttribLocation(program, 'a_owner'),
         tint: gl.getAttribLocation(program, 'a_tint'),
+        piece: gl.getAttribLocation(program, 'a_piece'),
       },
       loc: { translate: uniform('u_translate'), viewport: uniform('u_viewport'), scale: uniform('u_scale'), flags: uniform('u_flags[0]'), mode: uniform('u_mode') },
       targets: undefined,

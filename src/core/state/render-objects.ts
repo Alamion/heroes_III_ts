@@ -11,7 +11,6 @@ import { hashInts } from '../util/rng.ts'
 import { pickHeroType, resolveRandomObjects, usedHeroTypes } from './random.ts'
 import type { GameTables, RandomOutcome } from './random.ts'
 import type { ObjectId, WorldObject, WorldState } from './world.ts'
-import { drawRanks } from './draw-order.ts'
 
 export type RenderObjectKind = 'object' | 'heroBody' | 'heroFlag'
 
@@ -43,11 +42,9 @@ export interface RenderObject {
   readonly shadowTint?: ShadowTint
   /**
    * The template's passability mask (6 rows × 8 columns, a clear bit is a blocked tile; `maskOffsets`
-   * layout). The draw order reads it (draw-order.ts); absent for heroes.
+   * layout). The per-tile draw order reads it (draw-order.ts); absent for heroes.
    */
   readonly passable?: Uint8Array
-  /** Position in the draw order of the whole map (draw-order.ts `drawRanks`); lower draws first. */
-  readonly drawRank: number
 }
 
 const WATER = 8
@@ -117,13 +114,13 @@ function tintOn(state: WorldState, soil: number): { shadowTint?: ShadowTint } {
   return tint === 0 ? {} : { shadowTint: tint }
 }
 
-function heroEntries(base: { id: ObjectId; x: number; y: number; z: number; owner: number | null; order: number; random: RandomOutcome | null; floating: boolean }, type: number, state: WorldState): Omit<RenderObject, 'phase' | 'drawRank'>[] {
+function heroEntries(base: { id: ObjectId; x: number; y: number; z: number; owner: number | null; order: number; random: RandomOutcome | null; floating: boolean }, type: number, state: WorldState): Omit<RenderObject, 'phase'>[] {
   const heroClass = heroClassOfType(type)
   if (heroClass === undefined) return []
   const soil = terrainAt(state, base.x + HERO_VISIT_OFFSET.dx, base.y + HERO_VISIT_OFFSET.dy, base.z)
   const onWater = soil === WATER
   const common = { ...base, classId: OBJECT_CLASS.HERO, group: HERO_DEFAULT_IDLE.group, mirror: HERO_DEFAULT_IDLE.mirror, flat: false, visitable: true, ...tintOn(state, soil) }
-  const body: Omit<RenderObject, 'phase' | 'drawRank'> = { ...common, kind: 'heroBody', def: onWater ? (BOAT_HERO_DEFS[0] as string) : (HERO_MAP_DEFS[heroClass] as string) }
+  const body: Omit<RenderObject, 'phase'> = { ...common, kind: 'heroBody', def: onWater ? (BOAT_HERO_DEFS[0] as string) : (HERO_MAP_DEFS[heroClass] as string) }
   const flagDef = base.owner === null ? undefined : HERO_FLAG_DEFS[base.owner]
   return flagDef === undefined ? [body] : [body, { ...common, kind: 'heroFlag', def: flagDef }]
 }
@@ -134,8 +131,14 @@ function heroEntries(base: { id: ObjectId; x: number; y: number; z: number; owne
  */
 export function buildRenderObjects(state: WorldState, tables: GameTables, rng: Rng): { objects: RenderObject[]; outcomes: Map<ObjectId, RandomOutcome> } {
   const outcomes = resolveRandomObjects(state, tables, rng)
-  const out: Omit<RenderObject, 'phase' | 'drawRank'>[] = []
+  const out: Omit<RenderObject, 'phase'>[] = []
   const hota = state.map.version === 'HotA'
+  // HotA redrew the map monsters three tiles wide with the creature one tile left of the anchor, and
+  // moved the visit tile in its Objects.txt to match (base: 64 px, creature on the anchor tile). A map
+  // of one edition shown with the sprites of the other would put every monster a tile aside (the game
+  // keeps them in place: Dragon Pass, a base map, on both baselines; spec 005 research).
+  const monsterRows = new Map<string, GameTables['templates'][number]>()
+  for (const r of tables.templates) if (r.classId === OBJECT_CLASS.MONSTER && !monsterRows.has(r.defName.toLowerCase())) monsterRows.set(r.defName.toLowerCase(), r)
   const ids = [...state.objects.keys()].sort((a, b) => a - b)
   for (const id of ids) {
     if (state.removed.has(id)) continue
@@ -158,7 +161,13 @@ export function buildRenderObjects(state: WorldState, tables: GameTables, rng: R
       def = townDef(faction, state, id, def)
       classId = OBJECT_CLASS.TOWN
     }
-    const entry: Omit<RenderObject, 'phase' | 'drawRank'> = { ...base, kind: 'object', classId, def, group: 0, mirror: false, flat, visitable, passable: o.template.passable }
+    const entry: Omit<RenderObject, 'phase'> = { ...base, kind: 'object', classId, def, group: 0, mirror: false, flat, visitable, passable: o.template.passable }
+    if (classId === OBJECT_CLASS.MONSTER) {
+      // The sprite follows the loaded archives, the position the map: keep the creature on its tile.
+      const row = monsterRows.get(def)
+      const shift = row === undefined ? 0 : (maskOffsets(o.template.active)[0]?.dx ?? 0) - (maskOffsets(row.active)[0]?.dx ?? 0)
+      if (row !== undefined && shift !== 0) Object.assign(entry, { x: o.x + shift, passable: row.passable })
+    }
     if (hota) {
       const stand = standingTile(o.template.passable, o.template.active)
       const tint = shadowTintOfTerrain(terrainAt(state, o.x + stand.dx, o.y + stand.dy, o.z))
@@ -183,7 +192,6 @@ export function buildRenderObjects(state: WorldState, tables: GameTables, rng: R
     out.push(...heroEntries({ id: -1 - player, x, y, z: town.z, owner: player, order: Number.MAX_SAFE_INTEGER - 8 + player, random: null, floating: true }, type, state))
   })
   // Per-object animation phase: a body and its hero flag share the phase of their object.
-  const ranks = drawRanks(out, { hota })
-  const objects = out.map((o, i) => ({ ...o, phase: hashInts(state.seed, o.id, o.x, o.y, o.z) % 1024, drawRank: ranks[i] as number }))
+  const objects = out.map((o) => ({ ...o, phase: hashInts(state.seed, o.id, o.x, o.y, o.z) % 1024 }))
   return { objects, outcomes }
 }

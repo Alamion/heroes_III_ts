@@ -1,6 +1,7 @@
-// Draw order of render objects (specs/003-map-objects/research.md §4, measured T047; revised
-// 2026-09-28, spec 005 research "Draw order: who stands below whom"). A property of the world's
-// objects, computed once per map in `buildRenderObjects`; the renderer sorts by `drawRank`.
+// Draw order of render objects (specs/003-map-objects/research.md §4; revised 2026-09-28 and
+// 2026-09-30, spec 005 research "Draw order: tiles and columns"). The game draws the adventure map
+// tile by tile, so the order is decided per map tile: object-plan.ts cuts every sprite at tile borders
+// and sorts the pieces with `comparePieces`.
 
 import type { RenderObject } from './render-objects.ts'
 
@@ -11,168 +12,63 @@ export type DrawOrderInput = Pick<RenderObject, 'kind' | 'flat' | 'x' | 'y' | 'z
 const KIND_RANK: Readonly<Record<RenderObject['kind'], number>> = { object: 0, heroFlag: 1, heroBody: 2 }
 
 /**
- * The base order, a total one: flat objects first, then anchor row, heroes after other objects of
- * the row, visitable after non-visitable objects of the row (base game only), then map file order.
- * HotA maps skip the visitable key: within a row the object later in the file is in front, whatever
- * its kind — the HotA editor moves the object last placed or moved to the end of the list (owner's
- * probe objects on test_map_hota.h3m, 2026-09-28). `drawRanks` refines the order where blocked tiles
- * say which of two objects stands in front.
+ * Depth of an object in map column `wx` (spec 005 research "Draw order: tiles and columns"): the row
+ * of its lowest blocked tile in that column; a column where the sprite only overhangs counts as the
+ * object's own row (a windmill's blades stay over a monster standing beside the mill). Heroes use
+ * their row.
  */
-export function compareObjects(a: DrawOrderInput, b: DrawOrderInput, hota = false): number {
-  if (a.flat !== b.flat) return a.flat ? -1 : 1
-  if (a.y !== b.y) return a.y - b.y
-  const heroA = a.kind === 'object' ? 0 : 1
-  const heroB = b.kind === 'object' ? 0 : 1
-  if (heroA !== heroB) return heroA - heroB
-  if (!hota && a.visitable !== b.visitable) return a.visitable ? 1 : -1
-  if (a.order !== b.order) return a.order - b.order
-  return KIND_RANK[a.kind] - KIND_RANK[b.kind]
-}
-
-/** Blocked tiles of an object as absolute coordinates (x, y pairs). */
-function blockedTiles(o: DrawOrderInput): number[] {
-  const out: number[] = []
+export function columnDepth(o: DrawOrderInput, wx: number): number {
+  if (o.kind !== 'object') return o.y
   const mask = o.passable
-  if (mask === undefined || o.flat) return out
-  for (let row = 0; row < 6; row++) {
-    const bits = mask[row] as number
-    for (let bit = 0; bit < 8; bit++) if ((bits & (1 << bit)) === 0) out.push(o.x + bit - 7, o.y + row - 5)
-  }
-  return out
+  if (mask === undefined) return o.y
+  const bit = wx - o.x + 7
+  if (bit < 0 || bit > 7) return o.y
+  for (let row = 5; row >= 0; row--) if (((mask[row] as number) & (1 << bit)) === 0) return o.y + row - 5
+  return o.y
 }
 
-/** A tile key; blocked tiles may lie up to 7 tiles left of and 5 above the map (anchors near its edge). */
-function tileKey(z: number, x: number, y: number): number {
-  return (z * 2048 + y + 16) * 2048 + x + 16
+/** Whether an object blocks map tile (wx, wy); heroes block nothing here. */
+export function blocksTile(o: DrawOrderInput, wx: number, wy: number): boolean {
+  if (o.kind !== 'object' || o.passable === undefined) return false
+  const bit = wx - o.x + 7
+  const row = wy - o.y + 5
+  if (bit < 0 || bit > 7 || row < 0 || row > 5) return false
+  return ((o.passable[row] as number) & (1 << bit)) === 0
 }
 
-/** Binary min-heap of object indices by base rank. */
-class RankHeap {
-  private readonly items: number[] = []
-  private readonly base: Int32Array
-  constructor(base: Int32Array) {
-    this.base = base
-  }
-  get size(): number {
-    return this.items.length
-  }
-  push(i: number): void {
-    const a = this.items
-    a.push(i)
-    let c = a.length - 1
-    while (c > 0) {
-      const p = (c - 1) >> 1
-      if ((this.base[a[p] as number] as number) <= (this.base[i] as number)) break
-      a[c] = a[p] as number
-      c = p
-    }
-    a[c] = i
-  }
-  pop(): number {
-    const a = this.items
-    const top = a[0] as number
-    const last = a.pop() as number
-    if (a.length > 0) {
-      let c = 0
-      for (;;) {
-        const l = 2 * c + 1
-        if (l >= a.length) break
-        const r = l + 1
-        const m = r < a.length && (this.base[a[r] as number] as number) < (this.base[a[l] as number] as number) ? r : l
-        if ((this.base[a[m] as number] as number) >= (this.base[last] as number)) break
-        a[c] = a[m] as number
-        c = m
-      }
-      a[c] = last
-    }
-    return top
-  }
+/** What orders a sprite piece within its map tile (`comparePieces`). */
+export interface PieceOrder {
+  /** `columnDepth` of the object in the tile's column. */
+  depth: number
+  /** The object blocks this tile (else the sprite only overhangs it). */
+  blocked: boolean
+}
+
+/** The order keys of object `o` in map tile (wx, wy). */
+export function orderInTile(o: DrawOrderInput, wx: number, wy: number): PieceOrder {
+  return { depth: columnDepth(o, wx), blocked: blocksTile(o, wx, wy) }
 }
 
 /**
- * Draw rank of every object (lower draws first), over the whole map so that the order of two objects
- * never depends on the view.
- *
- * Measured against the game (spec 005 research "Draw order: who stands below whom"; the rule was
- * first described by VCMI from H3 maps, re-implemented here from that description): of two
- * objects, the one whose blocked tiles lie directly below more blocked tiles of the other stands in
- * front of it, whatever their anchor rows and map order. Pairs without such a difference keep the
- * base order (`compareObjects`). On HotA maps the rule holds only between objects of different
- * rows; within one row HotA keeps file order. The pairwise rule is not
- * transitive, so it is applied as constraints on the base order: a topological sort that always
- * takes the available object of lowest base rank, and in a cycle the remaining object of lowest
- * base rank.
+ * Order of two sprite pieces in one map tile. The game draws the adventure map tile by tile, so two
+ * objects may overlap in one order in one tile and in the other order in the next (19 % of the
+ * object pairs overlapping in several tiles, in stills of 19 SoD and HotA maps). Within a tile: flat
+ * objects first, then the anchor row, then column depth (`columnDepth`), then a piece that only
+ * overhangs the tile in front of one that blocks it; where both only overhang it, a visitable object
+ * in front (windmill blades over the trees and the monster beside the mill); heroes after other
+ * objects, map file order. One rule for SoD and HotA, chosen over the whole corpus
+ * (`yarn verify corpus`; spec 005 research "Draw order: tiles and columns"). Shadows are not ordered
+ * here: every shadow is drawn before every body.
  */
-export function drawRanks(objects: readonly DrawOrderInput[], opts: { hota: boolean }): Int32Array {
-  const n = objects.length
-  const sorted = Array.from({ length: n }, (_, i) => i).sort((a, b) => compareObjects(objects[a] as DrawOrderInput, objects[b] as DrawOrderInput, opts.hota) || a - b)
-  const base = new Int32Array(n)
-  sorted.forEach((i, r) => {
-    base[i] = r
-  })
-
-  // Who blocks each tile (per level; heroes and flat objects block nothing here).
-  const tiles = objects.map(blockedTiles)
-  const blockers = new Map<number, number[]>()
-  tiles.forEach((t, i) => {
-    const z = (objects[i] as DrawOrderInput).z
-    for (let k = 0; k < t.length; k += 2) {
-      const key = tileKey(z, t[k] as number, t[k + 1] as number)
-      const list = blockers.get(key)
-      if (list === undefined) blockers.set(key, [i])
-      else list.push(i)
-    }
-  })
-  // below.get(a).get(b): blocked tiles of a with a blocked tile of b directly below them.
-  const below = new Map<number, Map<number, number>>()
-  tiles.forEach((t, a) => {
-    const z = (objects[a] as DrawOrderInput).z
-    for (let k = 0; k < t.length; k += 2) {
-      const under = blockers.get(tileKey(z, t[k] as number, (t[k + 1] as number) + 1))
-      if (under === undefined) continue
-      for (const b of under) {
-        if (b === a) continue
-        let m = below.get(a)
-        if (m === undefined) below.set(a, (m = new Map()))
-        m.set(b, (m.get(b) ?? 0) + 1)
-      }
-    }
-  })
-  // Edge a → b (a drawn before b) where b stands below a more than a below b.
-  const after: number[][] = Array.from({ length: n }, () => [])
-  const indegree = new Int32Array(n)
-  for (const [a, m] of below) {
-    for (const [b, count] of m) {
-      const back = below.get(b)?.get(a) ?? 0
-      if (count <= back) continue
-      if (opts.hota && (objects[a] as DrawOrderInput).y === (objects[b] as DrawOrderInput).y) continue
-      ;(after[a] as number[]).push(b)
-      indegree[b] = (indegree[b] as number) + 1
-    }
-  }
-
-  const ranks = new Int32Array(n)
-  const done = new Uint8Array(n)
-  const heap = new RankHeap(base)
-  for (let i = 0; i < n; i++) if (indegree[i] === 0) heap.push(i)
-  let next = 0
-  let cursor = 0
-  while (next < n) {
-    let i: number
-    if (heap.size > 0) {
-      i = heap.pop()
-      if (done[i] === 1) continue
-    } else {
-      // A cycle: take the remaining object of lowest base rank.
-      while (done[sorted[cursor] as number] === 1) cursor++
-      i = sorted[cursor] as number
-    }
-    done[i] = 1
-    ranks[i] = next++
-    for (const b of after[i] as number[]) {
-      indegree[b] = (indegree[b] as number) - 1
-      if (indegree[b] === 0 && done[b] === 0) heap.push(b)
-    }
-  }
-  return ranks
+export function comparePieces(a: DrawOrderInput, pa: PieceOrder, b: DrawOrderInput, pb: PieceOrder): number {
+  if (a.flat !== b.flat) return a.flat ? -1 : 1
+  if (a.y !== b.y) return a.y - b.y
+  if (pa.depth !== pb.depth) return pa.depth - pb.depth
+  if (pa.blocked !== pb.blocked) return pa.blocked ? -1 : 1
+  if (!pa.blocked && a.visitable !== b.visitable) return a.visitable ? 1 : -1
+  const heroA = a.kind === 'object' ? 0 : 1
+  const heroB = b.kind === 'object' ? 0 : 1
+  if (heroA !== heroB) return heroA - heroB
+  if (a.order !== b.order) return a.order - b.order
+  return KIND_RANK[a.kind] - KIND_RANK[b.kind]
 }

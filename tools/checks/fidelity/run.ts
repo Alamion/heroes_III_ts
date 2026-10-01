@@ -18,6 +18,8 @@ import type { LoadedCapture, UiMask } from './captures.ts'
 import { classifyPixels, countDiffs, decideOutcome, diffImage, viewportImage, evaluateClipSteps, PIXEL, samePixel, tileStats } from './compare.ts'
 import type { CaptureSampler, Outcome, TileStat } from './compare.ts'
 import type { MapContext, ObjectContext } from './masks.ts'
+import { orderPairs } from './pairs.ts'
+import type { OrderPair } from './pairs.ts'
 
 export interface FidelityResult {
   outcome: Outcome
@@ -43,6 +45,8 @@ export interface FidelityResult {
   diff: { width: number; height: number; rgba: Uint8Array }
   /** The reference viewport and the render compared with it (last frame for clips), same size as `diff`. */
   images: { reference: Uint8Array; rendered: Uint8Array }
+  /** Stills with `orderPairs`: object pairs the capture shows in the other order (pairs.ts). */
+  orderPairs?: OrderPair[]
 }
 
 function regionForView(offsetX: number, offsetY: number, width: number, height: number): Region {
@@ -61,6 +65,8 @@ export async function runFidelity(opts: {
   excludeObjects?: boolean
   /** Object layer (spec 003); undefined draws terrain only (objects must then be excluded). */
   objects?: ObjectContext
+  /** Stills: also name the object pairs drawn in the other order than the capture (slow). */
+  orderPairs?: boolean
 }): Promise<FidelityResult> {
   const { capture, ctx, renderer } = opts
   const rec = capture.record
@@ -236,6 +242,10 @@ export async function runFidelity(opts: {
       best = { step: best.step, diff: countDiffs(ex, cap, rendered, vp.w) }
     }
     const reference = frames === undefined ? renderState(best.step) : renderScene(best.step, frames)
+    const pairs =
+      opts.orderPairs === true && objects !== undefined
+        ? orderPairs({ plan, atlas: ctx.atlas, palettes: palettesAt(ctx.atlas.layout, ctx.atlas.palettes, best.step), cam, objects, objectPlan: buildObjectPlan(objects.index, objects.atlas.layout, level, plan.range, 0, frames !== undefined ? { frames } : {}), cls: ex.cls, cap })
+        : undefined
     const gpuOk = opts.verifyGpu === false ? true : await gpuMatches(best.step, frames, reference)
     return {
       outcome: gpuOk ? decideOutcome(best.diff, ex.counts.comparedInMap, ex.counts.inMap) : 'fail',
@@ -248,6 +258,7 @@ export async function runFidelity(opts: {
       randomCauses: causes,
       diff: { width: vp.w, height: vp.h, rgba: diffImage(ex, cap, rendered, vp.w) },
       images: { reference: viewportImage(cap, vp.w, vp.h), rendered },
+      ...(pairs !== undefined ? { orderPairs: pairs } : {}),
     }
   }
 

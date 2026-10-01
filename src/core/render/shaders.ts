@@ -85,13 +85,31 @@ attribute float a_page;
 attribute float a_owner;
 uniform vec3 u_flags[9];
 attribute float a_tint;
+// The piece of the cell this quad covers (cell pixels: min x, min y, max x, max y): sprites are cut
+// at map tile borders (object-plan.ts).
+attribute vec4 a_piece;
 varying float v_row;
 varying float v_page;
 varying vec3 v_flag;
 varying float v_tint;
-${QUAD_VERTEX}
+varying vec4 v_piece;
+attribute vec2 a_position;
+attribute vec2 a_local;
+attribute vec4 a_cell;
+uniform vec2 u_translate;
+uniform vec2 u_viewport;
+uniform float u_scale;
+varying vec2 v_local;
+varying vec4 v_cell;
 void main() {
-  placeQuad();
+  // -1 at the piece's left/top corner, +1 at its right/bottom corner.
+  vec2 dir = sign(a_local * 2.0 - a_piece.xy - a_piece.zw);
+  vec2 px = (a_position + dir * 0.5 + u_translate) * u_scale;
+  vec2 clip = px / u_viewport * 2.0 - 1.0;
+  gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
+  v_local = a_local + dir * 0.5;
+  v_cell = a_cell;
+  v_piece = a_piece;
   v_row = a_row;
   v_page = a_page;
   v_flag = u_flags[int(a_owner + 0.5)];
@@ -115,7 +133,11 @@ varying float v_row;
 varying float v_page;
 varying vec3 v_flag;
 varying float v_tint;
+varying vec4 v_piece;
 void main() {
+  // Neighbouring pieces of one sprite must not both draw a border pixel (shadows would count twice).
+  vec2 q = floor(v_local + 1.0 / 256.0);
+  if (q.x < v_piece.x || q.y < v_piece.y || q.x >= v_piece.z || q.y >= v_piece.w) discard;
   vec2 uv = (cellTexel() + 0.5) / u_pageSize;
   vec4 t;
   if (v_page < 0.5) t = texture2D(u_page0, uv);
@@ -139,6 +161,8 @@ void main() {
     // their kind (animation.ts SHADOW_MARKER_ALPHA; R = dark + 16 × medium, G = light + 16 × faint)
     // and their tint weight (B).
     float tint = floor(v_tint + 0.5) / 255.0;
+    // Mode 1 draws shadows only, mode 2 bodies only: no shadow falls on another object's body.
+    if (body != (u_mode == 2)) discard;
     if (body) gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
     else if (alpha == 128.0) gl_FragColor = vec4(1.0 / 255.0, 0.0, tint, 0.0);
     else if (alpha == 96.0) gl_FragColor = vec4(16.0 / 255.0, 0.0, tint, 0.0);
