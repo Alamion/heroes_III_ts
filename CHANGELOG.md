@@ -7,6 +7,17 @@ text becomes the Steam Workshop and KDE Store change notes (see [docs/releasing.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-10-01
+
+### Fixed
+
+- Objects overlap as in the game much more often: the map is drawn tile by tile as in the original,
+  so trees, mountains and buildings no longer cover each other in the wrong places (windmill blades,
+  castles next to mountains, objects at the edge of forests)
+- A shadow no longer darkens the object standing next to it
+- Monsters on maps of the base game stand on their own tile when the Horn of the Abyss archive is
+  loaded (they were drawn one tile to the left)
+
 ## [0.1.3] - 2026-09-28
 
 ### Fixed
