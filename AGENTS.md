@@ -75,11 +75,13 @@ Facts measured against the original game that code must respect (details in
   its start; lava rotates 246–254, mud river 228–239, lava river 240–248. Stills may catch sprites
   one step apart.
 - Map border (`edg.def`) is a deterministic 4×4 pattern drawn over objects; roads are drawn 16 px down.
-- Objects: bottom-right anchor; order: flat → row → heroes (flag, then body) → visitable after
-  non-visitable **of the row** (base game only; HotA: file order alone, the editor moves the last
-  moved object to the end of the list) → map order, refined by "who stands below whom" (an object
-  whose blocked tiles lie directly below the other's is in front; HotA maps: only across rows), one
-  `drawRank` per object for the whole map (`src/core/state/draw-order.ts`);
+- Objects: bottom-right anchor. The game **draws the map tile by tile** (objects may overlap in one
+  order in one tile and the other in the next) and **every shadow before every body** (no shadow falls
+  on another object's body). `object-plan.ts` cuts sprites at tile borders and sorts the pieces with
+  `comparePieces` (`src/core/state/draw-order.ts`): flat → row → column depth (lowest blocked tile of
+  the object in that column, else its row) → overhanging piece in front of a blocking one (both
+  overhanging: visitable in front) → heroes (flag, then body) → map file order; one rule for SoD and
+  HotA, chosen by whole-corpus runs (82 stills);
   flag pixels (index 5) use `game.pal` entries 64–71 (players) and 72 (neutral); shadow index 1
   keeps `(c>>1)+(c>>2)`, index 4 `c>>1` of each 5/6-bit channel (HotA adds 3 → `+(c>>3)` on top of
   index 1's, 2 → `(c>>1)+(c>>3)`); object frames advance every 180 ms
@@ -88,9 +90,10 @@ Facts measured against the original game that code must respect (details in
 - Heroes: `ah00_.def`–`ah17_.def` body + `af0?.def` flag (colour baked in); not in `Objects.txt`.
   A hero standing in a town is stored with the **town's** coordinates (every local map, SoD and HotA
   editors); the game shows it in the gate, so `fromH3m` moves it to entrance + (1, 0).
-- Accepted deviations (003 research, owner review 2026-09-17): draw order in dense mountain clusters,
-  reef frames/shadows (the render keeps its reef shadows). Fidelity reports these views as `fail`;
-  do not chase them.
+- Accepted deviation (003 research, owner review 2026-09-17): reef frames/shadows (the render keeps
+  its reef shadows). Draw order in dense clusters was accepted then too, but the owner reopened it
+  (2026-09-29): the order and shadows are to be refined until test_map and test_map_hota match; check
+  every change with `yarn verify corpus` (TODO.md, item 3 follow-ups).
 
 Facts about HotA (measured in [005 research](specs/005-hota-support/research.md); the owner's files
 are HotA 1.8.1):
@@ -130,6 +133,10 @@ are HotA 1.8.1):
   and was removed. One sprite name in HotA's tables is a typo (`avwcoat.def` → `avwccoat.def`). 74 D32F and 269 P32F truecolour entries exist, some under
   `.def`/`.pcx` names, but none is an adventure-map sprite. 30 DEFs declare a last frame whose size
   counts the 32-byte header.
+- Monsters: HotA's `avw*.def` are 96 px wide with the creature one tile left of the anchor, and its
+  `Objects.txt` moves the visit tile to match. A map stores the template of its own edition, so
+  `buildRenderObjects` moves a monster by the difference between the map's visit tile and the loaded
+  table row of its sprite (a base map with HotA.lod loaded put every creature a tile left).
 - Towns: **five** forms per faction in HotA (village, fort `f0`, citadel `c0`, castle `x0`, capitol
   `z0`) with irregular stems; the base game only ever shows three, because its `Objects.txt`
   declares the castle template alone. The two-sprite rule above is base-game only. The form follows
@@ -229,10 +236,12 @@ yarn verify maps [--dir PATH]... [--all]   # every kind of map opens: one per co
 yarn verify determinism [--runs 10] [--rebuild]
 yarn verify fidelity --map test_map.h3m --all-regions [--kind still|clip] [--capture ID] [--exclude-objects] [--seed S]
 yarn verify fidelity --map M --level Z --region x0,y0,x1,y1
+yarn verify fidelity --map M --all-regions --pairs   # + pairs.json per view: overlapping objects and which one the game shows on top, per tile
 yarn verify budget [--no-build] [--throttle 4] [--viewport 1920x1080]   # + package sizes and package start-up
 yarn verify packages [--host …] [--no-build] [--reproducible]
 yarn verify hosts [--host …] [--files synthetic|real] [--map NAME] [--only 14,16] [--no-build] [--jobs N]   # host simulations, invariants 1–21; N contexts at once (default half the cores), timing-sensitive ones alone; report `timing` lists slow invariants and waits that hit their timeout
 yarn verify store-texts                      # store texts and change notes: limits (UTF-8 bytes), BBCode tags, project links only
+yarn verify corpus [--only MAP] [--update]   # soft regression check: every game still vs test/real/fidelity-corpus.json (differing pixels, tolerance max(50 px, 2 %)); totals per baseline
 yarn verify all
 ```
 

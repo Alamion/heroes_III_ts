@@ -71,6 +71,23 @@ describe('render objects', () => {
     expect(objects.find((o) => o.def === 'synflat.def')?.flat).toBe(true)
   })
 
+  it('keeps monsters on their tile when the sprites are of the other edition', () => {
+    // HotA's Objects.txt: the creature (visit tile) one tile left of the anchor; the map is a base one.
+    const moved: GameTables = {
+      ...tables,
+      templates: tables.templates.map((r) => (r.classId !== OBJECT_CLASS.MONSTER ? r : { ...r, passable: Uint8Array.of(255, 255, 255, 255, 255, 191), active: Uint8Array.of(0, 0, 0, 0, 0, 64) })),
+    }
+    const shifted = buildRenderObjects(state, moved, createRng(state.seed)).objects
+    const monsters = objects.filter((o) => o.classId === OBJECT_CLASS.MONSTER)
+    expect(monsters.length).toBeGreaterThan(0)
+    for (const m of monsters) {
+      const other = shifted.find((o) => o.id === m.id)
+      expect(other?.x).toBe(m.x + 1)
+      expect(other?.passable?.[5]).toBe(191)
+    }
+    expect(shifted.filter((o) => o.classId !== OBJECT_CLASS.MONSTER).map((o) => o.x)).toEqual(objects.filter((o) => o.classId !== OBJECT_CLASS.MONSTER).map((o) => o.x))
+  })
+
   it('gives objects individual animation phases shared by a hero body and its flag', () => {
     expect(new Set(objects.map((o) => o.phase)).size).toBeGreaterThan(objects.length / 4)
     for (const h of state.heroes.values()) expect(new Set(objects.filter((o) => o.id === h.id).map((o) => o.phase)).size).toBe(1)

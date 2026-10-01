@@ -1,7 +1,7 @@
 {
   "map": "test_map.h3m",
   "seed": 7,
-  "note": "SHA-256 of yarn h3 render PNGs taken on the base-game code before spec 005 changed anything (tasks.md T002). Used by test/real/base-render-unchanged.test.ts to prove US3. Re-taken 2026-09-28 after the draw-order revision (spec 005 research \"Draw order: who stands below whom\"), which changes base-game renders on purpose; flags and heroes in towns did not change these regions.",
+  "note": "SHA-256 of yarn h3 render PNGs taken on the base-game code before spec 005 changed anything (tasks.md T002). Used by test/real/base-render-unchanged.test.ts to prove US3. Re-taken 2026-09-28 (draw-order revision) and 2026-09-30 (per-tile draw order, shadows before bodies; spec 005 research \"Draw order: tiles and columns\"), and 2026-10-01 (monsters of the other edition, windmill blades), which change base-game renders on purpose; the fidelity corpus (`yarn verify corpus`) is what guards them against the game.",
   "renders": [
     {
       "name": "l0-nw-t0",
@@ -16,24 +16,24 @@
       "level": 0,
       "region": "24,24,48,48",
       "time": 540,
-      "bytes": 527611,
-      "sha256": "3161590ad8b8df1368140a6fa2b5e42f94e9e5aa25261793e5b68b3f03cc7917"
+      "bytes": 526570,
+      "sha256": "2765e9cd14857cea4ab89d21bc0a51f436391ca55b99037353800010bf56f813"
     },
     {
       "name": "l0-c-t0",
       "level": 0,
       "region": "60,60,84,84",
       "time": 0,
-      "bytes": 758999,
-      "sha256": "cf3f38657baab96fafb2d0f12db8d17d471b7bb74b9bc98c92c9c400cc918f09"
+      "bytes": 751514,
+      "sha256": "42d6477addc3c852c46954cb53e5583141041dd56697f1caf2e517f5be3e390f"
     },
     {
       "name": "l0-se-t1080",
       "level": 0,
       "region": "100,100,124,124",
       "time": 1080,
-      "bytes": 936060,
-      "sha256": "7a05db2d577ea15ef7c9bd590fd636f0959ac4aa897b662fe3d40cf0da7bc634"
+      "bytes": 920092,
+      "sha256": "395b4a139621497c5f0a95621d2c30ac7a64dda4ea26176b39c81c080d16616c"
     },
     {
       "name": "l1-nw-t0",

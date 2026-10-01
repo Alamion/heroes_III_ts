@@ -1,0 +1,583 @@
+{
+  "note": "Differing pixels per game still, recorded by `yarn verify corpus --update` (tools/checks/corpus.ts). Soft regression check for draw order and shadows; captures are local.",
+  "tolerance": {
+    "pixels": 50,
+    "share": 0.02
+  },
+  "captures": [
+    {
+      "capture": "2026-09-29T18-28-02-153Z_x3-21_y6-22",
+      "map": "[HotA] Around the Bay.h3m",
+      "mapSha256": "7082f6689ca34419c4b64bbb1b3a38829382e51a7aab7d52b0222dbf4c1826d0",
+      "level": 0,
+      "differing": 7750
+    },
+    {
+      "capture": "2026-09-29T18-29-36-260Z_x30-48_y3-19",
+      "map": "[HotA] Around the Bay.h3m",
+      "mapSha256": "7082f6689ca34419c4b64bbb1b3a38829382e51a7aab7d52b0222dbf4c1826d0",
+      "level": 0,
+      "differing": 3702
+    },
+    {
+      "capture": "2026-09-27T21-44-05-807Z_x0-15_y30-46",
+      "map": "[HotA] Gold Rush.h3m",
+      "mapSha256": "c54c3b0f1ba8a117c392e917f5c0140818fc8fa88227821a340ace2b9598b00a",
+      "level": 0,
+      "differing": 2003
+    },
+    {
+      "capture": "2026-09-29T18-17-44-247Z_x39-57_y36-52",
+      "map": "[HotA] Marsh.h3m",
+      "mapSha256": "79f4ea95d816b79d322cc3033bcd42b6deb66490406af6f9a718506f68f91665",
+      "level": 0,
+      "differing": 1884
+    },
+    {
+      "capture": "2026-09-29T18-19-24-908Z_x24-42_y27-43",
+      "map": "[HotA] Marsh.h3m",
+      "mapSha256": "79f4ea95d816b79d322cc3033bcd42b6deb66490406af6f9a718506f68f91665",
+      "level": 0,
+      "differing": 2753
+    },
+    {
+      "capture": "2026-09-29T18-21-02-367Z_x39-57_y48-64",
+      "map": "[HotA] Paradise Lost.h3m",
+      "mapSha256": "115702463bfc7371e0754de31c674407a3c4c47501b1ca2cb7be2d461153533a",
+      "level": 0,
+      "differing": 17334
+    },
+    {
+      "capture": "2026-09-29T18-22-41-080Z_x36-54_y6-22",
+      "map": "[HotA] Paradise Lost.h3m",
+      "mapSha256": "115702463bfc7371e0754de31c674407a3c4c47501b1ca2cb7be2d461153533a",
+      "level": 1,
+      "differing": 16658
+    },
+    {
+      "capture": "2026-09-29T18-14-27-495Z_x42-60_y27-43",
+      "map": "[HotA] Strife in the Woods.h3m",
+      "mapSha256": "efe0c6fb7f96bff12952b737cb910f4985982e23034b3a8a76f87a77e8a11e1b",
+      "level": 0,
+      "differing": 6257
+    },
+    {
+      "capture": "2026-09-29T18-16-04-034Z_x24-42_y12-28",
+      "map": "[HotA] Strife in the Woods.h3m",
+      "mapSha256": "efe0c6fb7f96bff12952b737cb910f4985982e23034b3a8a76f87a77e8a11e1b",
+      "level": 0,
+      "differing": 4626
+    },
+    {
+      "capture": "2026-09-29T17-47-05-341Z_x11-29_y24-40",
+      "map": "[HotA] When Seas Were Deeper.h3m",
+      "mapSha256": "c0348e180d3dea553559b14358db827a005db33716733e53b7d73ea5baa53deb",
+      "level": 0,
+      "differing": 5503
+    },
+    {
+      "capture": "2026-09-29T18-11-15-746Z_x9-27_y57-73",
+      "map": "[HotA] When Seas Were Deeper.h3m",
+      "mapSha256": "c0348e180d3dea553559b14358db827a005db33716733e53b7d73ea5baa53deb",
+      "level": 0,
+      "differing": 3926
+    },
+    {
+      "capture": "2026-09-29T18-12-50-576Z_x57-75_y24-40",
+      "map": "[HotA] When Seas Were Deeper.h3m",
+      "mapSha256": "c0348e180d3dea553559b14358db827a005db33716733e53b7d73ea5baa53deb",
+      "level": 0,
+      "differing": 9573
+    },
+    {
+      "capture": "2026-09-30T14-53-28-984Z_x36-54_y69-85",
+      "map": "[HotA] When Seas Were Deeper.h3m",
+      "mapSha256": "c0348e180d3dea553559b14358db827a005db33716733e53b7d73ea5baa53deb",
+      "level": 0,
+      "differing": 2719
+    },
+    {
+      "capture": "2026-09-30T14-55-19-445Z_x2-20_y69-85",
+      "map": "[HotA] When Seas Were Deeper.h3m",
+      "mapSha256": "c0348e180d3dea553559b14358db827a005db33716733e53b7d73ea5baa53deb",
+      "level": 0,
+      "differing": 5199
+    },
+    {
+      "capture": "2026-09-14T00-07-06-670Z_x25-35_y2-18",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 1,
+      "differing": 619
+    },
+    {
+      "capture": "2026-09-14T00-08-53-982Z_x13-31_y17-33",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 1,
+      "differing": 3020
+    },
+    {
+      "capture": "2026-09-14T13-20-31-967Z_x21-35_y0-13",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 1,
+      "differing": 911
+    },
+    {
+      "capture": "2026-09-14T15-16-27-341Z_x1-19_y0-14",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 0,
+      "differing": 3278
+    },
+    {
+      "capture": "2026-09-14T15-17-44-724Z_x1-19_y0-16",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 0,
+      "differing": 3908
+    },
+    {
+      "capture": "2026-09-14T16-12-49-309Z_x24-35_y0-10",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 1,
+      "differing": 72
+    },
+    {
+      "capture": "2026-09-14T17-15-56-176Z_x1-19_y4-20",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 0,
+      "differing": 5038
+    },
+    {
+      "capture": "2026-09-14T17-18-35-177Z_x0-9_y0-8",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 1,
+      "differing": 484
+    },
+    {
+      "capture": "2026-09-14T17-21-57-581Z_x11-29_y12-28",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 0,
+      "differing": 3449
+    },
+    {
+      "capture": "2026-09-14T17-29-40-922Z_x13-31_y0-8",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 0,
+      "differing": 2785
+    },
+    {
+      "capture": "2026-09-14T17-31-14-176Z_x9-27_y27-35",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 0,
+      "differing": 2189
+    },
+    {
+      "capture": "2026-09-14T17-32-48-866Z_x25-35_y2-18",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 0,
+      "differing": 2670
+    },
+    {
+      "capture": "2026-09-14T17-34-20-951Z_x13-31_y17-33",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 0,
+      "differing": 2965
+    },
+    {
+      "capture": "2026-09-14T17-35-52-767Z_x6-24_y27-35",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 0,
+      "differing": 2588
+    },
+    {
+      "capture": "2026-09-14T17-37-25-536Z_x7-25_y9-25",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 0,
+      "differing": 3730
+    },
+    {
+      "capture": "2026-09-14T17-38-59-874Z_x0-14_y6-22",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 0,
+      "differing": 4445
+    },
+    {
+      "capture": "2026-09-14T17-40-34-374Z_x0-17_y0-13",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 0,
+      "differing": 2997
+    },
+    {
+      "capture": "2026-09-14T17-42-07-229Z_x8-26_y0-10",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 0,
+      "differing": 2612
+    },
+    {
+      "capture": "2026-09-14T17-43-39-331Z_x5-23_y19-35",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 0,
+      "differing": 2775
+    },
+    {
+      "capture": "2026-09-14T17-45-12-065Z_x1-19_y0-14",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 1,
+      "differing": 3671
+    },
+    {
+      "capture": "2026-09-14T17-46-46-472Z_x0-10_y7-23",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 1,
+      "differing": 2756
+    },
+    {
+      "capture": "2026-09-14T17-48-20-406Z_x12-30_y20-35",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 1,
+      "differing": 4025
+    },
+    {
+      "capture": "2026-09-14T17-49-53-980Z_x1-19_y0-15",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 1,
+      "differing": 3669
+    },
+    {
+      "capture": "2026-09-14T17-51-28-126Z_x14-32_y11-27",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 1,
+      "differing": 3393
+    },
+    {
+      "capture": "2026-09-14T17-53-01-946Z_x18-35_y0-14",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 1,
+      "differing": 2269
+    },
+    {
+      "capture": "2026-09-14T17-54-37-785Z_x16-34_y8-24",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 1,
+      "differing": 3122
+    },
+    {
+      "capture": "2026-09-14T17-56-13-221Z_x18-35_y27-35",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 1,
+      "differing": 2056
+    },
+    {
+      "capture": "2026-09-14T17-57-51-532Z_x0-17_y19-35",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 1,
+      "differing": 5718
+    },
+    {
+      "capture": "2026-09-14T17-59-29-034Z_x0-14_y3-19",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 1,
+      "differing": 2144
+    },
+    {
+      "capture": "2026-09-15T02-11-19-738Z_x9-27_y10-26",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 0,
+      "differing": 3095
+    },
+    {
+      "capture": "2026-09-16T20-02-55-786Z_x1-19_y0-15",
+      "map": "Arrogance.h3m",
+      "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
+      "level": 0,
+      "differing": 3747
+    },
+    {
+      "capture": "2026-09-29T18-08-17-955Z_x15-33_y15-31",
+      "map": "Deluge.h3m",
+      "mapSha256": "267dd43051ad8610d10a9bc2e2558c2f3092aed593dc7bc08fe3526549c4eb24",
+      "level": 1,
+      "differing": 16751
+    },
+    {
+      "capture": "2026-09-29T18-09-40-904Z_x3-21_y3-19",
+      "map": "Deluge.h3m",
+      "mapSha256": "267dd43051ad8610d10a9bc2e2558c2f3092aed593dc7bc08fe3526549c4eb24",
+      "level": 0,
+      "differing": 1655
+    },
+    {
+      "capture": "2026-09-29T17-38-37-542Z_x28-46_y29-45",
+      "map": "Dragon Pass.h3m",
+      "mapSha256": "0fccf6bea0a42ff9d2b9193a5c969173ce423718e7e962fc94a9e9bc57752aa0",
+      "level": 0,
+      "differing": 6312
+    },
+    {
+      "capture": "2026-09-29T17-41-56-253Z_x27-45_y1-17",
+      "map": "Dragon Pass.h3m",
+      "mapSha256": "0fccf6bea0a42ff9d2b9193a5c969173ce423718e7e962fc94a9e9bc57752aa0",
+      "level": 0,
+      "differing": 8303
+    },
+    {
+      "capture": "2026-09-29T18-31-13-122Z_x0-18_y39-55",
+      "map": "Dragon Pass.h3m",
+      "mapSha256": "0fccf6bea0a42ff9d2b9193a5c969173ce423718e7e962fc94a9e9bc57752aa0",
+      "level": 1,
+      "differing": 1049
+    },
+    {
+      "capture": "2026-09-29T17-56-37-069Z_x30-48_y30-46",
+      "map": "Dwarven Tunnels.h3m",
+      "mapSha256": "3fa6cf1ccac601ebb119fc306fd0949b2d6754e59f4db176d0c757944e744a75",
+      "level": 0,
+      "differing": 12227
+    },
+    {
+      "capture": "2026-09-29T17-58-00-108Z_x36-54_y48-64",
+      "map": "Dwarven Tunnels.h3m",
+      "mapSha256": "3fa6cf1ccac601ebb119fc306fd0949b2d6754e59f4db176d0c757944e744a75",
+      "level": 0,
+      "differing": 11974
+    },
+    {
+      "capture": "2026-09-29T17-59-29-390Z_x45-63_y0-16",
+      "map": "Emerald Isles.h3m",
+      "mapSha256": "2279becf666faa685444ebdbf91ca9617b8943d02b17d919564b1dbee60af8c8",
+      "level": 0,
+      "differing": 364
+    },
+    {
+      "capture": "2026-09-29T18-00-56-770Z_x9-27_y45-61",
+      "map": "Emerald Isles.h3m",
+      "mapSha256": "2279becf666faa685444ebdbf91ca9617b8943d02b17d919564b1dbee60af8c8",
+      "level": 0,
+      "differing": 3485
+    },
+    {
+      "capture": "2026-09-29T18-02-29-045Z_x45-63_y21-37",
+      "map": "Gelea's Champions.h3m",
+      "mapSha256": "ae783683f0d4de3d4e7b26fd860afa56f85b23466c337c3f317d566840b3abd3",
+      "level": 1,
+      "differing": 7916
+    },
+    {
+      "capture": "2026-09-29T18-04-02-850Z_x24-42_y24-40",
+      "map": "Gelea's Champions.h3m",
+      "mapSha256": "ae783683f0d4de3d4e7b26fd860afa56f85b23466c337c3f317d566840b3abd3",
+      "level": 1,
+      "differing": 4120
+    },
+    {
+      "capture": "2026-09-29T18-05-28-451Z_x3-21_y9-25",
+      "map": "Hatchet Axe and Saw.h3m",
+      "mapSha256": "3e946aa96b18f2ee18a32e2743c280385deebd7e576236152eb02133de1c6f5c",
+      "level": 0,
+      "differing": 7950
+    },
+    {
+      "capture": "2026-09-29T18-06-54-978Z_x48-66_y33-49",
+      "map": "Hatchet Axe and Saw.h3m",
+      "mapSha256": "3e946aa96b18f2ee18a32e2743c280385deebd7e576236152eb02133de1c6f5c",
+      "level": 0,
+      "differing": 12496
+    },
+    {
+      "capture": "2026-09-16T20-09-50-536Z_x11-29_y12-28",
+      "map": "Merchant Princes.h3m",
+      "mapSha256": "19c1b4887fd8b368a330ac0e64a66129e6ea835b295286ac71462392e92f8de4",
+      "level": 0,
+      "differing": 3627
+    },
+    {
+      "capture": "2026-09-16T20-04-38-086Z_x11-29_y12-28",
+      "map": "Shadow Valleys.h3m",
+      "mapSha256": "2373244c39116ba89ea68841d6855b52bb3369744fdbb521e77bea5a6a222a92",
+      "level": 1,
+      "differing": 5
+    },
+    {
+      "capture": "2026-09-16T20-06-15-259Z_x11-29_y12-28",
+      "map": "Shadow Valleys.h3m",
+      "mapSha256": "2373244c39116ba89ea68841d6855b52bb3369744fdbb521e77bea5a6a222a92",
+      "level": 0,
+      "differing": 3795
+    },
+    {
+      "capture": "2026-09-23T13-11-21-262Z_x3-21_y118-134",
+      "map": "test_map_hota.h3m",
+      "mapSha256": "f2021f200aa3edc64ba8c07102ed2415d86038127e398fd89d3c7e51adb3d7dd",
+      "level": 1,
+      "differing": 3486
+    },
+    {
+      "capture": "2026-09-23T13-14-06-334Z_x1-19_y110-126",
+      "map": "test_map_hota.h3m",
+      "mapSha256": "f2021f200aa3edc64ba8c07102ed2415d86038127e398fd89d3c7e51adb3d7dd",
+      "level": 1,
+      "differing": 8990
+    },
+    {
+      "capture": "2026-09-23T13-15-45-993Z_x38-56_y92-108",
+      "map": "test_map_hota.h3m",
+      "mapSha256": "f2021f200aa3edc64ba8c07102ed2415d86038127e398fd89d3c7e51adb3d7dd",
+      "level": 1,
+      "differing": 267
+    },
+    {
+      "capture": "2026-09-23T13-17-29-694Z_x106-124_y75-91",
+      "map": "test_map_hota.h3m",
+      "mapSha256": "f2021f200aa3edc64ba8c07102ed2415d86038127e398fd89d3c7e51adb3d7dd",
+      "level": 1,
+      "differing": 27
+    },
+    {
+      "capture": "2026-09-23T13-19-22-282Z_x106-124_y82-98",
+      "map": "test_map_hota.h3m",
+      "mapSha256": "f2021f200aa3edc64ba8c07102ed2415d86038127e398fd89d3c7e51adb3d7dd",
+      "level": 1,
+      "differing": 29
+    },
+    {
+      "capture": "2026-09-23T13-20-56-827Z_x4-22_y63-79",
+      "map": "test_map_hota.h3m",
+      "mapSha256": "f2021f200aa3edc64ba8c07102ed2415d86038127e398fd89d3c7e51adb3d7dd",
+      "level": 0,
+      "differing": 1
+    },
+    {
+      "capture": "2026-09-23T13-22-31-822Z_x40-58_y115-131",
+      "map": "test_map_hota.h3m",
+      "mapSha256": "f2021f200aa3edc64ba8c07102ed2415d86038127e398fd89d3c7e51adb3d7dd",
+      "level": 1,
+      "differing": 0
+    },
+    {
+      "capture": "2026-09-27T23-34-45-765Z_x0-18_y113-129",
+      "map": "test_map_hota.h3m",
+      "mapSha256": "08d07fcc2ba5a7d9df7693c0902b3f2ccb37c3e6e15b8a45c6e700d139b66859",
+      "level": 0,
+      "differing": 195
+    },
+    {
+      "capture": "2026-09-16T20-20-17-814Z_x11-29_y73-89",
+      "map": "test_map.h3m",
+      "mapSha256": "6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c",
+      "level": 0,
+      "differing": 0
+    },
+    {
+      "capture": "2026-09-16T20-21-37-299Z_x48-66_y57-73",
+      "map": "test_map.h3m",
+      "mapSha256": "6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c",
+      "level": 0,
+      "differing": 8081
+    },
+    {
+      "capture": "2026-09-16T20-24-15-106Z_x76-94_y51-67",
+      "map": "test_map.h3m",
+      "mapSha256": "6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c",
+      "level": 0,
+      "differing": 39306
+    },
+    {
+      "capture": "2026-09-16T20-25-34-179Z_x109-127_y0-13",
+      "map": "test_map.h3m",
+      "mapSha256": "6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c",
+      "level": 0,
+      "differing": 0
+    },
+    {
+      "capture": "2026-09-16T20-26-52-867Z_x0-18_y0-16",
+      "map": "test_map.h3m",
+      "mapSha256": "6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c",
+      "level": 0,
+      "differing": 0
+    },
+    {
+      "capture": "2026-09-16T20-28-11-893Z_x125-143_y127-143",
+      "map": "test_map.h3m",
+      "mapSha256": "6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c",
+      "level": 0,
+      "differing": 26448
+    },
+    {
+      "capture": "2026-09-16T20-29-31-280Z_x50-68_y14-30",
+      "map": "test_map.h3m",
+      "mapSha256": "6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c",
+      "level": 1,
+      "differing": 0
+    },
+    {
+      "capture": "2026-09-16T20-30-51-005Z_x19-37_y34-50",
+      "map": "test_map.h3m",
+      "mapSha256": "6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c",
+      "level": 0,
+      "differing": 0
+    },
+    {
+      "capture": "2026-09-16T20-35-30-614Z_x29-47_y62-78",
+      "map": "test_map.h3m",
+      "mapSha256": "6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c",
+      "level": 0,
+      "differing": 1
+    },
+    {
+      "capture": "2026-09-16T20-56-55-986Z_x57-75_y51-67",
+      "map": "test_map.h3m",
+      "mapSha256": "6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c",
+      "level": 0,
+      "differing": 31719
+    },
+    {
+      "capture": "2026-09-23T23-02-57-842Z_x109-127_y72-88",
+      "map": "test_map.h3m",
+      "mapSha256": "6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c",
+      "level": 0,
+      "differing": 27465
+    },
+    {
+      "capture": "2026-09-23T23-14-12-353Z_x0-18_y0-16",
+      "map": "test_shadows.h3m",
+      "mapSha256": "abe407e7d93f7416f9d3f90cbab8eecf63a7bb912b840bef07a3ffad3b0b15ed",
+      "level": 0,
+      "differing": 0
+    },
+    {
+      "capture": "2026-09-23T23-15-41-206Z_x11-29_y0-16",
+      "map": "test_shadows.h3m",
+      "mapSha256": "abe407e7d93f7416f9d3f90cbab8eecf63a7bb912b840bef07a3ffad3b0b15ed",
+      "level": 0,
+      "differing": 0
+    }
+  ]
+}

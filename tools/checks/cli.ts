@@ -7,6 +7,11 @@ export const VERIFY_COMMANDS: Record<string, CommandSpec> = {
     help: 'layers, determinism, budget and fidelity for every map with game captures',
     load: async () => (await import('./all.ts')).allCommand,
   },
+  corpus: {
+    help: 'soft regression check over every game still against test/real/fidelity-corpus.json [--only MAP] [--update]',
+    booleanFlags: ['update'],
+    load: async () => (await import('./corpus.ts')).corpusCommand,
+  },
   budget: {
     help: 'constitution budgets and SC-007 in headless Chromium [--map M]... [--no-build] [--throttle 4] [--viewport 1920x1080] [--idle-ms 5000]',
     booleanFlags: ['no-build'],
@@ -19,7 +24,7 @@ export const VERIFY_COMMANDS: Record<string, CommandSpec> = {
   },
   fidelity: {
     help: 'compare renders with reference captures: --map M (--level Z --region x0,y0,x1,y1 | --all-regions) [--capture ID] [--kind still|clip] [--require] [--rebuild]',
-    booleanFlags: ['all-regions', 'require', 'rebuild', 'exclude-objects'],
+    booleanFlags: ['all-regions', 'require', 'rebuild', 'exclude-objects', 'pairs'],
     load: async () => (await import('./fidelity/index.ts')).fidelityCommand,
   },
   hosts: {

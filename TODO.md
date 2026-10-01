@@ -97,11 +97,18 @@ After the open fixes of item 2, the order is (owner, 2026-09-22):
      views went from 84 475 to 23 393 differing pixels, the probe map to 0. The rest is draw order
      and overlap in dense highland forests and town bodies; needs owner review with the diff images
      before it can become an accepted deviation. To come back to, with the shadow rules:
-     - **Overlapping objects** (not fixed): where a shadow meets a neighbouring object's body, or
-       shadows stack, the game's result differs from ours — 21 649 of the 23 393 pixels are in the two
-       underground highland views (`x1-19_y110-126`, `x3-21_y118-134`), about 500 per town in the
-       town views. Single-step shadows over bare terrain match on 99 %+ everywhere, so this is draw
-       order or stacking, not the shadow formula.
+     - **Overlapping objects** — largely solved 2026-09-30 (005 research "Draw order: tiles and
+       columns"): the game draws the map tile by tile and every shadow before every body; the render
+       now cuts sprites at tile borders and orders pieces per tile. 80 stills of 19 maps: 776 086 →
+       426 745 differing pixels; 82 stills since 2026-10-01 (two of When Seas' windmills added): 428 131
+       (SoD 325 249, HotA 102 882; one rule for both, chosen by whole-corpus variants); `yarn verify corpus` guards every further change. The owner wants
+       this driven to the end on test_map and test_map_hota, in steps:
+       - **Residual tile order**: ~8 % of the decided tiles still disagree; ties at equal row, cell
+         state and column depth (file order is right in most, not everywhere — Arrogance crypt vs
+         volcanic mountain with one anchor). Tools: `yarn verify fidelity --pairs`, the corpus.
+       - **More views**: stills of test_map's and test_map_hota's dense zones that no capture covers
+         yet, and more maps (the corpus picks the densest windows; `yarn ref still`).
+       - **Shadows among themselves** (stacking order, overlapping tints), see below.
      - **Stacking order** (not measured): stacked steps are applied strongest kind first
        (`SHADOW_KIND_ORDER`), not in draw order.
      - **Overlapping tints** (not measured): shadows of objects on different soils over one pixel

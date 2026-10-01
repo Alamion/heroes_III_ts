@@ -10,10 +10,11 @@
  * a world and an object atlas of every map it ever showed). 10: red shadow markers of HotA reefs
  * (`isShadowMarker`), so older atlases draw those shadows as red pixels. 11: the flag entry is marked
  * by palette alpha (`FLAG_MARKER_ALPHA`) and only where the sprite marks index 5, a hero stored on a
- * town stands in its gate, and render objects carry their `drawRank`, so older atlases draw no flags,
- * older worlds misplace those heroes and older object lists have no draw order.
+ * town stands in its gate, so older atlases draw no flags and older worlds misplace those heroes.
+ * 12: render objects carry the passability mask the draw order reads, and monsters are moved onto
+ * their tile when map and sprites are of different editions.
  */
-export const CACHE_SCHEMA = 11
+export const CACHE_SCHEMA = 12
 
 export type CacheStore = 'atlas' | 'world' | 'objects' | 'recent'
 

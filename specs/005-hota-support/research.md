@@ -926,6 +926,9 @@ schema 11.
 
 ### Draw order: who stands below whom (owner's reports on Gold Rush and test_map_hota, 2026-09-28)
 
+**Superseded 2026-09-30** by "Draw order: tiles and columns" below: the game orders objects per map
+tile and draws shadows first; the rules of this section were whole-object approximations of that.
+
 The owner saw a black market, a golem and a Marletto tower of `[HotA] Gold Rush.h3m` (left, middle)
 drawn over the forest in front of them, and wrong overlaps in the lower-left corner of
 `test_map_hota.h3m`. The first came from the spec 003 rule "every visitable object after all
@@ -989,6 +992,130 @@ with the town's own coordinates — in every local map that has one, 23 maps, So
 alike, none one tile left. The game shows it in the gate, so `fromH3m` moves it to the town's
 entrance + (1, 0) (the hero anchor is one tile right of its visit tile). Main towns in the player
 header already give the entrance, which is why generated heroes stood right.
+
+### Draw order: tiles and columns (owner's reports on When Seas Were Deeper and Dragon Pass, 2026-09-30)
+
+The owner saw trees over a windmill, a tomb, a mercenary camp and a lighthouse and mountains over a
+mage tower on the left edge of `[HotA] When Seas Were Deeper` (released 0.1.3 rule), and a griffin
+"standing in a pile of gems" in the underground of `Dragon Pass`, and asked for a broad set of views
+and a soft regression check so that a fix for one map cannot silently break another.
+
+**Corpus and tooling.** 22 new stills of 11 maps (5 SoD: Dwarven Tunnels, Emerald Isles, Gelea's
+Champions, Hatchet Axe and Saw, Deluge; 6 HotA: When Seas Were Deeper, Strife in the Woods, Marsh,
+Paradise Lost, Barren Lands, Around the Bay), each at one of the densest 19×17 windows of its map
+(two Barren Lands stills failed `MAPPING_UNVERIFIED`), plus Dragon Pass views: 80 stills with
+objects in all. `yarn verify corpus` re-runs fidelity on every still whose map file is present and
+fails when a view differs on more than max(50 px, 2 %) extra pixels than recorded in
+`test/real/fidelity-corpus.json` (`--update` records). `yarn verify fidelity --pairs` writes, per
+view, every pair of objects whose bodies overlap and which one the still shows on top, per tile:
+each object is rendered alone, and a pixel covered by both is decided when the capture colour matches
+exactly one of them.
+
+**Whole-object rules plateau.** On ~3 500 decided pairs the best whole-object rule was the
+blocked-tile rule, then the diagonal `y − x` (a row lower, or the object further left in the same row,
+in front), then file order: 94 % of the pairs, also on held-out maps — but over the corpus it only
+took the differing pixels from 776 086 to 746 298, and made 19 views worse: at the pixel level, pairs
+with the same relative position went either way.
+
+**The game draws tile by tile.** Of the 4 009 pairs that overlap in several tiles with a decided
+outcome, 759 (19 %) are decided **differently in different tiles**: the engine keeps a draw list per
+map tile, and a sprite is cut at tile borders. Keys evaluated per tile: the column depth — the row of
+the object's lowest blocked tile in that tile's column, none drawing first — explained far more than
+any whole-object key. Cutting sprites into tile pieces (object-plan.ts; the WebGL object program got
+the piece bounds as an attribute, `a_piece`, and discards outside them, so a shadow on a piece border
+is not counted twice) took the corpus to 658 871.
+
+**Every shadow before every body.** Drawing all shadows in a first pass and all bodies in a second
+(so no shadow falls on another object's body) took test_map from 172 646 to 139 613, Arrogance from
+137 566 to 90 337, When Seas from 32 217 to 20 858 and test_map_hota from 21 960 to 15 543; the corpus
+to 471 838. Pair votes are body-only since.
+
+**The per-tile key, refitted on body-only votes** (16 000 decided tiles; searched chains of up to four
+keys): anchor row → a piece that only overhangs the tile in front of one whose object blocks it →
+column depth → heroes → file order: 92.2 % of the tiles and 93.5 % of their pixels, against 89.3 % /
+92.2 % for column depth first. The same chain is best on SoD and on HotA. It also explains the owner's
+probe pairs (crypt and tree in one row, both blocking the same tile at the same depth: the one later
+in the file in front).
+Chains adding the blocked-tile rule or visitability did not improve on it (93.9 % with the non-
+transitive blocked-tile rule).
+
+**Result.** Corpus 776 086 → 427 634 differing pixels (−45 %), 67 views better, 3 worse:
+Arrogance underground `x0-17_y19-35` (3 060 → 5 719; a crypt and a volcanic mountain with the same
+anchor, the game shows the crypt, earlier in the file, in front), Arrogance underground
+`x12-30_y20-35` (3 443 → 3 987) and test_map_hota `x38-56_y92-108` (33 → 267). The order is cached per
+view range; the plan is rebuilt per tick in 2–8 ms for 3 500 pieces. Warm starts stayed at the level
+of 0.1.3 (test_map 2 073 ms and Pandora's Box 2 037 ms against a 2 000 ms budget, 2 000 and 2 066 before).
+
+Open: the remaining ~8 % of tiles; ties at equal row, cell state and depth (file order is right in
+most, not in the Arrogance crypt case); whether shadows order among themselves (stacking) matters.
+
+### Monsters of the other edition; windmill blades (owner's report after a browser run, 2026-09-30)
+
+The owner loaded Dragon Pass from the HotA install's `Maps` **with HotA.lod** in the browser and still
+saw the units a tile left; on When Seas Were Deeper, trees showed through the blades of a windmill on
+some animation frames, and a monster beside another windmill was half over, half under the blades.
+
+**Monsters.** HotA redrew every map monster: its `avw*.def` are 96 × 64 with the creature in the
+middle tile (base: 64 × 64, creature on the anchor tile), and HotA's `Objects.txt` moves the monster
+visit tile to match (`101111…`/`010000…`, base `011111…`/`100000…`). HotA maps store monsters with
+that template (When Seas: mask 191, visit tile x − 1; a new HotA still at (45,77) shows the creature
+one tile left of the anchor). A base map (Dragon Pass is AB) stores the base template, so with HotA's
+sprites every creature stood a tile left of its tile. `buildRenderObjects` now compares the visit tile
+of the map template with the loaded `Objects.txt` row of the monster's sprite and moves the monster by
+the difference (and takes that row's mask for the draw order). The same rule puts HotA monsters back
+on their tile when HotA.lod is missing. Dragon Pass with HotA sprites now has the griffin on (5,50),
+where the Complete still has its monster; the HotA baseline refuses base maps, so the HotA game's own
+handling of a base map was not captured.
+
+**Windmill blades.** Two new HotA stills (When Seas (11,77) and (45,77)) show the blades over every
+tree around the mill. Where both pieces only overhang a tile, the column depth put the tree (which
+blocks a tile lower in that column) in front. Now, where neither object blocks the tile, a visitable
+object is in front of one that is not, before column depth. Over the 80 earlier views 427 634 →
+426 745 differing pixels, 7 views worse by more than the tolerance (the largest: When Seas
+`x57-75_y24-40` 9 932 → 10 367, test_map_hota `x0-18_y113-129` 33 → 195); the blades show no tree
+pieces on 5 of 6 animation steps checked (one small speck left). The two new stills are recorded at
+5 272 and 2 717; the corpus now holds 82 views, 434 734 pixels.
+
+**Monster beside the mill (owner's report, 2026-10-01).** An imp standing left of the windmill at
+(45,77) had its lower half under the blades and its upper half over them. A 3-second HotA clip of that
+spot (17 distinct frames) shows the blades over the creature in both of its tiles on every frame. The
+lower tile was right (the monster blocks it, the blades only overhang). In the upper tile both only
+overhang, and the column depth put the mill (no blocked tile in that column: "draws first") behind
+the monster. Now a column without a blocked tile counts as the object's own row; both then stand at
+row 77 and file order puts the mill in front. Corpus: +306 px over 82 views (4 views worse by < 200 px,
+11 better), i.e. neutral. Rejected on the way: "the object further right in front where both only
+overhang" (+27 400; with the visitable key +21 200).
+
+**Castle under mountain pieces (owner's report on Arrogance, 2026-10-01), and one rule for both
+games.** The castle at (27,8) showed pieces of the mountain (24,8) of its own row: in tile (24,6) the
+castle blocks, the mountain only overhangs, and "overhanging in front" put the mountain over the
+castle (the game and 0.1.3 do not). Column depth there says the other thing (mountain 7, castle 8).
+The owner asked whether the recent refinements should apply to HotA maps only. Eight variants were run
+over the corpus with totals per baseline (`byBaseline`, now part of `yarn verify corpus`), combining
+column depth before the overhang key (d), visitable in front where both overhang (f) and "no blocked
+tile in the column = the object's row" (n):
+
+| Variant | SoD (Complete) | HotA |
+|---|---|---|
+| none | 328 869 | 106 754 |
+| f | 327 434 | 107 300 |
+| n | 328 824 | 106 725 |
+| fn (the previous state) | 327 656 | 107 384 |
+| d | 330 330 | 104 232 |
+| df | 329 519 | 104 682 |
+| dn | 326 417 | 102 307 |
+| dfn | **325 249** | 102 882 |
+
+dfn is best for SoD and second for HotA (575 px behind dn, which loses the windmill-and-trees fix the
+owner asked for), with no view worse than recorded, so one rule serves both games: row → column depth
+→ overhanging in front of blocking → visitable in front where both overhang → heroes → file order. It
+fixes the castle and keeps both windmill fixes.
+
+Tried and rejected (each run over the whole corpus): map file order alone in the objects' own row
+(pair votes favoured it, pixels did not: +15 600), "the object further left in front" as a tie-break
+(+24 800 alone; −6 700 together with the two others, but 22 views worse), visitable in front in every
+tile (+6 900). Pair votes weight a tile's pixels, not the view's, so a key that wins votes can lose
+pixels; the corpus decides.
 
 ### Hosts: the HotA archive must be loaded first (found on a real KDE session, 2026-09-23)
 

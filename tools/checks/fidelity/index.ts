@@ -142,7 +142,7 @@ export async function fidelityCommand(args: ParsedArgs): Promise<CommandResult> 
       if (dataArchive !== null && objects === undefined) objects = await buildObjectContext(ctx, { dataArchive, ...(seed !== undefined ? { seed } : {}) })
       const capture = loadCapture(t.dir, t.record)
       // Without the data archive objects cannot be drawn: fall back to excluding them.
-      const r = await runFidelity({ capture, ctx, renderer, region, ui, excludeObjects: excludeObjects || objects === undefined, ...(objects !== undefined ? { objects } : {}) })
+      const r = await runFidelity({ capture, ctx, renderer, region, ui, excludeObjects: excludeObjects || objects === undefined, ...(objects !== undefined ? { objects } : {}), orderPairs: flag(args, 'pairs') })
       // Captures verified at record time (spec 003) cannot be misaligned; older ones may be.
       if (r.outcome === 'fail' && mayBeMisaligned(t.record) && r.pixels.differing > 0.05 * r.pixels.compared) {
         // A large difference may be a capture whose recorded tile mapping is off by a tile (seen on
@@ -184,6 +184,7 @@ export async function fidelityCommand(args: ParsedArgs): Promise<CommandResult> 
       const errors = validateJson(schema, (schema.$defs as Record<string, Record<string, unknown>>).fidelity as Record<string, unknown>, report)
       if (errors.length > 0) throw new Error(`fidelity report does not match its schema: ${JSON.stringify(errors.slice(0, 5))}`)
       writeFileSync(join(reportDir, 'report.json'), `${JSON.stringify(report, null, 2)}\n`)
+      if (r.orderPairs !== undefined) writeFileSync(join(reportDir, 'pairs.json'), `${JSON.stringify(r.orderPairs, null, 2)}\n`)
       if (r.outcome === 'not-checkable') {
         appendVisualReview(dir, { map: t.record.map.name, level: t.record.level, region: usedRegion, captureId: t.record.id, reason: `compared ${r.pixels.compared} of ${r.pixels.inMap} in-map pixels`, addedAt: report.createdAt })
       }

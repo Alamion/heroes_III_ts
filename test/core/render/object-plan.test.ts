@@ -8,19 +8,35 @@ describe('object plan', async () => {
   const large = await objectScene(252)
   const range = { x0: 0, y0: 0, x1: 18, y1: 16 }
 
-  it('places quads bottom-right anchored with cropped offsets', () => {
+  // Quads of one object: the plan cuts sprites at map tile borders (the game orders objects per tile).
+  const quadsOf = (plan: ReturnType<typeof buildObjectPlan>, index: number): number[] => {
+    const out: number[] = []
+    for (let q = 0; q < plan.quadCount; q++) if (plan.quadObjects[q] === index) out.push(q * OBJECT_VERTICES_PER_QUAD * OBJECT_VERTEX_SIZE)
+    return out
+  }
+
+  it('places pieces bottom-right anchored with cropped offsets, cut at tile borders and covering the frame', () => {
     const plan = buildObjectPlan(small.index, small.atlas.layout, 0, range, 0, { drawList: true })
-    expect(plan.quadCount).toBeGreaterThan(0)
-    plan.entries?.forEach((e, q) => {
+    expect(plan.quadCount).toBeGreaterThan(plan.entries?.length as number)
+    for (const e of plan.entries ?? []) {
       const sprite = small.atlas.layout.sprites[e.def]
       const cell = sprite?.groups[e.group]?.[e.frame]
-      const b = q * OBJECT_VERTICES_PER_QUAD * OBJECT_VERTEX_SIZE
       expect(e.screenX).toBe((e.x + 1) * 32 - (sprite?.fullWidth as number))
       expect(e.screenY).toBe((e.y + 1) * 32 - (sprite?.fullHeight as number))
       const x = e.mirror ? (sprite?.fullWidth as number) - (cell?.x as number) - (cell?.width as number) : (cell?.x as number)
-      expect(plan.vertices[b]).toBe(e.screenX + x)
-      expect(plan.vertices[b + 1]).toBe(e.screenY + (cell?.y as number))
-    })
+      let area = 0
+      for (const b of quadsOf(plan, e.index)) {
+        const [lx0, ly0, lx1, ly1] = [12, 13, 14, 15].map((k) => plan.vertices[b + k] as number) as [number, number, number, number]
+        // Vertex 0 is the piece's top-left corner: the frame's corner plus the piece offset.
+        expect(plan.vertices[b]).toBe(e.screenX + x + lx0)
+        expect(plan.vertices[b + 1]).toBe(e.screenY + (cell?.y as number) + ly0)
+        // A piece never crosses a tile border (plan coordinates start at the range corner).
+        expect(Math.floor((plan.vertices[b] as number) / 32)).toBe(Math.floor(((plan.vertices[b] as number) + lx1 - lx0 - 1) / 32))
+        expect(Math.floor((plan.vertices[b + 1] as number) / 32)).toBe(Math.floor(((plan.vertices[b + 1] as number) + ly1 - ly0 - 1) / 32))
+        area += (lx1 - lx0) * (ly1 - ly0)
+      }
+      expect(area).toBe((cell?.width as number) * (cell?.height as number))
+    }
   })
 
   it('advances animated frames with the tick', () => {
@@ -37,10 +53,12 @@ describe('object plan', async () => {
     const mirrored = small.objects.map((o, i) => (i === idx ? { ...o, mirror: true } : o))
     const index = new ObjectIndex(mirrored, 36, 2)
     const plan = buildObjectPlan(index, small.atlas.layout, 0, range, 0, { drawList: true })
-    const q = plan.entries?.findIndex((e) => e.index === idx) as number
-    const b = q * 6 * OBJECT_VERTEX_SIZE
-    expect(plan.vertices[b + 6] as number).toBeLessThan(0)
-    expect(plan.vertices[b + 7] as number).toBeGreaterThan(0)
+    const quads = quadsOf(plan, idx)
+    expect(quads.length).toBeGreaterThan(0)
+    for (const b of quads) {
+      expect(plan.vertices[b + 6] as number).toBeLessThan(0)
+      expect(plan.vertices[b + 7] as number).toBeGreaterThan(0)
+    }
   })
 
   it('includes objects anchored outside the range whose sprites reach into it', () => {
