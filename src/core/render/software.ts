@@ -232,8 +232,11 @@ export function drawObjects(out: Uint8Array, objects: SceneObjects, cam: Camera,
           tints[i] = Math.min(255, (tints[i] as number) + tint)
           continue
         }
-        for (const kind of SHADOW_KIND_ORDER) counts[kind][i] = 0
-        tints[i] = 0
+        // Flat objects lie under every shadow (object-plan.ts `flatQuads`): their bodies reset nothing.
+        if (q >= plan.flatQuads) {
+          for (const kind of SHADOW_KIND_ORDER) counts[kind][i] = 0
+          tints[i] = 0
+        }
         const o = i * 4
         if (a === FLAG_MARKER_ALPHA) {
           out[o] = flagColors[owner * 3] as number

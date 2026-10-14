@@ -495,3 +495,88 @@ clips fail only on the reef views), Arrogance.h3m (32 views, 2 256–14 838 diff
 after the order fix; objects are compared on 40 000–150 000 pixels per view), Shadow Valleys.h3m
 (353 and 9 697), Merchant Princes.h3m (14 337). Terrain-only fidelity (`--exclude-objects`) passes on
 every capture of all four maps.
+
+### Draw order in the executable (Ghidra study of Heroes3.exe, 2026-10-14)
+
+Studied in Ghidra (constitution 1.5.0) on a copy of the Complete edition's `Heroes3.exe` (SoD 3.2,
+MSVC 6, 16 Apr 2003, image base `0x400000`). Facts in our own words; addresses are of that build.
+They are hypotheses until the corpus confirms them (`yarn verify corpus`).
+
+**Frame** (`0x40f3f0`, adventure-map redraw). The view is walked several times, each walk row by row
+from the top and left to right within a row, every tile clipped to its own 32×32 square:
+
+1. terrain (`0x412900`), then two further terrain walks (`0x411b80`, `0x411d60`; rivers, roads);
+2. **flat objects** (`0x412470`: only templates with the overlay flag) — before any shadow;
+3. **shadows** of every tile (`0x411590`);
+4. (path arrows, when a path is shown);
+5. **bodies** of every tile (`0x410c00`; non-flat templates only);
+6. later walks for the border and interface.
+
+So shadows fall on flat objects, and no shadow falls on a body.
+
+**Tile lists.** Each map tile (38-byte record) holds a vector of 4-byte entries: object index (u16),
+the sprite tile (byte: high nibble = rows above the anchor, low nibble = columns left of it) and a
+**layer** (signed byte). The body walk of a tile draws its entries layer by layer (0 to 6), within a
+layer in vector order; the shadow walk draws them in vector order (which is also sorted by layer).
+A tile is drawn only where the template's body mask (resp. shadow mask) marks that sprite tile. The
+vectors are written into save files as they are, so the order is decided when an object is placed,
+not when drawing.
+
+**Placing an object** (`0x505ed0`; the map loader calls it for object 0, 1, 2 … in map order). For
+every tile of the template box (width × height in tiles, at most 8 × 6, anchored bottom-right, clipped
+to the map) it inserts an entry, except for heroes, boats, events, the grail, random heroes and hero
+placeholders, which have no entries.
+
+**Layer of a box tile** (`0x505410`). Flat templates: 0 everywhere. Otherwise, per column from the
+anchor column leftwards, a counter starts at 1 on the anchor row and grows by one per row upwards;
+a blocked tile standing on a passable tile restarts it at 1; a passable tile whose right-hand
+neighbour (one column nearer the anchor, same row) is blocked takes that neighbour's layer. The layer
+is thus "how many rows below this tile the object's base is", the base being the bottom of the
+blocked run in that column (or the anchor row for overhanging tiles).
+
+**Insertion** (`0x5055e0`). A new entry is walked backwards from the end of the tile's vector past
+every entry of a higher layer. Past an entry of the same layer only if, somewhere in the two
+objects' common box, the new object's layer is lower than the old one's; otherwise it stays in front
+of it. So: lower layer first; equal layers keep map order unless the later object is behind the
+earlier one elsewhere in their overlap.
+
+**Heroes and boats** (`0x40fb30`, `0x40fe30`) are found by scanning the 3 × 2 tiles around the drawn
+tile. In the body walk, the hero row the tile shows is drawn after that tile's layer-1 entries (the
+hero's own row) or layer-2 entries (the row above it), before higher layers; flag before body. In the
+shadow walk heroes come after every object shadow of the tile.
+
+**Template record** (68 bytes, from the readers above): +0x10/+0x11 width and height in tiles; four
+48-bit masks with bit `47 − 8·dy − dx` for the tile dx columns left and dy rows above the anchor —
++0x14 body drawn, +0x1c passable (set = passable), +0x24 shadow drawn, +0x2c visitable; +0x38 class,
++0x3c subtype, +0x40 flat. Object record (12 bytes): +4/+5/+6 x, y, z; +8 template index; +10 frame
+phase. The passability mask layout equals `maskOffsets` here, so `RenderObject.passable` can be read
+as the game reads it.
+
+Differences from `comparePieces` (state before this study): our order puts the anchor row before
+the column depth; the game has no anchor-row key at all (the layer is per tile, relative to the
+blocked run in that column); our "overhanging piece in front of a blocking one" and "visitable in
+front" rules have no counterpart — ties fall to map order through the insertion rule; flat objects
+are drawn under every shadow in the game but over them here.
+
+**Sprite masks** (`0x514a60`). Each DEF has a `.msk` entry in the sprite archive (1448 in
+`H3sprite.lod`): width and height in tiles, then two 6-byte masks in the template layout — the tiles
+with body pixels, then the tiles with shadow pixels. Checked on reefs, a hero, a monster and a town
+sprite: both masks are exactly the tiles where the DEF's frames have such pixels, and the size equals
+the sprite size rounded up to tiles. They add nothing to what the render derives from the sprite, so
+the render does not read them. The missing reef shadows over water (accepted deviation above) are
+therefore not explained by the masks.
+
+**Implemented and measured** (2026-10-14): `src/core/state/draw-order.ts` rebuilds the tile lists
+(`layerTable`, `tileList`, `heroLayer`) and `object-plan.ts` orders each tile's pieces by them; flat
+pieces lead the plan (`ObjectPlan.flatQuads`) and their bodies no longer clear shadow steps in either
+renderer. `yarn verify corpus` (82 game stills, 19 SoD and HotA maps):
+
+| Step | Complete (58 views) | HotA (24 views) | Total |
+| --- | --- | --- | --- |
+| `comparePieces` (before) | 325 249 | 102 882 | 428 131 |
+| tile lists | 87 390 | 32 392 | 119 782 |
+| + flat objects under shadows | 80 129 | 12 979 | 93 108 |
+
+No view got worse; 69 improved. 54 863 of the remaining pixels are the two reef views of
+`test_map.h3m` (accepted deviation: reef shadows), 4 154 the dense mountain view; every other view is
+below 4 000, most below 300. HotA uses the same rule (its `h3hota.exe` was not studied).

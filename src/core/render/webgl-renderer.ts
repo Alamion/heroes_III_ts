@@ -275,8 +275,9 @@ export class TerrainRenderer {
       // resets them under bodies.
       gl.uniform1i(ores.loc.mode, 1)
       gl.drawArrays(gl.TRIANGLES, 0, objectPlan.quadCount * OBJECT_VERTICES_PER_QUAD)
+      // Flat objects lie under every shadow (object-plan.ts `flatQuads`): their bodies reset nothing.
       gl.uniform1i(ores.loc.mode, 2)
-      gl.drawArrays(gl.TRIANGLES, 0, objectPlan.quadCount * OBJECT_VERTICES_PER_QUAD)
+      gl.drawArrays(gl.TRIANGLES, objectPlan.flatQuads * OBJECT_VERTICES_PER_QUAD, (objectPlan.quadCount - objectPlan.flatQuads) * OBJECT_VERTICES_PER_QUAD)
       gl.bindFramebuffer(gl.FRAMEBUFFER, null)
       gl.disable(gl.BLEND)
       this.drawResolve(ores, t)
