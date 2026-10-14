@@ -45,6 +45,11 @@ export interface RenderObject {
    * layout). The per-tile draw order reads it (draw-order.ts); absent for heroes.
    */
   readonly passable?: Uint8Array
+  /**
+   * A flat object of a base-game map: the game draws no shadow for it (Heroes3.exe skips flat
+   * templates in its shadow walk, 003 research "Draw order in the executable"); HotA draws them.
+   */
+  readonly castsNoShadow?: true
 }
 
 const WATER = 8
@@ -162,6 +167,7 @@ export function buildRenderObjects(state: WorldState, tables: GameTables, rng: R
       classId = OBJECT_CLASS.TOWN
     }
     const entry: Omit<RenderObject, 'phase'> = { ...base, kind: 'object', classId, def, group: 0, mirror: false, flat, visitable, passable: o.template.passable }
+    if (flat && state.map.version !== 'HotA') Object.assign(entry, { castsNoShadow: true })
     if (classId === OBJECT_CLASS.MONSTER) {
       // The sprite follows the loaded archives, the position the map: keep the creature on its tile.
       const row = monsterRows.get(def)

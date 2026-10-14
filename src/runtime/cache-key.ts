@@ -12,9 +12,10 @@
  * by palette alpha (`FLAG_MARKER_ALPHA`) and only where the sprite marks index 5, a hero stored on a
  * town stands in its gate, so older atlases draw no flags and older worlds misplace those heroes.
  * 12: render objects carry the passability mask the draw order reads, and monsters are moved onto
- * their tile when map and sprites are of different editions.
+ * their tile when map and sprites are of different editions. 13: flat objects of base-game maps are
+ * marked as casting no shadow (`castsNoShadow`).
  */
-export const CACHE_SCHEMA = 12
+export const CACHE_SCHEMA = 13
 
 export type CacheStore = 'atlas' | 'world' | 'objects' | 'recent'
 

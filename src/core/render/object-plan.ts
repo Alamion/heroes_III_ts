@@ -58,6 +58,8 @@ export interface ObjectPlan {
   quadCount: number
   /** The leading quads that belong to flat objects: drawn under every shadow. */
   flatQuads: number
+  /** The leading quads (part of `flatQuads`) of objects that cast no shadow. */
+  shadowlessQuads: number
   /** True when an object in the plan has more than one frame in its group. */
   animatedInView: boolean
   /** Render-object index per quad (draw order; one object has a quad per map tile it covers), for per-pixel ownership in checks. */
@@ -129,7 +131,9 @@ function pieceOrder(index: ObjectIndex, layout: ObjectAtlasLayout, level: number
   }
   // The game draws flat objects in a walk of their own, before every shadow (research.md "Draw order
   // in the executable"); they lead the plan so the renderers can keep shadows over them.
-  pieces.sort((a, b) => (a.o.flat === b.o.flat ? 0 : a.o.flat ? -1 : 1))
+  // Of those, the ones that cast no shadow (base-game maps) come first.
+  const lead = (o: RenderObject): number => (o.castsNoShadow === true ? 0 : o.flat ? 1 : 2)
+  pieces.sort((a, b) => lead(a.o) - lead(b.o))
   const out = new Int32Array(pieces.length * 3)
   pieces.forEach((p, k) => out.set([p.index, p.tx, p.ty], k * 3))
   if (byRange === undefined) {
@@ -160,6 +164,7 @@ export function buildObjectPlan(index: ObjectIndex, layout: ObjectAtlasLayout, l
   const listed = new Set<number>()
   let q = 0
   let flatQuads = 0
+  let shadowlessQuads = 0
   let p = 0
   let animated = false
   // The current frame of each object, chosen once per plan.
@@ -254,7 +259,8 @@ export function buildObjectPlan(index: ObjectIndex, layout: ObjectAtlasLayout, l
       vertices[p++] = ly1
     }
     if (o.flat && q === flatQuads) flatQuads++
+    if (o.castsNoShadow === true && q === shadowlessQuads) shadowlessQuads++
     quadObjects[q++] = i
   }
-  return { range, level, tick, vertices: vertices.subarray(0, p), quadCount: q, flatQuads, animatedInView: animated, quadObjects: quadObjects.subarray(0, q), missing: [...missing].sort(), entries }
+  return { range, level, tick, vertices: vertices.subarray(0, p), quadCount: q, flatQuads, shadowlessQuads, animatedInView: animated, quadObjects: quadObjects.subarray(0, q), missing: [...missing].sort(), entries }
 }

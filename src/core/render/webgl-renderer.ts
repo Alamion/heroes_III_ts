@@ -273,11 +273,13 @@ export class TerrainRenderer {
       gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
       // Every shadow before every body (software.ts drawObjects): mode 1 adds shadow steps, mode 2
       // resets them under bodies.
+      // Flat objects (object-plan.ts `flatQuads`) lie under every shadow, so their bodies reset none;
+      // on base-game maps they cast none either (`shadowlessQuads`).
+      const quads = objectPlan.quadCount
       gl.uniform1i(ores.loc.mode, 1)
-      gl.drawArrays(gl.TRIANGLES, 0, objectPlan.quadCount * OBJECT_VERTICES_PER_QUAD)
-      // Flat objects lie under every shadow (object-plan.ts `flatQuads`): their bodies reset nothing.
+      gl.drawArrays(gl.TRIANGLES, objectPlan.shadowlessQuads * OBJECT_VERTICES_PER_QUAD, (quads - objectPlan.shadowlessQuads) * OBJECT_VERTICES_PER_QUAD)
       gl.uniform1i(ores.loc.mode, 2)
-      gl.drawArrays(gl.TRIANGLES, objectPlan.flatQuads * OBJECT_VERTICES_PER_QUAD, (objectPlan.quadCount - objectPlan.flatQuads) * OBJECT_VERTICES_PER_QUAD)
+      gl.drawArrays(gl.TRIANGLES, objectPlan.flatQuads * OBJECT_VERTICES_PER_QUAD, (quads - objectPlan.flatQuads) * OBJECT_VERTICES_PER_QUAD)
       gl.bindFramebuffer(gl.FRAMEBUFFER, null)
       gl.disable(gl.BLEND)
       this.drawResolve(ores, t)

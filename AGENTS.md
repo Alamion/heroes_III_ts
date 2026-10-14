@@ -82,8 +82,10 @@ Facts measured against the original game that code must respect (details in
   tile keeps a list of (object, layer) entries built in map order; `src/core/state/draw-order.ts`
   rebuilds it (`layerTable`, `tileList`) and `object-plan.ts` draws each tile's pieces by layer, then
   list order, heroes and boats after the entries of their layer (flag, then body), flat pieces first
-  (`ObjectPlan.flatQuads`, kept under the shadows by both renderers); one rule for SoD and HotA, the
-  82-still corpus went from 428 131 to 93 108 differing pixels;
+  (`ObjectPlan.flatQuads`, kept under the shadows by both renderers); on base-game maps flat objects
+  (reefs among them) **cast no shadow** (`castsNoShadow`, `shadowlessQuads`), HotA draws theirs; one
+  rule otherwise for SoD and HotA, the 82-still corpus went from 428 131 to 21 235 differing pixels
+  (SoD 325 249 → 8 256);
   flag pixels (index 5) use `game.pal` entries 64–71 (players) and 72 (neutral); shadow index 1
   keeps `(c>>1)+(c>>2)`, index 4 `c>>1` of each 5/6-bit channel (HotA adds 3 → `+(c>>3)` on top of
   index 1's, 2 → `(c>>1)+(c>>3)`); object frames advance every 180 ms
@@ -92,8 +94,8 @@ Facts measured against the original game that code must respect (details in
 - Heroes: `ah00_.def`–`ah17_.def` body + `af0?.def` flag (colour baked in); not in `Objects.txt`.
   A hero standing in a town is stored with the **town's** coordinates (every local map, SoD and HotA
   editors); the game shows it in the gate, so `fromH3m` moves it to entrance + (1, 0).
-- Accepted deviation (003 research, owner review 2026-09-17): reef frames/shadows (the render keeps
-  its reef shadows). Draw order in dense clusters was accepted then too, but the owner reopened it
+- Accepted deviation (003 research, owner review 2026-09-17): reef frames (reef shadows were the
+  flat-object rule above, fixed 2026-10-14). Draw order in dense clusters was accepted then too, but the owner reopened it
   (2026-09-29): the order and shadows are to be refined until test_map and test_map_hota match; check
   every change with `yarn verify corpus` (TODO.md, item 3 follow-ups).
 

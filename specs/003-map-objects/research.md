@@ -458,7 +458,8 @@ accepted the remaining differences as permissible losses; they are not to be cha
   reads the same. The black area outside the map edge in the reference is a game rendering artefact,
   not something to reproduce.
 - **Reefs** (x48-94, y51-73): the game shows no reef shadows over the water while the render does; the
-  render is kept as it is. Overlapping elements swap places as with mountains.
+  render is kept as it is. *Withdrawn 2026-10-14*: the Complete edition draws no shadow for flat
+  templates, reefs among them (research "Draw order in the executable"); the render now does the same. Overlapping elements swap places as with mountains.
 - **Hero flags**: the flagpole column was fixed (above); the remaining pixel inside the flag cloth is
   accepted.
 
@@ -577,6 +578,14 @@ renderer. `yarn verify corpus` (82 game stills, 19 SoD and HotA maps):
 | tile lists | 87 390 | 32 392 | 119 782 |
 | + flat objects under shadows | 80 129 | 12 979 | 93 108 |
 
-No view got worse; 69 improved. 54 863 of the remaining pixels are the two reef views of
-`test_map.h3m` (accepted deviation: reef shadows), 4 154 the dense mountain view; every other view is
-below 4 000, most below 300. HotA uses the same rule (its `h3hota.exe` was not studied).
+| + flat objects cast no shadow (base-game maps) | 8 256 | 12 979 | 21 235 |
+
+No view got worse at any step. **Reef shadows solved**: reefs are flat templates (`isOverlay`), and
+both the shadow walk and the body walk skip flat templates (+0x40) — the flat walk draws only their
+bodies, with the body routine (`0x47b9b0`/`0x47ba00`; shadows use `0x47ba50`). So no flat object
+casts a shadow in the Complete edition, which is the "missing reef shadows over water" accepted above
+(the deviation is withdrawn). HotA does draw them (12 979 → 17 706 when they were dropped there too;
+its reefs have shadows, see spec 005 "red shadow markers of HotA reefs"), so `castsNoShadow` is set
+only on base-game maps. Of the 8 256 SoD pixels left, about 4 000 are the black area outside the map
+edge in the mountain view (a game artefact, not reproduced); every other SoD view is below 300.
+HotA uses the same tile-list rule (its `h3hota.exe` was not studied).

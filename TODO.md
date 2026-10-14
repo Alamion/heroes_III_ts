@@ -103,9 +103,12 @@ After the open fixes of item 2, the order is (owner, 2026-09-22):
        426 745 differing pixels; 82 stills since 2026-10-01 (two of When Seas' windmills added): 428 131
        (SoD 325 249, HotA 102 882; one rule for both, chosen by whole-corpus variants); `yarn verify corpus` guards every further change. The owner wants
        this driven to the end on test_map and test_map_hota, in steps:
-       - **Residual tile order**: ~8 % of the decided tiles still disagree; ties at equal row, cell
-         state and column depth (file order is right in most, not everywhere — Arrogance crypt vs
-         volcanic mountain with one anchor). Tools: `yarn verify fidelity --pairs`, the corpus.
+       - ~~**Residual tile order**~~ — solved 2026-10-14 from the executable itself (003 research
+         "Draw order in the executable", Ghidra, constitution 1.5.0): the game's per-tile lists,
+         flat objects under every shadow and, in the Complete edition, casting none (the reef
+         shadows). Corpus 428 131 → 21 235 (SoD 8 256, about half of it the black off-map corner of
+         the mountain view; HotA 12 979). Next: HotA's remaining pixels (`h3hota.exe`/`HotA.dll`
+         not studied yet).
        - **More views**: stills of test_map's and test_map_hota's dense zones that no capture covers
          yet, and more maps (the corpus picks the densest windows; `yarn ref still`).
        - **Shadows among themselves** (stacking order, overlapping tints), see below.
@@ -209,8 +212,8 @@ Research questions:
 - ~~Reference tooling (item 1): fix the one-tile mapping error of stills clamped at the top map
   edge, and `still` failures on `Shadow Valleys.h3m` (level switch) and `Merchant Princes.h3m`
   (reveal cheat)~~ — fixed in item 3.1 (spec 003); roads, mud/lava rivers and corners confirmed.
-- Object draw order in dense obstacle clusters and reef animation differ from the game in a few
-  percent of pixels (spec 003 research); investigate if they become visible.
+- ~~Object draw order in dense obstacle clusters and reef shadows differ from the game~~ — solved
+  2026-10-14 (003 research "Draw order in the executable"); reef animation frames remain accepted.
 - Warm start with objects is 1.1–1.8 s under 4× CPU throttling (limit 2 s): profile the data
   archive identity/cache path before adding more start-up work. Update 2026-09-17 (spec 004): the dev
   harness now measures 1.8–2.7 s on test_map.h3m, Pandora's Box and the synthetic 252×252 map, the same as

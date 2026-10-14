@@ -115,7 +115,7 @@
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 1,
-      "differing": 664
+      "differing": 54
     },
     {
       "capture": "2026-09-14T13-20-31-967Z_x21-35_y0-13",
@@ -136,7 +136,7 @@
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 0,
-      "differing": 249
+      "differing": 168
     },
     {
       "capture": "2026-09-14T16-12-49-309Z_x24-35_y0-10",
@@ -150,7 +150,7 @@
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 0,
-      "differing": 434
+      "differing": 141
     },
     {
       "capture": "2026-09-14T17-18-35-177Z_x0-9_y0-8",
@@ -164,7 +164,7 @@
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 0,
-      "differing": 624
+      "differing": 59
     },
     {
       "capture": "2026-09-14T17-29-40-922Z_x13-31_y0-8",
@@ -185,7 +185,7 @@
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 0,
-      "differing": 723
+      "differing": 46
     },
     {
       "capture": "2026-09-14T17-34-20-951Z_x13-31_y17-33",
@@ -206,14 +206,14 @@
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 0,
-      "differing": 325
+      "differing": 65
     },
     {
       "capture": "2026-09-14T17-38-59-874Z_x0-14_y6-22",
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 0,
-      "differing": 664
+      "differing": 138
     },
     {
       "capture": "2026-09-14T17-40-34-374Z_x0-17_y0-13",
@@ -234,14 +234,14 @@
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 0,
-      "differing": 139
+      "differing": 61
     },
     {
       "capture": "2026-09-14T17-45-12-065Z_x1-19_y0-14",
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 1,
-      "differing": 1250
+      "differing": 115
     },
     {
       "capture": "2026-09-14T17-46-46-472Z_x0-10_y7-23",
@@ -255,42 +255,42 @@
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 1,
-      "differing": 1402
+      "differing": 49
     },
     {
       "capture": "2026-09-14T17-49-53-980Z_x1-19_y0-15",
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 1,
-      "differing": 1251
+      "differing": 117
     },
     {
       "capture": "2026-09-14T17-51-28-126Z_x14-32_y11-27",
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 1,
-      "differing": 623
+      "differing": 69
     },
     {
       "capture": "2026-09-14T17-53-01-946Z_x18-35_y0-14",
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 1,
-      "differing": 280
+      "differing": 94
     },
     {
       "capture": "2026-09-14T17-54-37-785Z_x16-34_y8-24",
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 1,
-      "differing": 443
+      "differing": 85
     },
     {
       "capture": "2026-09-14T17-56-13-221Z_x18-35_y27-35",
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 1,
-      "differing": 1236
+      "differing": 11
     },
     {
       "capture": "2026-09-14T17-57-51-532Z_x0-17_y19-35",
@@ -311,35 +311,35 @@
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 0,
-      "differing": 374
+      "differing": 66
     },
     {
       "capture": "2026-09-16T20-02-55-786Z_x1-19_y0-15",
       "map": "Arrogance.h3m",
       "mapSha256": "e649f43da013391b0f630e797e3da490270e579c88573a56270c1eeb5c9b2633",
       "level": 0,
-      "differing": 172
+      "differing": 163
     },
     {
       "capture": "2026-09-29T18-08-17-955Z_x15-33_y15-31",
       "map": "Deluge.h3m",
       "mapSha256": "267dd43051ad8610d10a9bc2e2558c2f3092aed593dc7bc08fe3526549c4eb24",
       "level": 1,
-      "differing": 286
+      "differing": 128
     },
     {
       "capture": "2026-09-29T18-09-40-904Z_x3-21_y3-19",
       "map": "Deluge.h3m",
       "mapSha256": "267dd43051ad8610d10a9bc2e2558c2f3092aed593dc7bc08fe3526549c4eb24",
       "level": 0,
-      "differing": 110
+      "differing": 96
     },
     {
       "capture": "2026-09-29T17-38-37-542Z_x28-46_y29-45",
       "map": "Dragon Pass.h3m",
       "mapSha256": "0fccf6bea0a42ff9d2b9193a5c969173ce423718e7e962fc94a9e9bc57752aa0",
       "level": 0,
-      "differing": 165
+      "differing": 81
     },
     {
       "capture": "2026-09-29T17-41-56-253Z_x27-45_y1-17",
@@ -367,7 +367,7 @@
       "map": "Dwarven Tunnels.h3m",
       "mapSha256": "3fa6cf1ccac601ebb119fc306fd0949b2d6754e59f4db176d0c757944e744a75",
       "level": 0,
-      "differing": 136
+      "differing": 67
     },
     {
       "capture": "2026-09-29T17-59-29-390Z_x45-63_y0-16",
@@ -388,14 +388,14 @@
       "map": "Gelea's Champions.h3m",
       "mapSha256": "ae783683f0d4de3d4e7b26fd860afa56f85b23466c337c3f317d566840b3abd3",
       "level": 1,
-      "differing": 174
+      "differing": 82
     },
     {
       "capture": "2026-09-29T18-04-02-850Z_x24-42_y24-40",
       "map": "Gelea's Champions.h3m",
       "mapSha256": "ae783683f0d4de3d4e7b26fd860afa56f85b23466c337c3f317d566840b3abd3",
       "level": 1,
-      "differing": 930
+      "differing": 68
     },
     {
       "capture": "2026-09-29T18-05-28-451Z_x3-21_y9-25",
@@ -409,14 +409,14 @@
       "map": "Hatchet Axe and Saw.h3m",
       "mapSha256": "3e946aa96b18f2ee18a32e2743c280385deebd7e576236152eb02133de1c6f5c",
       "level": 0,
-      "differing": 320
+      "differing": 159
     },
     {
       "capture": "2026-09-16T20-09-50-536Z_x11-29_y12-28",
       "map": "Merchant Princes.h3m",
       "mapSha256": "19c1b4887fd8b368a330ac0e64a66129e6ea835b295286ac71462392e92f8de4",
       "level": 0,
-      "differing": 96
+      "differing": 42
     },
     {
       "capture": "2026-09-16T20-04-38-086Z_x11-29_y12-28",
@@ -430,7 +430,7 @@
       "map": "Shadow Valleys.h3m",
       "mapSha256": "2373244c39116ba89ea68841d6855b52bb3369744fdbb521e77bea5a6a222a92",
       "level": 0,
-      "differing": 300
+      "differing": 151
     },
     {
       "capture": "2026-09-23T13-11-21-262Z_x3-21_y118-134",
@@ -500,14 +500,14 @@
       "map": "test_map.h3m",
       "mapSha256": "6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c",
       "level": 0,
-      "differing": 6051
+      "differing": 0
     },
     {
       "capture": "2026-09-16T20-24-15-106Z_x76-94_y51-67",
       "map": "test_map.h3m",
       "mapSha256": "6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c",
       "level": 0,
-      "differing": 31093
+      "differing": 0
     },
     {
       "capture": "2026-09-16T20-25-34-179Z_x109-127_y0-13",
@@ -528,7 +528,7 @@
       "map": "test_map.h3m",
       "mapSha256": "6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c",
       "level": 0,
-      "differing": 4154
+      "differing": 4140
     },
     {
       "capture": "2026-09-16T20-29-31-280Z_x50-68_y14-30",
@@ -556,7 +556,7 @@
       "map": "test_map.h3m",
       "mapSha256": "6dcdb07d8417f5960e7a197af918ddbacb8433cc90ea4437dc56266506b1b23c",
       "level": 0,
-      "differing": 23723
+      "differing": 3
     },
     {
       "capture": "2026-09-23T23-02-57-842Z_x109-127_y72-88",
