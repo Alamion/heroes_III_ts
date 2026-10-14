@@ -83,9 +83,11 @@ Facts measured against the original game that code must respect (details in
   rebuilds it (`layerTable`, `tileList`) and `object-plan.ts` draws each tile's pieces by layer, then
   list order, heroes and boats after the entries of their layer (flag, then body), flat pieces first
   (`ObjectPlan.flatQuads`, kept under the shadows by both renderers); on base-game maps flat objects
-  (reefs among them) **cast no shadow** (`castsNoShadow`, `shadowlessQuads`), HotA draws theirs; one
-  rule otherwise for SoD and HotA, the 82-still corpus went from 428 131 to 21 235 differing pixels
-  (SoD 325 249 → 8 256);
+  (reefs among them) **cast no shadow** (`castsNoShadow`, `shadowlessQuads`), HotA draws theirs; HotA
+  also puts flat **ground covers** (classes 21, 46, 141, 222–231) under the other flat objects of a
+  tile (`groundCover`, a `HotA.dll` hook, 005 research "Draw order in HotA"; its other hooks are
+  obfuscated and were not pursued); the 82-still corpus went from 428 131 to 15 602 differing pixels
+  (SoD 325 249 → 8 256, HotA 102 882 → 7 346);
   flag pixels (index 5) use `game.pal` entries 64–71 (players) and 72 (neutral); shadow index 1
   keeps `(c>>1)+(c>>2)`, index 4 `c>>1` of each 5/6-bit channel (HotA adds 3 → `+(c>>3)` on top of
   index 1's, 2 → `(c>>1)+(c>>3)`); object frames advance every 180 ms

@@ -6,7 +6,7 @@ import { OBJECT_CLASS } from '../data/object-classes.ts'
 import type { RenderObject } from './render-objects.ts'
 
 /** What the tile lists read of a render object. */
-export type TileListInput = Pick<RenderObject, 'kind' | 'classId' | 'flat' | 'x' | 'y' | 'order' | 'passable'>
+export type TileListInput = Pick<RenderObject, 'kind' | 'classId' | 'flat' | 'x' | 'y' | 'order' | 'passable' | 'groundCover'>
 
 /** Template boxes are at most 8 × 6 tiles (the masks' size). */
 export const BOX_WIDTH = 8
@@ -84,7 +84,8 @@ function behindSomewhere(b: Placed, a: Placed): boolean {
 /**
  * The list of map tile (wx, wy): the placed objects whose box covers it, inserted in map order. An
  * entry goes behind every entry of a higher layer; in its own layer it goes behind an entry when
- * somewhere in their common box it is in a lower layer, else in front.
+ * somewhere in their common box it is in a lower layer, else in front. On HotA maps ground covers
+ * go behind the other entries of their layer.
  */
 export function tileList(covering: readonly Placed[], wx: number, wy: number): Placed[] {
   const list: Placed[] = []
@@ -96,7 +97,14 @@ export function tileList(covering: readonly Placed[], wx: number, wy: number): P
       const prev = list[i - 1] as Placed
       const prevLayer = layerAt(prev, wx, wy)
       if (layer > prevLayer) break
-      if (layer === prevLayer && !behindSomewhere(p, prev)) break
+      if (layer === prevLayer) {
+        // HotA (003 research "Draw order in HotA"): a ground cover goes behind any other entry of
+        // its layer, and any other entry in front of a ground cover.
+        const cover = p.o.groundCover === true
+        const prevCover = prev.o.groundCover === true
+        if (!cover && prevCover) break
+        if (cover === prevCover && !behindSomewhere(p, prev)) break
+      }
       i--
     }
     list.splice(i, 0, p)

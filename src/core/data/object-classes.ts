@@ -309,6 +309,16 @@ export const HERO_FLAG_DEFS: readonly string[] = Array.from({ length: 8 }, (_, i
  */
 export const HERO_VISIT_OFFSET = { dx: -1, dy: 0 } as const
 
+/**
+ * Ground covers: the special-terrain overlays (cursed ground, magic plains, clover field …) and
+ * HotA's class 141 (terrain patches such as `zsand*.def`). HotA draws a flat one under every other
+ * flat object of its tile (003 research "Draw order in HotA").
+ */
+export const GROUND_COVER_CLASSES: ReadonlySet<number> = new Set([
+  C.CURSED_GROUND1, C.MAGIC_PLAINS1, 141,
+  C.CLOVER_FIELD, C.CURSED_GROUND2, C.EVIL_FOG, C.FAVORABLE_WINDS, C.FIERY_FIELDS, C.HOLY_GROUNDS, C.LUCID_POOLS, C.MAGIC_CLOUDS, C.MAGIC_PLAINS2, C.ROCKLANDS,
+])
+
 /** Classes the game never draws on the adventure map (research.md §5). */
 export const HIDDEN_CLASSES: ReadonlySet<number> = new Set([C.EVENT, C.GRAIL])
 

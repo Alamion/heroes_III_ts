@@ -64,6 +64,15 @@ describe('tile lists', () => {
     expect(tileList([early, late], 5, 5).map((p) => p.o.order)).toEqual([1, 0])
   })
 
+  it('puts HotA ground covers under the other flat objects of their layer', () => {
+    // Map order would put the ground cover (order 1) over the earlier flat object (order 0).
+    const flat = place(obj({ x: 5, y: 5, order: 0, flat: true }), 1, 1)
+    const cover = place(obj({ x: 5, y: 5, order: 1, flat: true, groundCover: true }), 1, 1)
+    expect(tileList([flat, cover], 5, 5).map((p) => p.o.order)).toEqual([1, 0])
+    const later = place(obj({ x: 5, y: 5, order: 2, flat: true }), 1, 1)
+    expect(tileList([cover, later], 5, 5).map((p) => p.o.order)).toEqual([1, 2])
+  })
+
   it('draws a hero after the objects of its row', () => {
     expect(heroLayer(obj({ kind: 'heroBody', x: 10, y: 12 }), 12)).toBe(1)
     expect(heroLayer(obj({ kind: 'heroBody', x: 10, y: 12 }), 11)).toBe(2)

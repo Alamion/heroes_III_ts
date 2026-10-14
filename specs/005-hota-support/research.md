@@ -1146,3 +1146,29 @@ exact symptom seen on the desktop and passes with it.
 | 6 | A third-party vanilla LOD could carry junk at bytes 12–15 other than `0`/`0x7E0213` | Only two junk values observed across 16 archives; the de-XOR sanity asserts catch a wrong key and produce a typed error instead of garbage |
 | 7 | HotA hero gender source not found | Default to the non-suffixed body; documented (R9) |
 | 8 | HotA fidelity may expose base-game rules that were only ever verified on base sprites | Measured: it does. Seven of eight HotA views differ on object pixels by 0.4 %–14 %, terrain and water are exact (US4 above). Cause not yet identified; awaiting owner review, not accepted silently |
+
+### Draw order in HotA (Ghidra study of h3hota.exe and HotA.dll, 2026-10-14)
+
+Studied under constitution 1.5.0 on copies of HotA 1.8.1's `h3hota.exe` (sha256 `b5f2f793…`) and
+`HotA.dll` (`86393cf5…`). Neither is packed. `h3hota.exe` is an SoD 3.2 build (MSVC 6) whose map
+routines match the Complete edition's byte for byte at shifted addresses (frame `0x40f350`, bodies
+`0x410b60`, shadows `0x4114f0`, flat objects `0x4123d0`, placing an object `0x506170`, layers
+`0x5056b0`, insertion `0x505880`), so the rules of 003 research "Draw order in the executable" hold
+unless `HotA.dll` (VS2013) hooks them at run time through `patcher_x86`. It does, heavily: about 15
+hooks inside the shadow walk, 18 inside the body walk, 8 in the flat walk, 4 in the insertion.
+
+**Ground covers under other flat objects** (insertion hook at `0x505942`, handler `0x10199250`).
+When the new entry and the one before it have the same layer, a flat object of class 21, 46, 141 or
+222–231 (cursed ground, magic plains, HotA's terrain patches such as `zsand*.def`, clover field …)
+steps behind an entry that is not one; an entry that is not one stays in front of one; otherwise the
+base rule decides. Implemented as `RenderObject.groundCover` (HotA maps only) in `tileList`.
+`[HotA] Paradise Lost.h3m`: 7 261 → 1 628 differing pixels (its sand patches covered a lava spit);
+the other HotA maps of the corpus unchanged; HotA total 12 979 → 7 346.
+
+**Not studied further: the obfuscation.** The other handlers' addresses are computed at run time —
+an argument XOR a constant plus a constant, passed through a decoding routine (`0x101b0020`) with a
+second key — so they cannot be read statically. Recovering them would mean defeating a protection
+HotA put in on purpose; that is left to the owner's decision. What remains in HotA (about 7 300
+pixels; shadows on sand next to grass in Paradise Lost, When Seas Were Deeper, Around the Bay) looks
+like the tinting tile of shadows (AGENTS.md "Not measured: the tinting tile of objects without an
+entrance") and can be measured from captures instead (`test_shadows.h3m`-style probe maps).
