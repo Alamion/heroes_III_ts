@@ -123,6 +123,24 @@ describe('shadow tint (spec 005 research "Shadow recolouring follows the object"
   })
 })
 
+describe('flat objects (003 research "Draw order in the executable")', () => {
+  // The mine's template made flat: the Complete edition draws no shadow for it, HotA does.
+  const base = world(36)
+  const mine = [...base.objects.values()].find((o) => o.classId !== OBJECT_CLASS.HERO && o.z === 0 && !o.template.isOverlay) as NonNullable<ReturnType<typeof base.objects.get>>
+  const flatOn = (version: string): WorldState => {
+    const objects = new Map(base.objects)
+    objects.set(mine.id, { ...mine, template: { ...mine.template, isOverlay: true } })
+    return { ...base, objects, map: { ...base.map, version } } as WorldState
+  }
+  const of = (state: WorldState) => buildRenderObjects(state, tables, createRng(state.seed)).objects.find((o) => o.id === mine.id)
+
+  it('cast no shadow on base-game maps only', () => {
+    expect(of(flatOn('SoD'))?.castsNoShadow).toBe(true)
+    expect(of(flatOn('HotA'))?.castsNoShadow).toBeUndefined()
+    expect(of(base)?.castsNoShadow).toBeUndefined()
+  })
+})
+
 describe('object index', () => {
   it('returns exactly the objects whose sprite can reach a range', () => {
     const state = world(252)

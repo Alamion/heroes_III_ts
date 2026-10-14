@@ -1,7 +1,21 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.3.1 → 1.4.0
+Version change: 1.4.0 → 1.5.0
+Bump rationale (1.5.0, MINOR): Principle I allows studying the original executables with a
+disassembler/decompiler (owner decision 2026-10-14), after draw order and shadows refined only from
+captures (specs 003, 005) stayed short of the game. Treated like GPL sources: facts only, in our own
+words, in research.md; no disassembly, decompiled code or analysis database in the repository; the
+executables are never patched; findings stay hypotheses until a baseline capture confirms them.
+
+Modified principles:
+  I. User-Supplied Assets Only — new bullet "Studying the original executables".
+
+Templates / dependent files:
+  ✅ .specify/templates/*.md — no constitution-specific slots; no edit needed
+  ✅ AGENTS.md — reference material lists the local Ghidra analysis and the rule
+
+Previous amendment (1.3.1 → 1.4.0):
 Bump rationale (1.4.0, MINOR): Principle I's documentation-screenshot exception is extended to store
 pages (spec 006 FR-019, owner decision 2026-09-24): the maintainer MAY upload screenshots of this
 project's own output — the docs/img/ kind, same size limits — to the Steam Workshop and KDE Store
@@ -80,6 +94,17 @@ Deferred TODOs:
   (e.g. `homm3-parser`, MIT) with attribution recorded in a third-party notices file. Code from
   GPL sources (e.g. VCMI) or unlicensed sources (e.g. `context/heroes_iii_android` / h3lwp) MUST
   NOT be copied; they MAY be studied to understand file formats and behavior.
+- Studying the original executables: the owner's local copies of the game's programs
+  (`Heroes3.exe`, `h3maped.exe`, and HotA's `h3hota.exe` and its DLLs for HotA content) MAY be
+  disassembled and decompiled (e.g. with Ghidra) solely to learn file formats and behaviour that
+  the project must reproduce (draw order, shadows, timings, placement). The same rule as for GPL
+  sources applies: disassembly, decompiled code and analysis databases MUST stay outside the
+  repository (in the local state directory) and MUST NOT be copied or translated into the
+  project; only facts are recorded, in our own words, in the spec's research.md (function
+  addresses, what a routine does, constants, the order of operations), and the implementation is
+  written from those facts. The executables MUST NOT be modified or patched, and analysis runs on
+  copies, never on the installation. A fact found this way is a hypothesis until a capture or
+  fidelity check of the running baseline confirms it (Principle II).
 - Published names, descriptions, and icons MUST NOT use Ubisoft/3DO/NWC or HotA logos or imply
   official affiliation.
 
@@ -279,4 +304,4 @@ make saves, HotA, and interactivity additive instead of rewrites.
 - **Compliance review:** at the end of each feature (before merge), re-check the Constitution
   Check in its plan against the actual implementation; record any accepted deviations there.
 
-**Version**: 1.4.0 | **Ratified**: 2026-09-13 | **Last Amended**: 2026-09-26
+**Version**: 1.5.0 | **Ratified**: 2026-09-13 | **Last Amended**: 2026-10-14

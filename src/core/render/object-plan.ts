@@ -11,15 +11,15 @@ import { SHADOW_TINT_WEIGHT } from '../data/animation.ts'
 import { frameOf } from './animation.ts'
 import type { TileRange } from './camera.ts'
 import type { FrameCell, ObjectAtlasLayout, ObjectSprite } from './object-atlas.ts'
-import { comparePieces, orderInTile } from '../state/draw-order.ts'
-import type { PieceOrder } from '../state/draw-order.ts'
+import { heroLayer, inTileLists, layerAt, place, tileList } from '../state/draw-order.ts'
+import type { Placed } from '../state/draw-order.ts'
 import { QUAD_CORNERS } from './draw-plan.ts'
 
 /**
  * Floats per vertex: the terrain layout (draw-plan.ts VERTEX_SIZE), then page, owner slot (0–7,
  * 8 = neutral), shadow tint weight (animation.ts SHADOW_TINT_WEIGHT), and the piece of the cell the
  * quad covers (min x, min y, max x, max y in cell pixels): sprites are cut at map tile borders,
- * because the game orders objects per tile (draw-order.ts `comparePieces`).
+ * because the game orders objects per tile (draw-order.ts `tileList`).
  */
 export const OBJECT_VERTEX_SIZE = 16
 export const OBJECT_VERTICES_PER_QUAD = 6
@@ -56,6 +56,10 @@ export interface ObjectPlan {
   tick: number
   vertices: Float32Array
   quadCount: number
+  /** The leading quads that belong to flat objects: drawn under every shadow. */
+  flatQuads: number
+  /** The leading quads (part of `flatQuads`) of objects that cast no shadow. */
+  shadowlessQuads: number
   /** True when an object in the plan has more than one frame in its group. */
   animatedInView: boolean
   /** Render-object index per quad (draw order; one object has a quad per map tile it covers), for per-pixel ownership in checks. */
@@ -78,23 +82,58 @@ function pieceOrder(index: ObjectIndex, layout: ObjectAtlasLayout, level: number
   let byRange = orderCache.get(index)
   const hit = byRange?.get(key)
   if (hit !== undefined) return hit
-  const pieces: { index: number; o: RenderObject; tx: number; ty: number; order: PieceOrder }[] = []
+  // The game's tile lists (draw-order.ts): objects of the lists keep a footprint box and layers.
+  const placed = new Map<number, Placed>()
+  const byTile = new Map<number, { index: number; o: RenderObject; tx: number; ty: number }[]>()
   for (const i of index.query(level, range)) {
     const o = index.objects[i] as RenderObject
     const sprite = layout.sprites[o.def]
     if (sprite === undefined) continue
+    const width = Math.ceil(sprite.fullWidth / TILE_SIZE)
+    const height = Math.ceil(sprite.fullHeight / TILE_SIZE)
+    if (inTileLists(o)) placed.set(i, place(o, width, height))
     // Tiles of the full frame, relative to the range corner (the anchor tile is the bottom-right one).
     const right = o.x - range.x0
     const bottom = o.y - range.y0
-    for (let ty = bottom - Math.ceil(sprite.fullHeight / TILE_SIZE) + 1; ty <= bottom; ty++) {
-      for (let tx = right - Math.ceil(sprite.fullWidth / TILE_SIZE) + 1; tx <= right; tx++) {
-        const wx = range.x0 + tx
-        pieces.push({ index: i, o, tx, ty, order: orderInTile(o, wx, range.y0 + ty) })
+    for (let ty = bottom - height + 1; ty <= bottom; ty++) {
+      for (let tx = right - width + 1; tx <= right; tx++) {
+        const key = (ty + 64) * 4096 + tx + 64
+        let list = byTile.get(key)
+        if (list === undefined) byTile.set(key, (list = []))
+        list.push({ index: i, o, tx, ty })
       }
     }
   }
-  // Pieces of different tiles never overlap, so one sort by the per-tile order is the draw order.
-  pieces.sort((a, b) => comparePieces(a.o, a.order, b.o, b.order) || a.index - b.index || a.ty - b.ty || a.tx - b.tx)
+  // Pieces of different tiles never overlap, so the tile order is free; within a tile: the list
+  // entries (layer, then list order), heroes and boats after the entries of their layer.
+  const pieces: { index: number; o: RenderObject; tx: number; ty: number }[] = []
+  for (const tilePieces of byTile.values()) {
+    const first = tilePieces[0] as (typeof tilePieces)[number]
+    const wx = range.x0 + first.tx
+    const wy = range.y0 + first.ty
+    const covering: Placed[] = []
+    for (const p of tilePieces) {
+      const pl = placed.get(p.index)
+      if (pl !== undefined && layerAt(pl, wx, wy) >= 0) covering.push(pl)
+    }
+    const list = tileList(covering, wx, wy)
+    const rank = new Map<RenderObject, number>()
+    list.forEach((pl, k) => rank.set(pl.o as RenderObject, k))
+    const key = (p: (typeof tilePieces)[number]): [number, number, number, number] => {
+      const r = rank.get(p.o)
+      if (r !== undefined) return [layerAt(placed.get(p.index) as Placed, wx, wy), 0, r, 0]
+      if (placed.has(p.index)) return [99, 0, p.o.order, 0]
+      return [heroLayer(p.o, wy), 1, p.o.order, p.o.kind === 'heroBody' ? 1 : 0]
+    }
+    const keyed = tilePieces.map((p) => ({ p, k: key(p) }))
+    keyed.sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.k[2] - b.k[2] || a.k[3] - b.k[3])
+    for (const { p } of keyed) pieces.push(p)
+  }
+  // The game draws flat objects in a walk of their own, before every shadow (research.md "Draw order
+  // in the executable"); they lead the plan so the renderers can keep shadows over them.
+  // Of those, the ones that cast no shadow (base-game maps) come first.
+  const lead = (o: RenderObject): number => (o.castsNoShadow === true ? 0 : o.flat ? 1 : 2)
+  pieces.sort((a, b) => lead(a.o) - lead(b.o))
   const out = new Int32Array(pieces.length * 3)
   pieces.forEach((p, k) => out.set([p.index, p.tx, p.ty], k * 3))
   if (byRange === undefined) {
@@ -124,6 +163,8 @@ export function buildObjectPlan(index: ObjectIndex, layout: ObjectAtlasLayout, l
   const entries: DrawListEntry[] | undefined = opts.drawList === true ? [] : undefined
   const listed = new Set<number>()
   let q = 0
+  let flatQuads = 0
+  let shadowlessQuads = 0
   let p = 0
   let animated = false
   // The current frame of each object, chosen once per plan.
@@ -217,7 +258,9 @@ export function buildObjectPlan(index: ObjectIndex, layout: ObjectAtlasLayout, l
       vertices[p++] = lx1
       vertices[p++] = ly1
     }
+    if (o.flat && q === flatQuads) flatQuads++
+    if (o.castsNoShadow === true && q === shadowlessQuads) shadowlessQuads++
     quadObjects[q++] = i
   }
-  return { range, level, tick, vertices: vertices.subarray(0, p), quadCount: q, animatedInView: animated, quadObjects: quadObjects.subarray(0, q), missing: [...missing].sort(), entries }
+  return { range, level, tick, vertices: vertices.subarray(0, p), quadCount: q, flatQuads, shadowlessQuads, animatedInView: animated, quadObjects: quadObjects.subarray(0, q), missing: [...missing].sort(), entries }
 }

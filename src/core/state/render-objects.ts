@@ -1,7 +1,7 @@
 // What the renderer draws for a world state: one entry per visible map object, two per hero (body
 // and flag), with random objects resolved (specs/003-map-objects/data-model.md "Resolved object").
 
-import { HERO_FLAG_DEFS, HERO_MAP_DEFS, HERO_VISIT_OFFSET, HIDDEN_CLASSES, OBJECT_CLASS, TOWN_SPRITES } from '../data/object-classes.ts'
+import { GROUND_COVER_CLASSES, HERO_FLAG_DEFS, HERO_MAP_DEFS, HERO_VISIT_OFFSET, HIDDEN_CLASSES, OBJECT_CLASS, TOWN_SPRITES } from '../data/object-classes.ts'
 import { BOAT_HERO_DEFS, HERO_DEFAULT_IDLE, heroClassOfType } from '../data/heroes.ts'
 import { shadowTintOfTerrain } from '../data/animation.ts'
 import type { ShadowTint } from '../data/animation.ts'
@@ -45,6 +45,13 @@ export interface RenderObject {
    * layout). The per-tile draw order reads it (draw-order.ts); absent for heroes.
    */
   readonly passable?: Uint8Array
+  /**
+   * A flat object of a base-game map: the game draws no shadow for it (Heroes3.exe skips flat
+   * templates in its shadow walk, 003 research "Draw order in the executable"); HotA draws them.
+   */
+  readonly castsNoShadow?: true
+  /** A flat ground cover of a HotA map (`GROUND_COVER_CLASSES`): under every other flat object. */
+  readonly groundCover?: true
 }
 
 const WATER = 8
@@ -162,6 +169,8 @@ export function buildRenderObjects(state: WorldState, tables: GameTables, rng: R
       classId = OBJECT_CLASS.TOWN
     }
     const entry: Omit<RenderObject, 'phase'> = { ...base, kind: 'object', classId, def, group: 0, mirror: false, flat, visitable, passable: o.template.passable }
+    if (flat && state.map.version !== 'HotA') Object.assign(entry, { castsNoShadow: true })
+    if (flat && state.map.version === 'HotA' && GROUND_COVER_CLASSES.has(classId)) Object.assign(entry, { groundCover: true })
     if (classId === OBJECT_CLASS.MONSTER) {
       // The sprite follows the loaded archives, the position the map: keep the creature on its tile.
       const row = monsterRows.get(def)

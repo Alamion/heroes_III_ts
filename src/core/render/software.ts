@@ -191,8 +191,10 @@ export function drawObjects(out: Uint8Array, objects: SceneObjects, cam: Camera,
   const v = plan.vertices
   // Every shadow is drawn before every body, so a shadow never falls on another object's body
   // (spec 005 research "Shadows before bodies"): pass 0 draws shadows, pass 1 bodies.
+  // Flat objects (object-plan.ts `flatQuads`) lie under every shadow, so their bodies reset none;
+  // on base-game maps they cast none either (`shadowlessQuads`).
   for (let pass = 0; pass < 2; pass++)
-  for (let q = 0; q < plan.quadCount; q++) {
+  for (let q = pass === 0 ? plan.shadowlessQuads : 0; q < plan.quadCount; q++) {
     const b = q * OBJECT_VERTICES_PER_QUAD * OBJECT_VERTEX_SIZE
     const x0 = (v[b] as number) + originX
     const y0 = (v[b + 1] as number) + originY
@@ -232,8 +234,10 @@ export function drawObjects(out: Uint8Array, objects: SceneObjects, cam: Camera,
           tints[i] = Math.min(255, (tints[i] as number) + tint)
           continue
         }
-        for (const kind of SHADOW_KIND_ORDER) counts[kind][i] = 0
-        tints[i] = 0
+        if (q >= plan.flatQuads) {
+          for (const kind of SHADOW_KIND_ORDER) counts[kind][i] = 0
+          tints[i] = 0
+        }
         const o = i * 4
         if (a === FLAG_MARKER_ALPHA) {
           out[o] = flagColors[owner * 3] as number

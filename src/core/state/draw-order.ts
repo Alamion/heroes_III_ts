@@ -1,74 +1,121 @@
-// Draw order of render objects (specs/003-map-objects/research.md §4; revised 2026-09-28 and
-// 2026-09-30, spec 005 research "Draw order: tiles and columns"). The game draws the adventure map
-// tile by tile, so the order is decided per map tile: object-plan.ts cuts every sprite at tile borders
-// and sorts the pieces with `comparePieces`.
+// Draw order of the original game (Heroes3.exe SoD 3.2, specs/003-map-objects/research.md "Draw order
+// in the executable"): every map tile keeps a list of (object, sprite tile, layer) entries, built
+// when the objects are placed in map order; a tile draws its entries by layer, then in list order.
 
+import { OBJECT_CLASS } from '../data/object-classes.ts'
 import type { RenderObject } from './render-objects.ts'
 
-/** What the draw order reads of a render object. */
-export type DrawOrderInput = Pick<RenderObject, 'kind' | 'flat' | 'x' | 'y' | 'z' | 'visitable' | 'order' | 'passable'>
+/** What the tile lists read of a render object. */
+export type TileListInput = Pick<RenderObject, 'kind' | 'classId' | 'flat' | 'x' | 'y' | 'order' | 'passable' | 'groundCover'>
 
-// The body's flagpole covers the last flag column in the game (research.md "Hero flags").
-const KIND_RANK: Readonly<Record<RenderObject['kind'], number>> = { object: 0, heroFlag: 1, heroBody: 2 }
+/** Template boxes are at most 8 × 6 tiles (the masks' size). */
+export const BOX_WIDTH = 8
+export const BOX_HEIGHT = 6
+
+/** A placed object: its footprint box in tiles (bottom-right anchored) and the layer of each box tile. */
+export interface Placed {
+  readonly o: TileListInput
+  readonly width: number
+  readonly height: number
+  /** Layer per box tile, index dx * BOX_HEIGHT + dy (dx columns left of the anchor, dy rows above it). */
+  readonly layers: Uint8Array
+}
+
+/** Heroes and boats are not in the tile lists; the game draws them between the layers. */
+export function inTileLists(o: TileListInput): boolean {
+  return o.kind === 'object' && o.classId !== OBJECT_CLASS.BOAT
+}
+
+function passableAt(mask: Uint8Array | undefined, dx: number, dy: number): boolean {
+  if (mask === undefined) return true
+  return (((mask[BOX_HEIGHT - 1 - dy] as number) >> (BOX_WIDTH - 1 - dx)) & 1) !== 0
+}
 
 /**
- * Depth of an object in map column `wx` (spec 005 research "Draw order: tiles and columns"): the row
- * of its lowest blocked tile in that column; a column where the sprite only overhangs counts as the
- * object's own row (a windmill's blades stay over a monster standing beside the mill). Heroes use
- * their row.
+ * Layers of an object's box tiles. A flat object is layer 0 everywhere. Otherwise each column counts
+ * up from 1 at the anchor row; a blocked tile standing on a passable one starts the count again at 1,
+ * and a passable tile beside a blocked tile on its right takes that tile's layer.
  */
-export function columnDepth(o: DrawOrderInput, wx: number): number {
-  if (o.kind !== 'object') return o.y
+export function layerTable(o: TileListInput, width: number, height: number): Uint8Array {
+  const layers = new Uint8Array(BOX_WIDTH * BOX_HEIGHT)
+  if (o.flat) return layers
   const mask = o.passable
-  if (mask === undefined) return o.y
-  const bit = wx - o.x + 7
-  if (bit < 0 || bit > 7) return o.y
-  for (let row = 5; row >= 0; row--) if (((mask[row] as number) & (1 << bit)) === 0) return o.y + row - 5
-  return o.y
+  for (let dx = 0; dx < width; dx++) {
+    let c = 1
+    for (let dy = 0; dy < height; dy++) {
+      const passable = passableAt(mask, dx, dy)
+      if (dy > 0 && !passable && passableAt(mask, dx, dy - 1)) c = 1
+      if (dx > 0 && passable && !passableAt(mask, dx - 1, dy)) c = layers[(dx - 1) * BOX_HEIGHT + dy] as number
+      layers[dx * BOX_HEIGHT + dy] = c
+      c++
+    }
+  }
+  return layers
 }
 
-/** Whether an object blocks map tile (wx, wy); heroes block nothing here. */
-export function blocksTile(o: DrawOrderInput, wx: number, wy: number): boolean {
-  if (o.kind !== 'object' || o.passable === undefined) return false
-  const bit = wx - o.x + 7
-  const row = wy - o.y + 5
-  if (bit < 0 || bit > 7 || row < 0 || row > 5) return false
-  return ((o.passable[row] as number) & (1 << bit)) === 0
+export function place(o: TileListInput, width: number, height: number): Placed {
+  const w = Math.min(width, BOX_WIDTH)
+  const h = Math.min(height, BOX_HEIGHT)
+  return { o, width: w, height: h, layers: layerTable(o, w, h) }
 }
 
-/** What orders a sprite piece within its map tile (`comparePieces`). */
-export interface PieceOrder {
-  /** `columnDepth` of the object in the tile's column. */
-  depth: number
-  /** The object blocks this tile (else the sprite only overhangs it). */
-  blocked: boolean
+/** Layer of a placed object at map tile (wx, wy), or −1 outside its box. */
+export function layerAt(p: Placed, wx: number, wy: number): number {
+  const dx = p.o.x - wx
+  const dy = p.o.y - wy
+  if (dx < 0 || dy < 0 || dx >= p.width || dy >= p.height) return -1
+  return p.layers[dx * BOX_HEIGHT + dy] as number
 }
 
-/** The order keys of object `o` in map tile (wx, wy). */
-export function orderInTile(o: DrawOrderInput, wx: number, wy: number): PieceOrder {
-  return { depth: columnDepth(o, wx), blocked: blocksTile(o, wx, wy) }
+/** Whether `b` goes behind `a` in a shared layer: somewhere in their common box `b` is in a lower layer. */
+function behindSomewhere(b: Placed, a: Placed): boolean {
+  const left = Math.max(0, b.o.x - b.width + 1, a.o.x - a.width + 1)
+  const top = Math.max(0, b.o.y - b.height + 1, a.o.y - a.height + 1)
+  const right = Math.min(b.o.x, a.o.x)
+  const bottom = Math.min(b.o.y, a.o.y)
+  for (let x = left; x <= right; x++) {
+    for (let y = top; y <= bottom; y++) {
+      if (layerAt(b, x, y) < layerAt(a, x, y)) return true
+    }
+  }
+  return false
 }
 
 /**
- * Order of two sprite pieces in one map tile. The game draws the adventure map tile by tile, so two
- * objects may overlap in one order in one tile and in the other order in the next (19 % of the
- * object pairs overlapping in several tiles, in stills of 19 SoD and HotA maps). Within a tile: flat
- * objects first, then the anchor row, then column depth (`columnDepth`), then a piece that only
- * overhangs the tile in front of one that blocks it; where both only overhang it, a visitable object
- * in front (windmill blades over the trees and the monster beside the mill); heroes after other
- * objects, map file order. One rule for SoD and HotA, chosen over the whole corpus
- * (`yarn verify corpus`; spec 005 research "Draw order: tiles and columns"). Shadows are not ordered
- * here: every shadow is drawn before every body.
+ * The list of map tile (wx, wy): the placed objects whose box covers it, inserted in map order. An
+ * entry goes behind every entry of a higher layer; in its own layer it goes behind an entry when
+ * somewhere in their common box it is in a lower layer, else in front. On HotA maps ground covers
+ * go behind the other entries of their layer.
  */
-export function comparePieces(a: DrawOrderInput, pa: PieceOrder, b: DrawOrderInput, pb: PieceOrder): number {
-  if (a.flat !== b.flat) return a.flat ? -1 : 1
-  if (a.y !== b.y) return a.y - b.y
-  if (pa.depth !== pb.depth) return pa.depth - pb.depth
-  if (pa.blocked !== pb.blocked) return pa.blocked ? -1 : 1
-  if (!pa.blocked && a.visitable !== b.visitable) return a.visitable ? 1 : -1
-  const heroA = a.kind === 'object' ? 0 : 1
-  const heroB = b.kind === 'object' ? 0 : 1
-  if (heroA !== heroB) return heroA - heroB
-  if (a.order !== b.order) return a.order - b.order
-  return KIND_RANK[a.kind] - KIND_RANK[b.kind]
+export function tileList(covering: readonly Placed[], wx: number, wy: number): Placed[] {
+  const list: Placed[] = []
+  const sorted = [...covering].sort((a, b) => a.o.order - b.o.order)
+  for (const p of sorted) {
+    const layer = layerAt(p, wx, wy)
+    let i = list.length
+    while (i > 0) {
+      const prev = list[i - 1] as Placed
+      const prevLayer = layerAt(prev, wx, wy)
+      if (layer > prevLayer) break
+      if (layer === prevLayer) {
+        // HotA (003 research "Draw order in HotA"): a ground cover goes behind any other entry of
+        // its layer, and any other entry in front of a ground cover.
+        const cover = p.o.groundCover === true
+        const prevCover = prev.o.groundCover === true
+        if (!cover && prevCover) break
+        if (cover === prevCover && !behindSomewhere(p, prev)) break
+      }
+      i--
+    }
+    list.splice(i, 0, p)
+  }
+  return list
+}
+
+/**
+ * Draw rank of hero and boat pieces in a tile: the game draws a hero's bottom row after the layer-1
+ * entries and its top row after the layer-2 entries, the flag before the body.
+ */
+export function heroLayer(o: TileListInput, wy: number): number {
+  return o.y - wy + 1
 }

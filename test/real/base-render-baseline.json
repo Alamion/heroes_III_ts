@@ -1,7 +1,7 @@
 {
   "map": "test_map.h3m",
   "seed": 7,
-  "note": "SHA-256 of yarn h3 render PNGs taken on the base-game code before spec 005 changed anything (tasks.md T002). Used by test/real/base-render-unchanged.test.ts to prove US3. Re-taken 2026-09-28 (draw-order revision) and 2026-09-30 (per-tile draw order, shadows before bodies; spec 005 research \"Draw order: tiles and columns\"), and 2026-10-01 (monsters of the other edition, windmill blades), which change base-game renders on purpose; the fidelity corpus (`yarn verify corpus`) is what guards them against the game.",
+  "note": "SHA-256 of yarn h3 render PNGs taken on the base-game code before spec 005 changed anything (tasks.md T002). Used by test/real/base-render-unchanged.test.ts to prove US3. Re-taken 2026-09-28 (draw-order revision) and 2026-09-30 (per-tile draw order, shadows before bodies; spec 005 research \"Draw order: tiles and columns\"), 2026-10-01 (monsters of the other edition, windmill blades) and 2026-10-14 (the executable's tile lists, flat objects under shadows and casting none on base-game maps; spec 003 research \"Draw order in the executable\"), which change base-game renders on purpose; the fidelity corpus (`yarn verify corpus`) is what guards them against the game.",
   "renders": [
     {
       "name": "l0-nw-t0",
@@ -24,16 +24,16 @@
       "level": 0,
       "region": "60,60,84,84",
       "time": 0,
-      "bytes": 751514,
-      "sha256": "42d6477addc3c852c46954cb53e5583141041dd56697f1caf2e517f5be3e390f"
+      "bytes": 753902,
+      "sha256": "8bd3dbf9444a1e02d3c2f3aad42aefb5fb80090efd40d09d2b1a26fc3792db26"
     },
     {
       "name": "l0-se-t1080",
       "level": 0,
       "region": "100,100,124,124",
       "time": 1080,
-      "bytes": 920092,
-      "sha256": "395b4a139621497c5f0a95621d2c30ac7a64dda4ea26176b39c81c080d16616c"
+      "bytes": 925231,
+      "sha256": "078ab168b53be83b2941d721fb5c5bbc0b7881c9ece0e3cdee905b50d1a5daf7"
     },
     {
       "name": "l1-nw-t0",

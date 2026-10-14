@@ -77,11 +77,17 @@ Facts measured against the original game that code must respect (details in
 - Map border (`edg.def`) is a deterministic 4×4 pattern drawn over objects; roads are drawn 16 px down.
 - Objects: bottom-right anchor. The game **draws the map tile by tile** (objects may overlap in one
   order in one tile and the other in the next) and **every shadow before every body** (no shadow falls
-  on another object's body). `object-plan.ts` cuts sprites at tile borders and sorts the pieces with
-  `comparePieces` (`src/core/state/draw-order.ts`): flat → row → column depth (lowest blocked tile of
-  the object in that column, else its row) → overhanging piece in front of a blocking one (both
-  overhanging: visitable in front) → heroes (flag, then body) → map file order; one rule for SoD and
-  HotA, chosen by whole-corpus runs (82 stills);
+  on another object's body), and **flat objects before every shadow** (shadows fall on them). The
+  rule is the executable's own (read in Ghidra, 003 research "Draw order in the executable"): every
+  tile keeps a list of (object, layer) entries built in map order; `src/core/state/draw-order.ts`
+  rebuilds it (`layerTable`, `tileList`) and `object-plan.ts` draws each tile's pieces by layer, then
+  list order, heroes and boats after the entries of their layer (flag, then body), flat pieces first
+  (`ObjectPlan.flatQuads`, kept under the shadows by both renderers); on base-game maps flat objects
+  (reefs among them) **cast no shadow** (`castsNoShadow`, `shadowlessQuads`), HotA draws theirs; HotA
+  also puts flat **ground covers** (classes 21, 46, 141, 222–231) under the other flat objects of a
+  tile (`groundCover`, a `HotA.dll` hook, 005 research "Draw order in HotA"; its other hooks are
+  obfuscated and were not pursued); the 82-still corpus went from 428 131 to 15 602 differing pixels
+  (SoD 325 249 → 8 256, HotA 102 882 → 7 346);
   flag pixels (index 5) use `game.pal` entries 64–71 (players) and 72 (neutral); shadow index 1
   keeps `(c>>1)+(c>>2)`, index 4 `c>>1` of each 5/6-bit channel (HotA adds 3 → `+(c>>3)` on top of
   index 1's, 2 → `(c>>1)+(c>>3)`); object frames advance every 180 ms
@@ -90,8 +96,8 @@ Facts measured against the original game that code must respect (details in
 - Heroes: `ah00_.def`–`ah17_.def` body + `af0?.def` flag (colour baked in); not in `Objects.txt`.
   A hero standing in a town is stored with the **town's** coordinates (every local map, SoD and HotA
   editors); the game shows it in the gate, so `fromH3m` moves it to entrance + (1, 0).
-- Accepted deviation (003 research, owner review 2026-09-17): reef frames/shadows (the render keeps
-  its reef shadows). Draw order in dense clusters was accepted then too, but the owner reopened it
+- Accepted deviation (003 research, owner review 2026-09-17): reef frames (reef shadows were the
+  flat-object rule above, fixed 2026-10-14). Draw order in dense clusters was accepted then too, but the owner reopened it
   (2026-09-29): the order and shadows are to be refined until test_map and test_map_hota match; check
   every change with `yarn verify corpus` (TODO.md, item 3 follow-ups).
 
@@ -344,6 +350,14 @@ HotA sources (cloned 2026-09-22 for item 3; details and measurements in the item
 | `hota-editor-hdat/` | C# editor (github.com/sake12/HotA-editor), `Hdat.cs` walks the `HDAT` container of `HotA.dat` | No license → study only, never copy code |
 
 Also: VCMI is a good format/behavior reference but is GPL — study only, never copy code.
+
+The game's own executables may be studied in Ghidra (constitution I, 1.5.0): `Heroes3.exe` of the
+Complete edition is SoD 3.2 (MSVC 6, 2003, image base `0x400000`, not packed). Analyse a copy, keep
+the Ghidra project outside the repository (`~/.local/state/h3-reference/ghidra/`; Ghidra refuses
+project paths with a dot-folder, so it is opened through the symlink `~/ghidra-h3`; Ghidra 12.1
+needs a full JDK 21, not the headless JRE), and record only
+facts in our own words (addresses, what a routine does, constants) in the spec's research.md —
+never decompiled code. A finding is a hypothesis until a capture confirms it.
 Online Wallpaper Engine docs: <https://docs.wallpaperengine.io/>
 
 ---
