@@ -7,6 +7,17 @@ text becomes the Steam Workshop and KDE Store change notes (see [docs/releasing.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-10-14
+
+### Fixed
+
+- Objects overlap as in the game: the drawing order is now the one the original game uses,
+  so dense forests, mountain ranges, towns and the objects around them look as they do in Heroes III
+- Reefs and other ground decorations of the base game no longer cast shadows (the game draws none);
+  shadows of trees and buildings now fall on such ground decorations as in the game
+- Horn of the Abyss: sand, grass and other ground patches lie under the other ground decorations
+  instead of covering them
+
 ## [0.1.4] - 2026-10-01
 
 ### Fixed
