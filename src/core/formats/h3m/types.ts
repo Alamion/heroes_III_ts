@@ -40,7 +40,7 @@ export interface NamedHero {
 export interface PlayerInfo {
   canHuman: boolean
   canComputer: boolean
-  /** Absent for slots nobody can play (their block is fixed-size padding). */
+  /** False for slots nobody can play; their record is stored in full like any other. */
   playable: boolean
   behavior: number
   /** SoD: unknown byte after behavior (allowed alignments). */
@@ -57,8 +57,8 @@ export interface PlayerInfo {
   /** AB+: unknown byte before the hero list. */
   abUnknown: number | null
   heroes: NamedHero[]
-  /** Raw fixed-size block of an unplayable slot (kept for exactness), else null. */
-  unusedBlock: Uint8Array | null
+  /** The record's bytes after the two flags when nobody can play the slot (kept for exactness), else null. */
+  rawRecord: Uint8Array | null
 }
 
 export type VictoryCondition =
@@ -180,7 +180,14 @@ export interface Reward {
 
 export type Quest =
   | { kind: 'none' }
-  | ({ deadline: number; proposal: H3String; progress: H3String; completion: H3String } & (
+  | ({
+      deadline: number
+      proposal: H3String
+      progress: H3String
+      completion: H3String
+      /** HotA sub-version 10+: message shown when the deadline passes (null before). */
+      timeoutMessage: H3String | null
+    } & (
       | { kind: 'experienceLevel'; value: number }
       | { kind: 'primarySkills'; skills: PrimarySkills }
       | { kind: 'defeatHero'; targetId: number }
@@ -263,7 +270,13 @@ export type ObjectBody =
       noGrowth: boolean
     }
   | { kind: 'message'; text: H3String }
-  | { kind: 'seerHut'; quest: Quest; reward: SeerReward }
+  | {
+      kind: 'seerHut'
+      quest: Quest
+      reward: SeerReward
+      /** HotA sub-version 10+: custom name, null when unset. */
+      name: H3String | null
+    }
   | { kind: 'witchHut'; allowedSkills: number | null }
   | { kind: 'scholar'; bonusType: number; bonusId: number }
   | { kind: 'garrison'; owner: number; creatures: CreatureStack[]; removableUnits: boolean | null }
@@ -309,6 +322,13 @@ export interface MapObject {
   body: ObjectBody
 }
 
+/** A script variable a campaign carries to the next scenario; both numbers are unexplained. */
+export interface CampaignVariable {
+  name: H3String
+  value: number
+  flag: number
+}
+
 /** HotA header fields that have no base-game counterpart (spec 005 research M4). */
 export interface HotaHeader {
   /** HotA build that wrote the map, when the sub-version carries it (1.8.0 / 1.8.1). */
@@ -320,8 +340,8 @@ export interface HotaHeader {
   allowedDifficultyMask: number | null
   canHireDefeatedHeroes: boolean | null
   forceMatchingHotaVersion: boolean | null
-  /** Zero in every measured map; meaning unknown. */
-  reserved: number | null
+  /** Sub-version 9+: script variables shared with a campaign (copied from the event system). */
+  campaignVariables: CampaignVariable[] | null
   allowSpecialWeeks: boolean | null
   combinedArtifactBan: Uint8Array | null
   /** -1 = no limit. */

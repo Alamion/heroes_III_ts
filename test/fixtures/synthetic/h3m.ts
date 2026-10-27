@@ -58,8 +58,8 @@ function secondaryU32(c: Ctx, skills: { skill: number; level: number }[]) {
 
 function player(c: Ctx, p: PlayerInfo) {
   c.w.bool(p.canHuman).bool(p.canComputer)
-  if (!p.playable) {
-    c.w.bytes(p.unusedBlock ?? new Uint8Array(c.sod ? 13 : c.ab ? 12 : 6))
+  if (p.rawRecord !== null) {
+    c.w.bytes(p.rawRecord)
     return
   }
   c.w.u8(p.behavior)
@@ -497,13 +497,20 @@ export function blankTemplate(defName: string, classId: number, subclassId = 0):
   return { defName, passable, active, allowedTerrains: 0x1ff, editorGroups: 1, classId, subclassId, group: 2, isOverlay: false }
 }
 
+/** The record an editor writes for a slot nobody can play: everything empty, no main hero (0xFF). */
+function emptySlotRecord(version: H3mVersion): Uint8Array {
+  if (version === 'RoE') return Uint8Array.of(0, 0, 0, 0, 0, 0xff)
+  const factions = version === 'SoD' ? [0, 0, 0, 0] : [0, 0, 0]
+  return Uint8Array.of(...factions, 0, 0, 0, 0xff, 0, 0, 0, 0, 0)
+}
+
 export function emptyPlayers(version: H3mVersion): PlayerInfo[] {
   return Array.from({ length: 8 }, () => ({
     canHuman: false,
     canComputer: false,
     playable: false,
     behavior: 0,
-    sodAlignments: null,
+    sodAlignments: version === 'SoD' ? 0 : null,
     allowedFactions: 0,
     randomFaction: false,
     mainTown: null,
@@ -511,9 +518,9 @@ export function emptyPlayers(version: H3mVersion): PlayerInfo[] {
     mainHeroType: 0xff,
     mainHeroPortrait: null,
     mainHeroName: null,
-    abUnknown: null,
+    abUnknown: version === 'RoE' ? null : 0,
     heroes: [],
-    unusedBlock: new Uint8Array(version === 'SoD' ? 13 : version === 'AB' ? 12 : 6),
+    rawRecord: emptySlotRecord(version),
   }))
 }
 
@@ -557,7 +564,7 @@ export function buildMap(opts: MapOptions): H3mMap {
     mainHeroName: h3s('Hero'),
     abUnknown: ab ? 0 : null,
     heroes: ab ? [{ type: 5, name: h3s('Hero') }] : [],
-    unusedBlock: null,
+    rawRecord: null,
   } as PlayerInfo
   const templates = opts.templates ?? []
   const objects = (opts.objects ?? []).map((o, index) => {
@@ -598,8 +605,8 @@ export function allBodiesMap(version: H3mVersion): H3mMap {
   const sod = version === 'SoD'
   const C = OBJECT_CLASS
   const questBody: Quest = ab
-    ? { kind: 'creatures', creatures: [{ creature: 3, count: 10 }], deadline: -1, proposal: h3s('p'), progress: h3s('q'), completion: h3s('c') }
-    : { kind: 'artifacts', artifacts: [12], deadline: -1, proposal: h3s(''), progress: h3s(''), completion: h3s('') }
+    ? { kind: 'creatures', creatures: [{ creature: 3, count: 10 }], deadline: -1, proposal: h3s('p'), progress: h3s('q'), completion: h3s('c'), timeoutMessage: null }
+    : { kind: 'artifacts', artifacts: [12], deadline: -1, proposal: h3s(''), progress: h3s(''), completion: h3s(''), timeoutMessage: null }
   const entries: [number, ObjectBody][] = [
     [C.TREASURE_CHEST, { kind: 'none' }],
     [C.EVENT, { kind: 'event', guard: { message: h3s('Stop'), creatures: makeArmy(ab) }, reward: makeReward(ab), players: 0x81, computerActivate: true, removeAfterVisit: false }],
@@ -608,8 +615,8 @@ export function allBodiesMap(version: H3mVersion): H3mMap {
     [C.MONSTER, { kind: 'monster', identifier: ab ? 12 : null, count: 25, disposition: 2, message: h3s('Grr'), resources: [0, 0, 0, 0, 0, 0, 100], artifact: 5, neverFlees: true, noGrowth: false }],
     [C.RANDOM_MONSTER_L7, { kind: 'monster', identifier: ab ? 13 : null, count: 0, disposition: 0, message: null, resources: null, artifact: null, neverFlees: false, noGrowth: true }],
     [C.SIGN, { kind: 'message', text: h3s('Welcome') }],
-    [C.SEER_HUT, { kind: 'seerHut', quest: questBody, reward: { kind: 'creature', creature: 40, count: 2 } }],
-    [C.SEER_HUT, { kind: 'seerHut', quest: { kind: 'none' }, reward: { kind: 'none' } }],
+    [C.SEER_HUT, { kind: 'seerHut', quest: questBody, reward: { kind: 'creature', creature: 40, count: 2 }, name: null }],
+    [C.SEER_HUT, { kind: 'seerHut', quest: { kind: 'none' }, reward: { kind: 'none' }, name: null }],
     [C.WITCH_HUT, { kind: 'witchHut', allowedSkills: ab ? 0x0fffffff : null }],
     [C.SCHOLAR, { kind: 'scholar', bonusType: 0xff, bonusId: 0 }],
     [C.GARRISON, { kind: 'garrison', owner: 1, creatures: makeArmy(ab), removableUnits: ab ? true : null }],
@@ -626,7 +633,7 @@ export function allBodiesMap(version: H3mVersion): H3mMap {
     [C.RANDOM_DWELLING, { kind: 'randomDwelling', owner: 0, linkedTown: 99, factions: null, minLevel: 2, maxLevel: 3 }],
     [C.RANDOM_DWELLING_LVL, { kind: 'randomDwelling', owner: 0xff, linkedTown: 0, factions: 0x3, minLevel: null, maxLevel: null }],
     [C.RANDOM_DWELLING_FACTION, { kind: 'randomDwelling', owner: 0xff, linkedTown: null, factions: null, minLevel: 1, maxLevel: 4 }],
-    [C.QUEST_GUARD, { kind: 'questGuard', quest: ab ? { kind: 'bePlayer', player: 2, deadline: 30, proposal: h3s('a'), progress: h3s('b'), completion: h3s('c') } : { kind: 'none' } }],
+    [C.QUEST_GUARD, { kind: 'questGuard', quest: ab ? { kind: 'bePlayer', player: 2, deadline: 30, proposal: h3s('a'), progress: h3s('b'), completion: h3s('c'), timeoutMessage: null } : { kind: 'none' } }],
     [C.HERO_PLACEHOLDER, { kind: 'heroPlaceholder', owner: 0, heroType: 0xff, powerRank: 2 }],
   ]
   const usable = entries.filter(([cls]) => ab || (cls !== C.RANDOM_DWELLING && cls !== C.RANDOM_DWELLING_LVL && cls !== C.RANDOM_DWELLING_FACTION && cls !== C.QUEST_GUARD && cls !== C.HERO_PLACEHOLDER))

@@ -132,6 +132,10 @@ function readConditionInternal(c: H3mContext): void {
       c.r.i32()
       c.r.u32()
       return
+    case 13: // hero class (not exercised)
+    case 22: // hero type (not exercised)
+      c.r.i32()
+      return
     case 14: // defeated monster (not exercised)
     case 15: // defeated hero
     case 18: // owns town
@@ -160,12 +164,17 @@ function readCondition(c: H3mContext): void {
   readConditionInternal(c)
 }
 
-/** `count` × { kind, subtype, amount }: the pictures a message or reward shows. */
+/**
+ * `count` × { i32 kind, i32 subtype, u8 "amount is a variable", i32 amount or variable id }: the
+ * pictures a message or reward shows, always 13 bytes each. The local maps only store literal
+ * amounts, which read the same as a literal expression would.
+ */
 function readImages(c: H3mContext, n: number): void {
   for (let i = 0; i < n; i++) {
     c.r.i32()
     c.r.i32()
-    readExpression(c)
+    c.r.bool()
+    c.r.i32()
   }
 }
 
@@ -251,8 +260,8 @@ function readAction(c: H3mContext): void {
       const images = mode === 0 || mode === 3 ? count(c, 'question images') : 2
       readImages(c, images)
       if (mode === 1 || mode === 2) {
-        c.r.bool()
-        c.r.i32()
+        c.r.bool() // "or" between the two images
+        readImages(c, count(c, 'question extra images')) // not exercised beyond a zero count
       }
       return
     }
@@ -358,11 +367,12 @@ export function readScriptSection(c: H3mContext): ScriptSection {
     c.r.scope('variables', () => {
       const n = count(c, 'variable')
       for (let i = 0; i < n; i++) {
-        c.r.i32()
-        c.r.string()
-        c.r.bool()
-        c.r.bool()
-        c.r.i32()
+        c.r.i32() // id
+        c.r.string() // name
+        c.r.bool() // kept for the campaign
+        // A variable imported from the previous scenario starts with what that one left, so it
+        // stores no initial value (not exercised).
+        if (!c.r.bool()) c.r.i32()
       }
     })
     // Five ordering tables: the ids of each event list, then of the variables.

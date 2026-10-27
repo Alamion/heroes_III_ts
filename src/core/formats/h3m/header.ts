@@ -5,6 +5,7 @@ import type { H3mContext } from './context.ts'
 import { readScriptSection } from './script.ts'
 import { readArtifactId, readCreatureId, readHeroArtifacts, readPrimarySkills, readSecondarySkillsU32, readSpellMask } from './objects/common.ts'
 import type {
+  CampaignVariable,
   CustomHero,
   H3mInfo,
   HotaHeader,
@@ -43,8 +44,17 @@ export function readHotaHeaderFields(c: H3mContext): Omit<HotaHeader, 'allowSpec
     const allowedDifficultyMask = c.f.hotaTownCountAndDifficulty ? c.r.i8() : null
     const canHireDefeatedHeroes = c.f.hotaHireDefeated ? c.r.bool() : null
     const forceMatchingHotaVersion = c.f.hotaForceVersion ? c.r.bool() : null
-    const reserved = c.f.hotaHeaderReserved ? c.r.i32() : null
-    return { version, isMirrorMap, isArenaMap, terrainTypeCount, townTypeCount, allowedDifficultyMask, canHireDefeatedHeroes, forceMatchingHotaVersion, reserved }
+    const campaignVariables = c.f.hotaCampaignVariables ? readCampaignVariables(c) : null
+    return { version, isMirrorMap, isArenaMap, terrainTypeCount, townTypeCount, allowedDifficultyMask, canHireDefeatedHeroes, forceMatchingHotaVersion, campaignVariables }
+  })
+}
+
+function readCampaignVariables(c: H3mContext): CampaignVariable[] {
+  return c.r.scope('campaignVariables', () => {
+    const at = c.r.offset
+    const count = c.r.u32()
+    if (count > 10_000) c.r.invalid(`campaign variable count ${count} exceeds 10000`, at)
+    return Array.from({ length: count }, (_, i) => c.r.scope(`[${i}]`, () => ({ name: c.r.string(), value: c.r.i32(), flag: c.r.u8() })))
   })
 }
 
@@ -69,6 +79,11 @@ export function readInfo(c: H3mContext): H3mInfo {
 
 function readPlayer(c: H3mContext, index: number): PlayerInfo {
   return c.r.scope(`players[${index}]`, () => {
+    // A slot nobody can play stores the same record as a playable one: no main town, no main hero
+    // and no hero list in every local map, so reading it in full takes the 6/12/13 bytes it once
+    // skipped, and a customised map that fills it no longer desynchronises (VCMI reads it in full
+    // too). Its flags may hold stale bytes (0x90 where "random faction" is, in RoE to SoD maps), so
+    // there any non-zero byte is true, as the game reads it; a playable slot keeps the strict check.
     const canHuman = c.r.bool()
     const canComputer = c.r.bool()
     const base: PlayerInfo = {
@@ -86,25 +101,22 @@ function readPlayer(c: H3mContext, index: number): PlayerInfo {
       mainHeroName: null,
       abUnknown: null,
       heroes: [],
-      unusedBlock: null,
+      rawRecord: null,
     }
-    if (!base.playable) {
-      // Slots nobody can play store a fixed-size unused block (6 / 12 / 13 bytes).
-      base.unusedBlock = c.r.bytesCopy(c.sod ? 13 : c.ab ? 12 : 6)
-      return base
-    }
+    const start = c.r.offset
+    const flag = (): boolean => (base.playable ? c.r.bool() : c.r.u8() !== 0)
     base.behavior = c.r.u8()
     base.sodAlignments = c.sod ? c.r.u8() : null
     base.allowedFactions = c.ab ? c.r.u16() : c.r.u8()
-    base.randomFaction = c.r.bool()
-    if (c.r.bool()) {
+    base.randomFaction = flag()
+    if (flag()) {
       c.r.scope('mainTown', () => {
-        const generateHero = c.ab ? c.r.bool() : true
+        const generateHero = c.ab ? flag() : true
         const townType = c.ab ? c.r.u8() : null
         base.mainTown = { generateHero, townType, pos: readPos(c) }
       })
     }
-    base.randomHero = c.r.bool()
+    base.randomHero = flag()
     base.mainHeroType = c.r.u8()
     if (base.mainHeroType !== 0xff) {
       base.mainHeroPortrait = c.r.u8()
@@ -117,6 +129,7 @@ function readPlayer(c: H3mContext, index: number): PlayerInfo {
       if (count > 255) c.r.invalid(`player hero count ${count} exceeds 255`, at)
       base.heroes = c.r.scope('heroes', () => Array.from({ length: count }, () => ({ type: c.r.u8(), name: c.r.string() })))
     }
+    if (!base.playable) base.rawRecord = c.r.bytes.slice(start, c.r.offset)
     return base
   })
 }

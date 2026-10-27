@@ -52,8 +52,8 @@ function readHotaSeerHut(c: H3mContext): ObjectBody {
         r.scope(`[${i}]`, () => {
           const quest = readQuest(c)
           if (quest.kind === 'none') {
-            // A quest-less record is just the mission byte plus a zero reward type; the quest
-            // record's own sub-10 tail is not written for it (research M6).
+            // A quest-less record is just the mission byte plus a zero reward type; it has no
+            // timeout message (research M6).
             r.zeros(1, 'seer hut empty reward')
             return
           }
@@ -62,10 +62,10 @@ function readHotaSeerHut(c: H3mContext): ObjectBody {
       }
     })
   }
+  const name = c.f.hotaSeerName ? r.scope('name', () => (r.bool() ? r.string() : null)) : null
   r.zeros(2, 'seer hut padding')
-  if (c.f.hotaSeerObjectTail) r.scope('hotaSeerObjectTail', () => r.bytesCopy(1))
   const first = quests[0]
-  return first === undefined ? { kind: 'seerHut', quest: { kind: 'none' }, reward: { kind: 'none' } } : { kind: 'seerHut', quest: first.quest, reward: first.reward }
+  return first === undefined ? { kind: 'seerHut', quest: { kind: 'none' }, reward: { kind: 'none' }, name } : { kind: 'seerHut', quest: first.quest, reward: first.reward, name }
 }
 
 export function readSeerHut(c: H3mContext): ObjectBody {
@@ -77,15 +77,15 @@ export function readSeerHut(c: H3mContext): ObjectBody {
   } else {
     // RoE: the only quest is "bring one artifact"; 0xFF = no quest.
     const artifact = r.scope('quest', () => r.u8())
-    quest = artifact === 0xff ? { kind: 'none' } : { kind: 'artifacts', artifacts: [artifact], deadline: -1, proposal: emptyString(), progress: emptyString(), completion: emptyString() }
+    quest = artifact === 0xff ? { kind: 'none' } : { kind: 'artifacts', artifacts: [artifact], deadline: -1, proposal: emptyString(), progress: emptyString(), completion: emptyString(), timeoutMessage: null }
   }
   if (quest.kind === 'none') {
     r.zeros(3, 'seer hut without quest')
-    return { kind: 'seerHut', quest, reward: { kind: 'none' } }
+    return { kind: 'seerHut', quest, reward: { kind: 'none' }, name: null }
   }
   const reward = readSeerReward(c)
   r.zeros(2, 'seer hut padding')
-  return { kind: 'seerHut', quest, reward }
+  return { kind: 'seerHut', quest, reward, name: null }
 }
 
 export function readQuestGuard(c: H3mContext): ObjectBody {

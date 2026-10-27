@@ -23,6 +23,19 @@ export interface SyntheticHotaMapOptions {
    * (bit 2 capitol, 3 fort, 4 citadel, 5 castle), which is what the adventure sprite follows.
    */
   townBuildings?: (number | null)[]
+  /** Script variables shared with a campaign, in the header (sub-version 9+). */
+  campaignVariables?: { name: string; value: number; flag: number }[]
+  /**
+   * The seer hut gets a real quest (hero level 5) with this timeout message and a custom name
+   * (sub-version 10). Without it the hut holds one empty quest.
+   */
+  seerQuest?: { timeoutMessage: string; name: string | null }
+  /**
+   * With `scriptActive`: the event also uses what the plain fixture does not — an image whose
+   * amount is a variable, a question with extra images, the hero class and hero type conditions,
+   * and a variable imported from the previous scenario (which stores no initial value).
+   */
+  scriptRich?: boolean
 }
 
 /** Object templates the fixture places, with the class/subtype the reader dispatches on. */
@@ -31,6 +44,7 @@ const TEMPLATES = [
   { def: 'avwmrnd0.def', classId: 71, subclassId: 0 }, // random monster
   { def: 'avamnbtw.def', classId: 145, subclassId: 3 }, // HotA custom class: Vial of Mana
   { def: 'avxseer0.def', classId: 83, subclassId: 0 }, // seer hut
+  { def: 'avmabmg0.def', classId: 53, subclassId: 8 }, // mine subtype past 7: an abandoned mine
 ] as const
 
 function writeTemplate(w: ByteWriter, t: (typeof TEMPLATES)[number]): void {
@@ -46,10 +60,20 @@ function writeTemplate(w: ByteWriter, t: (typeof TEMPLATES)[number]): void {
   w.zeros(16)
 }
 
-/** A quest record: mission type 0 (none) plus the sub-10 tail when it applies. */
+/** A quest record: mission type 0 (none) plus the sub-10 timeout message when it applies. */
 function writeEmptyQuest(w: ByteWriter, sub: number, standalone: boolean): void {
   w.u8(0)
-  if (standalone && sub >= 10) w.zeros(4)
+  if (standalone && sub >= 10) w.string('')
+}
+
+/** One image of a message or question: kind, subtype, "amount is a variable", amount. */
+function writeImage(w: ByteWriter, variable: boolean): void {
+  w.i32(0).i32(6).bool(variable).i32(variable ? 1 : 500)
+}
+
+/** An action block: marker, reserved byte, action count; the actions follow. */
+function actionBlock(w: ByteWriter, actions: number): void {
+  w.i32(1).i8(0).i32(actions)
 }
 
 export function writeHotaMap(opts: SyntheticHotaMapOptions = {}): Uint8Array {
@@ -67,7 +91,11 @@ export function writeHotaMap(opts: SyntheticHotaMapOptions = {}): Uint8Array {
   if (sub >= 5) w.u32(12).i8(31) // town type count, difficulty mask
   if (sub >= 7) w.u8(0)
   if (sub >= 8) w.u8(0)
-  if (sub >= 9) w.i32(0)
+  if (sub >= 9) {
+    const vars = opts.campaignVariables ?? []
+    w.u32(vars.length)
+    for (const v of vars) w.string(v.name).i32(v.value).u8(v.flag)
+  }
   w.bool(true).u32(size).bool(levels === 2)
   w.string('Synthetic HotA')
   w.string('Синтетическая карта HotA')
@@ -75,18 +103,15 @@ export function writeHotaMap(opts: SyntheticHotaMapOptions = {}): Uint8Array {
 
   // --- players --------------------------------------------------------------------------------
   for (let p = 0; p < 8; p++) {
+    // Slots nobody can play hold the same record, empty as the editor writes it.
     const playable = p === 0
     w.bool(playable).bool(false)
-    if (!playable) {
-      w.zeros(13)
-      continue
-    }
     w.u8(0) // behavior
     w.u8(0) // SoD alignments
-    w.u16(0x0fff) // allowed factions
-    w.bool(true) // random faction
+    w.u16(playable ? 0x0fff : 0) // allowed factions
+    w.bool(playable) // random faction
     w.bool(false) // no main town
-    w.bool(true) // random hero
+    w.bool(playable) // random hero
     w.u8(0xff) // no main hero
     w.u8(0) // AB unknown
     w.u32(0) // hero list
@@ -119,21 +144,51 @@ export function writeHotaMap(opts: SyntheticHotaMapOptions = {}): Uint8Array {
       w.i32(0)
       w.i32(1)
       w.i32(7) // event id
-      w.i32(1).i8(0).i32(1) // action block: marker, reserved, one action
+      const rich = opts.scriptRich === true
+      actionBlock(w, rich ? 3 : 1)
       w.i32(29) // show message
       w.string('Synthetic event')
-      w.i32(0) // no images
+      if (rich) {
+        w.i32(2) // two images, the second with a variable amount
+        writeImage(w, false)
+        writeImage(w, true)
+        // Show question, mode 1 (no exit): yes / no blocks, two images, "or", one extra image.
+        w.i32(12).i8(1)
+        w.string('Question?')
+        actionBlock(w, 0)
+        actionBlock(w, 0)
+        writeImage(w, false)
+        writeImage(w, false)
+        w.bool(true).i32(1)
+        writeImage(w, true)
+        // Conditional: all of (hero class 3, hero type 17); both branches empty.
+        w.i32(13)
+        w.bool(true).i32(1).i32(2)
+        w.i32(13).i32(3)
+        w.i32(22).i32(17)
+        actionBlock(w, 0)
+        actionBlock(w, 0)
+      } else {
+        w.i32(0) // no images
+      }
       w.string('synthetic_event')
       w.i32(0)
       w.i32(0)
       for (let i = 0; i < 5; i++) w.i32(1) // next ids
-      w.i32(1) // one variable
-      w.i32(1).string('counter').bool(false).bool(false).i32(0)
+      if (rich) {
+        w.i32(2) // two variables; the second is imported and has no initial value
+        w.i32(1).string('counter').bool(false).bool(false).i32(0)
+        w.i32(2).string('carried').bool(true).bool(true)
+      } else {
+        w.i32(1) // one variable
+        w.i32(1).string('counter').bool(false).bool(false).i32(0)
+      }
       w.i32(0) // hero id table
       w.i32(1).i32(7) // player id table
       w.i32(0) // town
       w.i32(0) // quest
-      w.i32(1).i32(1) // variable id table
+      if (rich) w.i32(2).i32(1).i32(2)
+      else w.i32(1).i32(1) // variable id table
     }
   }
 
@@ -195,13 +250,28 @@ export function writeHotaMap(opts: SyntheticHotaMapOptions = {}): Uint8Array {
       case 145: // HotA custom class, subtype 3: the small reward form
         if (sub >= 5) w.i32(0).zeros(4)
         break
-      case 83: // seer hut: one empty one-time quest, no recurring ones
+      case 83: // seer hut: one one-time quest, no recurring ones
         w.u32(1)
-        writeEmptyQuest(w, sub, false)
-        w.u8(0) // empty reward
+        if (opts.seerQuest === undefined) {
+          writeEmptyQuest(w, sub, false)
+          w.u8(0) // empty reward
+        } else {
+          w.u8(1).u32(5) // hero level 5
+          w.i32(-1).string('Reach level 5').string('Not yet').string('Done')
+          if (sub >= 10) w.string(opts.seerQuest.timeoutMessage)
+          w.u8(1).u32(1000) // reward: experience
+        }
         w.u32(0)
+        if (sub >= 10) {
+          const name = opts.seerQuest?.name ?? null
+          w.bool(name !== null)
+          if (name !== null) w.string(name)
+        }
         w.zeros(2)
-        if (sub >= 10) w.zeros(1)
+        break
+      case 53: // abandoned mine: resource mask, then the HotA custom-guard block
+        w.zeros(4)
+        if (sub >= 5) w.u8(0).zeros(12)
         break
       default:
         break

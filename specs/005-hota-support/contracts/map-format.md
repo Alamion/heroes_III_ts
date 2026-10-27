@@ -30,7 +30,8 @@ u32 terrainTypeCount                     # sub >= 2
 u32 townTypeCount, i8 difficultyMask     # sub >= 5
 u8  canHireDefeatedHeroes                # sub >= 7
 u8  forceMatchingHotaVersion             # sub >= 8
-i32 reserved                             # sub >= 9  (0 in all measured maps; meaning unknown)
+u32 campaignVariableCount                # sub >= 9  (0 in all measured maps)
+  count × (string name, i32, u8)         #   script variables shared with a campaign (VCMI)
 ```
 
 then the ordinary basic info (`anyPlayers`, size, two levels, name, description, difficulty, level
@@ -78,9 +79,10 @@ u8 eventsSystemActive
 | 212 / 1000 | Quest Gate — quest record (with the sub-10 tail) |
 | 212 / 1001 | Grave — reward block |
 | 36 / ≥ 1000 | Arena location — no `u32 radius` |
-| 83 Seer Hut | sub 10: +4 bytes before the reward type per non-NONE quest, +1 byte after the object |
-| Quest records | sub 10: +4 bytes at the end of the record (also when the mission type is NONE) |
-| 16, 34, 53, 98 | Wider subtype ranges: banks to 32, hero classes to 23, mines 0–7, towns 0–11, plus HotA preset/guard blocks |
+| 83 Seer Hut | sub 10: the quest record's timeout message before the reward type per non-NONE quest; `u8 hasName` + name string before the closing 2-byte pad |
+| Quest records | sub 10: `string timeoutMessage` at the end of the record (a quest guard or gate stores it also when the mission type is NONE; inside a seer hut a NONE record has none) |
+| Player slots | A slot nobody can play holds the full record; its flag bytes may be stale (any non-zero byte is true there) |
+| 16, 34, 53, 98 | Wider subtype ranges: banks to 32, hero classes to 23, mines 0–7 (7 and up abandoned), towns 0–11, plus HotA preset/guard blocks |
 | anything unmapped | `UNSUPPORTED_OBJECT` with class, subtype, template name and offset — never a skip |
 
 ## Errors
