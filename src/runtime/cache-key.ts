@@ -14,9 +14,10 @@
  * 12: render objects carry the passability mask the draw order reads, and monsters are moved onto
  * their tile when map and sprites are of different editions. 13: flat objects of base-game maps are
  * marked as casting no shadow (`castsNoShadow`). 14: ground covers of HotA maps are marked
- * (`groundCover`).
+ * (`groundCover`). 15: water garrisons of maps saved before HotA 1.8 move to fit the redrawn sprite
+ * (`HOTA_MOVED_SPRITES`), so older object layers draw them a tile up and to the left.
  */
-export const CACHE_SCHEMA = 14
+export const CACHE_SCHEMA = 15
 
 export type CacheStore = 'atlas' | 'world' | 'objects' | 'recent'
 

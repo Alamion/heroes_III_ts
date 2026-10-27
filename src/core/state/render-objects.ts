@@ -4,12 +4,14 @@
 import { GROUND_COVER_CLASSES, HERO_FLAG_DEFS, HERO_MAP_DEFS, HERO_VISIT_OFFSET, HIDDEN_CLASSES, OBJECT_CLASS, TOWN_SPRITES } from '../data/object-classes.ts'
 import { BOAT_HERO_DEFS, HERO_DEFAULT_IDLE, heroClassOfType } from '../data/heroes.ts'
 import { shadowTintOfTerrain } from '../data/animation.ts'
+import { HOTA_MOVED_SPRITES, resolveSpriteName } from '../data/hota-def-conventions.ts'
+import { parseDef } from '../formats/def/def.ts'
 import type { ShadowTint } from '../data/animation.ts'
 import { maskOffsets } from '../formats/h3m/types.ts'
 import type { Rng } from '../util/rng.ts'
 import { hashInts } from '../util/rng.ts'
 import { pickHeroType, resolveRandomObjects, usedHeroTypes } from './random.ts'
-import type { GameTables, RandomOutcome } from './random.ts'
+import type { GameTables, RandomOutcome, SpriteSize } from './random.ts'
 import type { ObjectId, WorldObject, WorldState } from './world.ts'
 
 export type RenderObjectKind = 'object' | 'heroBody' | 'heroFlag'
@@ -121,6 +123,27 @@ function tintOn(state: WorldState, soil: number): { shadowTint?: ShadowTint } {
   return tint === 0 ? {} : { shadowTint: tint }
 }
 
+/**
+ * Full frame sizes of the `HOTA_MOVED_SPRITES` the sprite archives hold, for `GameTables.spriteSizes`.
+ * `read` returns a sprite's bytes, or undefined when no archive has it.
+ */
+export async function movedSpriteSizes(read: (name: string) => Promise<Uint8Array | undefined>): Promise<Map<string, SpriteSize>> {
+  const out = new Map<string, SpriteSize>()
+  for (const m of HOTA_MOVED_SPRITES) {
+    const bytes = await read(resolveSpriteName(m.def))
+    if (bytes === undefined) continue
+    try {
+      const def = parseDef(bytes, m.def)
+      out.set(m.def, { fullWidth: def.fullWidth, fullHeight: def.fullHeight })
+    } catch {
+      // An unreadable sprite is reported where it is drawn; it is simply not moved here.
+    }
+  }
+  return out
+}
+
+const visitOffset = (active: Uint8Array): { dx: number; dy: number } => maskOffsets(active)[0] ?? { dx: 0, dy: 0 }
+
 function heroEntries(base: { id: ObjectId; x: number; y: number; z: number; owner: number | null; order: number; random: RandomOutcome | null; floating: boolean }, type: number, state: WorldState): Omit<RenderObject, 'phase'>[] {
   const heroClass = heroClassOfType(type)
   if (heroClass === undefined) return []
@@ -144,6 +167,14 @@ export function buildRenderObjects(state: WorldState, tables: GameTables, rng: R
   // moved the visit tile in its Objects.txt to match (base: 64 px, creature on the anchor tile). A map
   // of one edition shown with the sprites of the other would put every monster a tile aside (the game
   // keeps them in place: Dragon Pass, a base map, on both baselines; spec 005 research).
+  // HotA 1.8 redrew some sprites a tile aside under their old names (HOTA_MOVED_SPRITES): with the
+  // redrawn sprite loaded, an object whose map still has the old template moves so that its entrance
+  // stays on its tile, and takes the new template's blocked tiles, as HotA 1.8.1 itself shows it.
+  const moved = new Map<string, (typeof HOTA_MOVED_SPRITES)[number]>()
+  for (const m of HOTA_MOVED_SPRITES) {
+    const size = tables.spriteSizes?.get(m.def)
+    if (size !== undefined && size.fullWidth === m.fullWidth && size.fullHeight === m.fullHeight) moved.set(m.def, m)
+  }
   const monsterRows = new Map<string, GameTables['templates'][number]>()
   for (const r of tables.templates) if (r.classId === OBJECT_CLASS.MONSTER && !monsterRows.has(r.defName.toLowerCase())) monsterRows.set(r.defName.toLowerCase(), r)
   const ids = [...state.objects.keys()].sort((a, b) => a - b)
@@ -176,6 +207,12 @@ export function buildRenderObjects(state: WorldState, tables: GameTables, rng: R
       const row = monsterRows.get(def)
       const shift = row === undefined ? 0 : (maskOffsets(o.template.active)[0]?.dx ?? 0) - (maskOffsets(row.active)[0]?.dx ?? 0)
       if (row !== undefined && shift !== 0) Object.assign(entry, { x: o.x + shift, passable: row.passable })
+    }
+    const redrawn = hota && visitable ? moved.get(def) : undefined
+    if (redrawn !== undefined) {
+      const from = visitOffset(o.template.active)
+      const to = visitOffset(redrawn.active)
+      if (from.dx !== to.dx || from.dy !== to.dy) Object.assign(entry, { x: o.x + from.dx - to.dx, y: o.y + from.dy - to.dy, passable: redrawn.passable })
     }
     if (hota) {
       const stand = standingTile(o.template.passable, o.template.active)

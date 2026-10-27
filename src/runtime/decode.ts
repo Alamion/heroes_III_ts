@@ -24,7 +24,7 @@ import { parseRiffPal } from '../core/formats/pal/riff-pal.ts'
 import { parseArtTraits } from '../core/formats/text/artraits.ts'
 import { parseObjectsTxt } from '../core/formats/text/objects-txt.ts'
 import type { DefSprite } from '../core/formats/def/def.ts'
-import { buildRenderObjects } from '../core/state/render-objects.ts'
+import { buildRenderObjects, movedSpriteSizes } from '../core/state/render-objects.ts'
 import type { RenderObject } from '../core/state/render-objects.ts'
 import { createRng } from '../core/util/rng.ts'
 
@@ -165,8 +165,9 @@ export async function decodeObjects(
   const templates = parseObjectsTxt(await dataLod.read('Objects.txt'))
   const artifactClasses = parseArtTraits(await dataLod.read('artraits.txt'))
   const pal = parseRiffPal(await dataLod.read('game.pal'), 'game.pal')
-  const { objects } = buildRenderObjects({ ...map.world, seed }, { templates, artifactClasses }, createRng(seed))
   const spriteLod = await openSet(sprites.files)
+  const spriteSizes = await movedSpriteSizes((name) => spriteLod.readOptional(name))
+  const { objects } = buildRenderObjects({ ...map.world, seed }, { templates, artifactClasses, spriteSizes }, createRng(seed))
   const defs: DefSprite[] = []
   const missing: string[] = []
   const unreadable: string[] = []

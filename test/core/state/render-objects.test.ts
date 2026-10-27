@@ -123,6 +123,36 @@ describe('shadow tint (spec 005 research "Shadow recolouring follows the object"
   })
 })
 
+describe('sprites HotA 1.8 redrew in place (HOTA_MOVED_SPRITES)', () => {
+  // A water garrison as a map from an editor before 1.8 stores it: entrance one tile left of the
+  // anchor on the bottom row (the 1.8 template has it two left, one up).
+  const base = world(36)
+  const host = [...base.objects.values()].find((o) => o.classId !== OBJECT_CLASS.HERO && o.z === 0 && o.x > 4 && o.y > 4) as NonNullable<ReturnType<typeof base.objects.get>>
+  const oldTemplate = { ...host.template, defName: 'AVCgarW1.def', classId: 33, subclassId: 0, passable: Uint8Array.of(255, 255, 255, 255, 255, 31), active: Uint8Array.of(0, 0, 0, 0, 0, 64) }
+  const garrisonOn = (version: string, template = oldTemplate): WorldState => {
+    const objects = new Map(base.objects)
+    objects.set(host.id, { ...host, classId: 33, subclassId: 0, template })
+    return { ...base, objects, map: { ...base.map, version } } as WorldState
+  }
+  const sizes = (fullWidth: number, fullHeight: number): GameTables => ({ ...tables, spriteSizes: new Map([['avcgarw1.def', { fullWidth, fullHeight }]]) })
+  const of = (state: WorldState, t: GameTables) => buildRenderObjects(state, t, createRng(state.seed)).objects.find((o) => o.id === host.id)
+
+  it('moves an outdated garrison so its entrance stays, when the redrawn sprite is loaded', () => {
+    const g = of(garrisonOn('HotA'), sizes(160, 128))
+    // Entrance (anchor − 1, anchor) = new anchor + (−2, −1): the anchor moves one right and one down.
+    expect({ x: g?.x, y: g?.y }).toEqual({ x: host.x + 1, y: host.y + 1 })
+    expect(Array.from(g?.passable ?? [])).toEqual([255, 255, 255, 255, 143, 255])
+  })
+
+  it('leaves it alone with the old sprite, the current template or on a base-game map', () => {
+    expect(of(garrisonOn('HotA'), sizes(128, 64))?.x).toBe(host.x)
+    expect(of(garrisonOn('HotA'), tables)?.x).toBe(host.x)
+    const current = { ...oldTemplate, passable: Uint8Array.of(255, 255, 255, 255, 143, 255), active: Uint8Array.of(0, 0, 0, 0, 32, 0) }
+    expect(of(garrisonOn('HotA', current), sizes(160, 128))?.y).toBe(host.y)
+    expect(of(garrisonOn('SoD'), sizes(160, 128))?.x).toBe(host.x)
+  })
+})
+
 describe('flat objects (003 research "Draw order in the executable")', () => {
   // The mine's template made flat: the Complete edition draws no shadow for it, HotA does.
   const base = world(36)
