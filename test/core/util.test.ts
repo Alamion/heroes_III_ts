@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { ByteReader } from '../../src/core/util/byte-reader.ts'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { ByteReader, decodeCp1251 } from '../../src/core/util/byte-reader.ts'
+import { decodeSingleByte } from '../../src/core/util/single-byte.ts'
 import { FormatError } from '../../src/core/util/errors.ts'
 import { inflate, isGzip } from '../../src/core/util/inflate.ts'
 import { createRng, hashInts } from '../../src/core/util/rng.ts'
@@ -63,6 +67,34 @@ describe('ByteReader', () => {
     const json = err.toJSON()
     expect(json.name).toBe('FormatError')
     expect(FormatError.fromJSON(json).toJSON()).toEqual(json)
+  })
+})
+
+describe('single-byte code pages', () => {
+  const every = Uint8Array.from({ length: 256 }, (_, i) => i)
+  const high = every.subarray(0x80)
+  for (const encoding of ['windows-1251', 'ibm866'] as const) {
+    it(`decodes every ${encoding} byte as TextDecoder does`, () => {
+      // Node's TextDecoder (full ICU) is the reference for the upper half. The lower half is ASCII
+      // (WHATWG); Node's ICU swaps a few IBM control codes there (0x1A ↔ 0x1C), Chromium does not.
+      const reference = new TextDecoder(encoding)
+      for (const b of high) expect(decodeSingleByte(Uint8Array.of(b), encoding), `byte 0x${b.toString(16)}`).toBe(reference.decode(Uint8Array.of(b)))
+      expect(decodeSingleByte(high, encoding)).toBe(reference.decode(high))
+      expect(decodeSingleByte(every.subarray(0, 0x80), encoding)).toBe(String.fromCharCode(...every.subarray(0, 0x80)))
+    })
+  }
+
+  it('decodes map text as windows-1251', () => {
+    expect(decodeCp1251(Uint8Array.of(0xcf, 0xf0, 0xe8, 0xe2, 0xe5, 0xf2, 0x2c, 0x20, 0xa8))).toBe('Привет, Ё')
+  })
+
+  it('leaves TextDecoder to UTF-8 everywhere in src (other labels go through ICU, which hangs Qt WebEngine on Fedora 44)', () => {
+    const root = fileURLToPath(new URL('../../src/', import.meta.url))
+    const offenders = readdirSync(root, { recursive: true, encoding: 'utf8' })
+      .filter((f) => f.endsWith('.ts'))
+      .flatMap((f) => [...readFileSync(join(root, f), 'utf8').replace(/^\s*\/\/.*$/gm, '').matchAll(/(?:new TextDecoder|textDecoder)\(\s*['"`]([^'"`]+)/g)].map((m) => `${f}: ${m[1]}`))
+      .filter((hit) => !/: utf-?8$/i.test(hit))
+    expect(offenders).toEqual([])
   })
 })
 
