@@ -7,6 +7,14 @@ text becomes the Steam Workshop and KDE Store change notes (see [docs/releasing.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-10-27
+
+### Fixed
+
+- KDE Plasma on Fedora 44: the wallpaper stayed black. Reading the text of a map froze the
+  wallpaper page, which was then closed; map texts, game tables and file names inside `.zip` map
+  folders are now read without the system's text conversion, which hangs there
+
 ## [0.1.5] - 2026-10-14
 
 ### Fixed

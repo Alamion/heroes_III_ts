@@ -7,6 +7,7 @@ import type { FormatErrorCode } from '../../util/errors.ts'
 import { inflate } from '../../util/inflate.ts'
 import type { ByteSource } from '../../util/byte-source.ts'
 import { textDecoder } from '../../util/web-globals.ts'
+import { decodeSingleByte } from '../../util/single-byte.ts'
 
 const EOCD_SIG = 0x06054b50
 const ZIP64_LOCATOR_SIG = 0x07064b50
@@ -54,7 +55,7 @@ function decodeName(bytes: Uint8Array, utf8: boolean, extra: Uint8Array): string
     at += 4 + len
   }
   if (utf8 || isAscii(bytes)) return textDecoder('utf-8').decode(bytes)
-  return textDecoder('ibm866').decode(bytes)
+  return decodeSingleByte(bytes, 'ibm866')
 }
 
 export class ZipArchive {

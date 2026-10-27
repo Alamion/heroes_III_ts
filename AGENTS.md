@@ -490,6 +490,14 @@ Facts measured on HotA 1.8.1 (2026-09-23, details in [005 research](specs/005-ho
   HotA read back with the test option `readDelays` so the race is lost every time).
 - Test hook on a real host: `localStorage.setItem('h3dynam:test', '1')` in DevTools, reload, then
   `__h3wallpaper.controller.state()`.
+- `TextDecoder` is used for UTF-8 only. Chromium hands every other label except windows-1252 to ICU,
+  and Qt WebEngine 6.11.2 on Fedora 44 (system ICU 77) hangs the whole renderer on
+  `new TextDecoder('windows-1251')` (also `ibm866`, `koi8-r`) — main thread and workers stop, the page
+  is killed with SIGTRAP about 55 s later, the wallpaper stays black (measured 2026-10-27). windows-1251
+  and CP866 therefore come from our own tables (`src/core/util/single-byte.ts`); a unit test rejects
+  other labels in `src/`. How it was found: DevTools pause never lands (native hang), so the decode
+  worker was instrumented step by step in a page navigated over CDP inside plasmashell; gdb cannot
+  attach to a sandboxed renderer (it dies with SIGTRAP).
 
 ---
 

@@ -3,8 +3,7 @@
 
 import { FORMAT_ERROR_CODES, FormatError } from './errors.ts'
 import type { FormatErrorCode, FormatName } from './errors.ts'
-import { textDecoder } from './web-globals.ts'
-import type { TextDecoderLike } from './web-globals.ts'
+import { decodeSingleByte } from './single-byte.ts'
 
 export interface H3String {
   /** Raw bytes as stored (exact). */
@@ -13,11 +12,8 @@ export interface H3String {
   text: string
 }
 
-let cp1251: TextDecoderLike | undefined
-
 export function decodeCp1251(bytes: Uint8Array): string {
-  cp1251 ??= textDecoder('windows-1251')
-  return cp1251.decode(bytes)
+  return decodeSingleByte(bytes, 'windows-1251')
 }
 
 export interface ReaderContext {
