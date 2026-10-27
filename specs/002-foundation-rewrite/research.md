@@ -84,7 +84,11 @@ runtime dep); keeping PoC `H3mReader` (guesses skips).
   8 unknown bytes, count × name[13], count × u32 offset. Frame header 32 bytes: size, compression,
   fullW, fullH, w, h, x, y. Compression 0 raw; 1 u32 row offsets + (index, len−1) runs, 0xFF =
   raw; 2 and 3 packed code bytes `idx=code>>5, len=(code&0x1F)+1`, idx 7 = raw, 3 with per-32px
-  u16 offsets. Old-format quirk: compression 1 with w>fullW && h>fullH → use full size, x=y=0,
+  u16 offsets. The decoder seeks the first offset of a frame (2) or of a row (3) and then reads on;
+  seeking every row (2) and every 32-px segment (3), as h3lwp does since 2026, gives the same
+  pixels on all 46 617 compression-2/3 frames of every local archive (base game, AB, HotA 1.7.x,
+  1.8.0, 1.8.1): no gap between rows or segments, every compression-3 width a multiple of 32
+  (measured 2026-10-27). Old-format quirk: compression 1 with w>fullW && h>fullH → use full size, x=y=0,
   data 16 bytes earlier. Special indices: 0 transparent, 1–4 shadow, 5 flag/selection, 6–7
   shadow variants (renderer treats per layer; terrain uses none).
 - **PCX** (in LOD): u32 size, width, height; size == w×h → 8-bit + trailing 768-byte palette;
