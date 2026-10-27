@@ -332,7 +332,7 @@ and captures.
 | Folder | What | License → allowed use |
 | --- | --- | --- |
 | `homm3-parser/` | TS parsers for H3M (RoE/AB/SoD incl. object details), LOD, DEF, PCX | MIT → H3M layouts ported with attribution in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
-| `heroes_iii_android/` | Kotlin/libGDX Android live wallpaper (github.com/IlyaPomaskin/h3lwp): LOD/DEF/H3M readers, terrain palette rotation, rendering | No license → study only, never copy code |
+| `heroes_iii_android/` | Kotlin/libGDX Android live wallpaper (github.com/IlyaPomaskin/h3lwp): LOD/DEF/H3M readers, terrain palette rotation, rendering | GPL-3.0 (LICENSE added 2026-10-24; none before) → study only, never copy code |
 | `example_wallpaper_engine/` | Someone else's Wallpaper Engine web wallpaper | Study packaging/`project.json` only |
 | `wallpaper_dev_wiki/` | Wallpaper Engine web wallpaper docs (user properties, property listener, FPS limiter, debugging) | Reference |
 
@@ -493,7 +493,9 @@ Facts measured on HotA 1.8.1 (2026-09-23, details in [005 research](specs/005-ho
 - `TextDecoder` is used for UTF-8 only. Chromium hands every other label except windows-1252 to ICU,
   and Qt WebEngine 6.11.2 on Fedora 44 (system ICU 77) hangs the whole renderer on
   `new TextDecoder('windows-1251')` (also `ibm866`, `koi8-r`) — main thread and workers stop, the page
-  is killed with SIGTRAP about 55 s later, the wallpaper stays black (measured 2026-10-27). windows-1251
+  is killed with SIGTRAP about 55 s later, the wallpaper stays black (measured 2026-10-27). It is a
+  Qt 6.11.2 regression (QTBUG-149435, QTBUG-151127), fixed upstream for 6.11.3/6.12; re-check when
+  Fedora updates the package (TODO.md, Housekeeping). windows-1251
   and CP866 therefore come from our own tables (`src/core/util/single-byte.ts`); a unit test rejects
   other labels in `src/`. How it was found: DevTools pause never lands (native hang), so the decode
   worker was instrumented step by step in a page navigated over CDP inside plasmashell; gdb cannot
