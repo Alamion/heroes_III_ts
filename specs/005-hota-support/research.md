@@ -1129,6 +1129,23 @@ Tried and rejected (each run over the whole corpus): map file order alone in the
 tile (+6 900). Pair votes weight a tile's pixels, not the view's, so a key that wins votes can lose
 pixels; the corpus decides.
 
+### Water garrisons of maps older than HotA 1.8 (VCMI review and capture, 2026-10-27)
+
+VCMI's loader (commit `2463d1239`, studied) moves a garrison whose map template is older than the
+graphics. Measured here: `AVCgarW1.def` is 128×64 in the HotA.lod of 1.7.x and 160×128 in 1.8.0 and
+1.8.1, and no `Objects.txt` or `objtmplt.txt` lists it. The two copies of `[HotA] Beltway.h3m` place
+the same garrisons as sub 7 (anchor (2,35), entrance one tile left of the anchor on the bottom row)
+and as sub 10, re-saved by the 1.8.1 editor (anchor (3,36), entrance two left and one up): the
+entrance is (1,35) in both. HotA 1.8.1 draws the sub-7 copy exactly like the sub-10 one (captures of
+both, same place next to the town), i.e. it keeps the entrance and draws the new sprite around it.
+
+Implemented as `HOTA_MOVED_SPRITES` (the sub-10 template, with the redrawn sprite's size): when that
+size is loaded and the map's template has another entrance offset, the object moves by the
+difference and takes the new blocked tiles. With the 1.7.x sprite nothing moves. Fidelity of the
+sub-7 still: 11 390 → 1 546 differing pixels; the sub-10 still (2 653) is unchanged. Sixteen
+`[HotA]` maps of sub 7 in the Complete install use the old template; all 19 of the HotA install
+(sub 10) use the new one.
+
 ### Hosts: the HotA archive must be loaded first (found on a real KDE session, 2026-09-23)
 
 On a real Plasma session a HotA map showed without 602 of its objects (340 HotA-only sprites "not

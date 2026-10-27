@@ -27,6 +27,16 @@ export interface GameTables {
   readonly templates: readonly ObjectsTxtRow[]
   /** Artifact classes by id from `artraits.txt`. */
   readonly artifactClasses: readonly ArtifactClass[]
+  /**
+   * Full frame size of the loaded sprites listed in `HOTA_MOVED_SPRITES`, by lower-case name
+   * (`movedSpriteSizes`); a sprite absent here is not moved.
+   */
+  readonly spriteSizes?: ReadonlyMap<string, SpriteSize>
+}
+
+export interface SpriteSize {
+  fullWidth: number
+  fullHeight: number
 }
 
 const TERRAIN_RECORD = 7

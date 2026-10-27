@@ -29,7 +29,7 @@ import { parseRiffPal } from '../../../src/core/formats/pal/riff-pal.ts'
 import { parseArtTraits } from '../../../src/core/formats/text/artraits.ts'
 import { parseObjectsTxt } from '../../../src/core/formats/text/objects-txt.ts'
 import { ObjectIndex } from '../../../src/core/state/object-index.ts'
-import { buildRenderObjects } from '../../../src/core/state/render-objects.ts'
+import { buildRenderObjects, movedSpriteSizes } from '../../../src/core/state/render-objects.ts'
 import type { RenderObject } from '../../../src/core/state/render-objects.ts'
 import { createRng } from '../../../src/core/util/rng.ts'
 import type { DefSprite } from '../../../src/core/formats/def/def.ts'
@@ -68,8 +68,9 @@ export async function buildObjectContext(ctx: MapContext, opts: { seed?: number;
   const templates = parseObjectsTxt(await data.read('Objects.txt'))
   const artifactClasses = parseArtTraits(await data.read('artraits.txt'))
   const pal = parseRiffPal(await data.read('game.pal'), 'game.pal')
-  const { objects } = buildRenderObjects(ctx.state, { templates, artifactClasses }, createRng(seed))
   const sprites = await openArchiveSet(ctx.archivePaths)
+  const spriteSizes = await movedSpriteSizes(async (name) => (sprites.has(name) ? sprites.read(name) : undefined))
+  const { objects } = buildRenderObjects(ctx.state, { templates, artifactClasses, spriteSizes }, createRng(seed))
   const defs: DefSprite[] = []
   const missing: string[] = []
   for (const name of [...new Set(objects.map((o) => o.def))].sort()) {

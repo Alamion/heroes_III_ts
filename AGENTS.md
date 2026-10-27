@@ -143,6 +143,12 @@ are HotA 1.8.1):
   `Objects.txt` moves the visit tile to match. A map stores the template of its own edition, so
   `buildRenderObjects` moves a monster by the difference between the map's visit tile and the loaded
   table row of its sprite (a base map with HotA.lod loaded put every creature a tile left).
+- Water garrison (`AVCgarW1.def`): HotA 1.8 redrew it a tile up and left (128×64 in 1.7.x, 160×128
+  in 1.8.x) under the same name, and no archive table lists it. Maps saved before 1.8 keep the old
+  template; HotA 1.8.1 keeps their entrance in place, so with the 160×128 sprite loaded
+  `buildRenderObjects` moves such an object to the template in `HOTA_MOVED_SPRITES` (sizes come in
+  through `GameTables.spriteSizes`). `[HotA] Beltway.h3m` exists in both forms (Complete's `Maps`:
+  sub 7, HotA's: sub 10); its capture went from 11 390 to 1 546 differing pixels.
 - Towns: **five** forms per faction in HotA (village, fort `f0`, citadel `c0`, castle `x0`, capitol
   `z0`) with irregular stems; the base game only ever shows three, because its `Objects.txt`
   declares the castle template alone. The two-sprite rule above is base-game only. The form follows
