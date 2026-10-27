@@ -23,6 +23,35 @@ function catchFormatError(fn: () => unknown): FormatError {
   throw new Error('expected FormatError')
 }
 
+describe('H3M player slots', () => {
+  for (const version of VERSIONS) {
+    it(`${version}: a slot nobody can play is read in full, and a stale flag byte there is accepted`, () => {
+      const map = buildMap({ version, size: 36, underground: false })
+      const slot = map.players[1] as (typeof map.players)[number]
+      expect(slot.playable).toBe(false)
+      expect(slot.rawRecord).toHaveLength(version === 'SoD' ? 13 : version === 'AB' ? 12 : 6)
+      // Locate the "random faction" byte of that slot by writing its fields both ways.
+      const off = writeH3m({ ...map, players: map.players.map((p, i) => (i === 1 ? { ...p, rawRecord: null } : p)) })
+      const on = writeH3m({ ...map, players: map.players.map((p, i) => (i === 1 ? { ...p, rawRecord: null, randomFaction: true } : p)) })
+      const at = off.findIndex((b, i) => b !== on[i])
+      expect(at).toBeGreaterThan(0)
+      // Real RoE to SoD maps keep 0x90-like leftovers there; the game reads any non-zero byte as true.
+      const stale = off.slice()
+      stale[at] = 0x90
+      const parsed = parseH3m(stale, 'stale.h3m')
+      expect(parsed.players[1]?.randomFaction).toBe(true)
+      // The raw record keeps the stale byte, so writing the map back reproduces the file.
+      expect(writeH3m(parsed)).toEqual(stale)
+      // A playable slot keeps the strict check.
+      const playable = writeH3m(map)
+      const first = writeH3m({ ...map, players: map.players.map((p, i) => (i === 0 ? { ...p, randomFaction: true } : p)) })
+      const pat = playable.findIndex((b, i) => b !== first[i])
+      playable[pat] = 0x90
+      expect(() => parseH3m(playable, 'strict.h3m')).toThrow(FormatError)
+    })
+  }
+})
+
 describe('H3M synthetic round trip', () => {
   for (const version of VERSIONS) {
     it(`${version}: every section and object body parses back to the same values`, async () => {

@@ -63,6 +63,48 @@ describe('HotA map format', () => {
     expect(active.trailerLength).toBe(124)
   })
 
+  it('reads the campaign variables the header shares with the event system', () => {
+    const vars = [
+      { name: 'gold_found', value: 3, flag: 1 },
+      { name: 'Счётчик', value: -1, flag: 0 },
+    ]
+    const map = parse({ subVersion: 9, campaignVariables: vars })
+    expect(map.hota?.campaignVariables?.map((v) => ({ name: v.name.text, value: v.value, flag: v.flag }))).toEqual(vars)
+    expect(parse({}).hota?.campaignVariables).toEqual([])
+    expect(map.trailerLength).toBe(124)
+  })
+
+  it('reads a quest timeout message and a seer hut name (sub-version 10)', () => {
+    const map = parse({ seerQuest: { timeoutMessage: 'Too late', name: 'Old Sage' } })
+    const hut = map.objects.find((o) => o.body.kind === 'seerHut')?.body
+    expect(hut?.kind).toBe('seerHut')
+    if (hut?.kind !== 'seerHut') return
+    expect(hut.name?.text).toBe('Old Sage')
+    expect(hut.quest.kind).toBe('experienceLevel')
+    if (hut.quest.kind === 'none') return
+    expect(hut.quest.timeoutMessage?.text).toBe('Too late')
+    expect(hut.reward).toEqual({ kind: 'experience', value: 1000 })
+    // Without a name the hut stores only the flag; sub-version 9 has neither field.
+    const plain = parse({ seerQuest: { timeoutMessage: '', name: null } }).objects.find((o) => o.body.kind === 'seerHut')?.body
+    expect(plain?.kind === 'seerHut' && plain.name).toBe(null)
+    const nine = parse({ subVersion: 9, seerQuest: { timeoutMessage: 'ignored', name: 'ignored' } }).objects.find((o) => o.body.kind === 'seerHut')?.body
+    expect(nine?.kind === 'seerHut' && nine.quest.kind !== 'none' && nine.quest.timeoutMessage).toBe(null)
+  })
+
+  it('reads mine subtypes past 7 as abandoned mines', () => {
+    const mine = parse({}).objects.find((o) => o.classId === 53)
+    expect(mine?.subclassId).toBe(8)
+    expect(mine?.body.kind).toBe('abandonedMine')
+  })
+
+  it('walks variable image amounts, question extra images, hero class and type conditions and imported variables', () => {
+    const plain = parse({ scriptActive: true })
+    const rich = parse({ scriptActive: true, scriptRich: true })
+    expect(rich.trailerLength).toBe(124)
+    expect(rich.hota?.scriptBytes).toBeGreaterThan(plain.hota?.scriptBytes ?? 0)
+    expect(rich.byteLength - plain.byteLength).toBe((rich.hota?.scriptBytes ?? 0) - (plain.hota?.scriptBytes ?? 0))
+  })
+
   it('fails with a typed error when the event-system block carries an unknown action', () => {
     const bytes = writeHotaMap({ scriptActive: true })
     // The fixture's only action is "show message" (29); make it an opcode no reader knows.
@@ -99,7 +141,9 @@ describe('HotA map format', () => {
     expect(six.hotaEventLegacyTail).toBe(true)
     expect(six.hotaScriptSection).toBe(false)
     expect(ten.hotaScriptSection).toBe(true)
-    expect(ten.hotaQuestTail).toBe(true)
+    expect(ten.hotaQuestTimeoutMessage).toBe(true)
+    expect(ten.hotaSeerName).toBe(true)
+    expect(featuresFor('HotA', 9).hotaSeerName).toBe(false)
     expect(ten.hotaEventLegacyTail).toBe(false)
     // A base-game version must not take any HotA branch.
     expect(Object.entries(sod).filter(([k, v]) => k.startsWith('hota') && v === true)).toEqual([])

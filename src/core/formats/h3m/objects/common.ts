@@ -101,21 +101,20 @@ export function readReward(c: H3mContext): Reward {
   })
 }
 
-/** AB+ quest (seer huts, quest guards). */
 /**
- * A quest record. `standalone` marks a quest guard or quest gate, where HotA sub-version 10 adds
- * its four bytes even when there is no mission; inside a seer hut an empty record stops at the
- * mission byte (measured, research M6).
+ * An AB+ quest record (seer huts, quest guards). HotA sub-version 10 follows it with the timeout
+ * message. `standalone` marks a quest guard or quest gate, which stores that message even without a
+ * mission; inside a seer hut an empty record stops at the mission byte (measured, research M6).
  */
 export function readQuest(c: H3mContext, standalone = false): Quest {
   return c.r.scope('quest', () => {
     const at = c.r.offset
     const type = c.r.u8()
     if (type === 0) {
-      if (standalone && c.f.hotaQuestTail) c.r.scope('hotaQuestTail', () => c.r.bytesCopy(4))
+      if (standalone && c.f.hotaQuestTimeoutMessage) c.r.scope('timeoutMessage', () => c.r.string())
       return { kind: 'none' }
     }
-    type QuestCore = Quest extends infer T ? (T extends { deadline: number } ? Omit<T, 'deadline' | 'proposal' | 'progress' | 'completion'> : never) : never
+    type QuestCore = Quest extends infer T ? (T extends { deadline: number } ? Omit<T, 'deadline' | 'proposal' | 'progress' | 'completion' | 'timeoutMessage'> : never) : never
     let q: QuestCore
     switch (type) {
       case 1:
@@ -181,8 +180,7 @@ export function readQuest(c: H3mContext, standalone = false): Quest {
     const proposal = c.r.string()
     const progress = c.r.string()
     const completion = c.r.string()
-    // HotA sub-version 10 appends four bytes to every quest record (measured; meaning unknown).
-    if (c.f.hotaQuestTail) c.r.scope('hotaQuestTail', () => c.r.bytesCopy(4))
-    return { ...q, deadline, proposal, progress, completion } as Quest
+    const timeoutMessage = c.f.hotaQuestTimeoutMessage ? c.r.scope('timeoutMessage', () => c.r.string()) : null
+    return { ...q, deadline, proposal, progress, completion, timeoutMessage } as Quest
   })
 }

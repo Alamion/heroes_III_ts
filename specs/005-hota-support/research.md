@@ -188,6 +188,18 @@ Three deltas, each required to reach EOF on the 70 sub-10 maps and absent from t
 All observed values are zero; the semantics are unknown. Header-wise, sub 9 files carry HotA
 version 1.8.0 and sub 10 files 1.8.1.
 
+Update 2026-10-27 (VCMI `develop` of 2026-10-25, studied, not copied): deltas 1 and 2 are one field,
+the quest's **timeout message** as a length-prefixed string (four zero bytes = empty string); a
+seer hut's NONE quest has none. Delta 3 is a `u8 hasName` and, when set, the hut's **custom name**,
+stored *before* the 2-byte pad rather than after it (the same three zero bytes when unset). The
+`i32` at the end of the sub-9 header (M4) is the **count** of script variables shared with a campaign
+(string, `i32`, `u8` each). Also from that review: the event system's image records are a fixed
+13 bytes (`i32` kind, `i32` subtype, `u8` "amount is a variable", `i32` amount), a variable
+imported from the previous scenario stores no initial value, question modes 1 and 2 end with a
+counted list of extra images, and conditions 13 (hero class) and 22 (hero type) take one `i32`.
+None of the 456 local maps uses a non-empty value of any of these, so they are covered by
+synthetic fixtures (`test/core/formats/h3m-hota.test.ts`).
+
 Note: the `public/dev-assets/` copy of `[HotA] The Devil Is in the Detail.h3m` is sub-version 9,
 while the copy in the install's `Maps` folder is sub-version 10.
 

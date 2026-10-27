@@ -175,7 +175,7 @@ Traps:
   a typed `UNSUPPORTED_VERSION` error that names the variant.
 - An `H3mContext` with `ab`/`sod` flags is passed to every section reader. Examples of version
   branches: `levelCap` exists only in AB+; `allowedFactions` is u16 in AB+ and u8 in RoE; an
-  unplayable player slot is a fixed 6 / 12 / 13 bytes.
+  an unplayable player slot holds the full player record, whose stale flag bytes are read leniently.
 - Tiles are 7-byte records `(terrain, view, river, riverView, road, roadView, flags)` indexed
   `z·size² + y·size + x`.
 - Object bodies are an exhaustive `switch` over the class id.

@@ -72,7 +72,7 @@ export async function mapInfo(args: ParsedArgs): Promise<CommandResult> {
     size: map.info.size,
     hasUnderground: map.info.hasUnderground,
     info: textOf(map.info),
-    players: textOf(map.players.map((p, i) => ({ index: i, ...p, unusedBlock: undefined }))),
+    players: textOf(map.players.map((p, i) => ({ index: i, ...p, rawRecord: undefined }))),
     victory: map.victory,
     loss: map.loss,
     teams: map.teams,

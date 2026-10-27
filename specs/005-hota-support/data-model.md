@@ -86,15 +86,15 @@ it is *documented*, *ported* or *measured*:
 | `hotaTownCountAndDifficulty` | sub ≥ 5: `u32 townTypeCount`, `i8 allowedDifficultyMask` |
 | `hotaHireDefeated` | sub ≥ 7: `u8 canHireDefeatedHeroes` |
 | `hotaForceVersion` | sub ≥ 8: `u8 forceMatchingHotaVersion` |
-| `hotaHeaderReserved` | sub ≥ 9: `i32` reserved (0 in all 72 maps, meaning unknown) |
+| `hotaCampaignVariables` | sub ≥ 9: `u32` count + count × (string, `i32`, `u8`), the script variables shared with a campaign (0 in all 72 maps) |
 | `hotaCountedHeroes` | counted allowed-hero and predefined-hero lists (215 measured) |
 | `hotaCountedArtifacts` | counted allowed-artifact mask (166 measured) |
 | `hotaCombinedArtifactBan`, `hotaRoundLimit`, `hotaRecruitmentBlock` | map-options additions |
 | `hotaScrollSpellSlots`, `hotaHeroLevelBlock` | predefined-hero additions |
 | `hotaEventOccurrenceU16`, `hotaEventDifficulties` | global/town event changes |
 | `hotaScriptSection` | sub ≥ 9: the event-system block |
-| `hotaQuestTail` | sub ≥ 10: +4 bytes at the end of a quest record |
-| `hotaSeerQuestTail`, `hotaSeerObjectTail` | sub ≥ 10: +4 bytes before the reward, +1 byte after the object |
+| `hotaQuestTimeoutMessage` | sub ≥ 10: a timeout-message string at the end of a quest record |
+| `hotaSeerName` | sub ≥ 10: `u8 hasName` + name before a seer hut's closing pad |
 
 **Rule**: required sub-versions are 9 and 10. Sub-versions 0–8 set the flags their sources describe
 and are best-effort (FR-006a); an unknown sub-version, or one whose parse does not end at EOF,

@@ -42,8 +42,11 @@ export interface H3mFeatures {
   hotaHireDefeated: boolean
   /** measured: u8 "players must run the same HotA version". */
   hotaForceVersion: boolean
-  /** measured: i32, zero in all 72 maps; meaning unknown. */
-  hotaHeaderReserved: boolean
+  /**
+   * u32 count + count × (string name, i32, u8): the script variables shared with a campaign. Measured
+   * as a zero i32 in all 72 maps; the meaning comes from VCMI (studied, GPL).
+   */
+  hotaCampaignVariables: boolean
 
   // --- counted lists that are fixed-size in the base game -----------------------------------
   /** measured: allowed heroes as u32 count + ceil(count/8) bytes (count 215). */
@@ -122,12 +125,16 @@ export interface H3mFeatures {
   hotaScriptSection: boolean
 
   // --- sub-version 10 deltas (research M6) ------------------------------------------------------
-  /** measured: +4 bytes at the end of a quest record. */
-  hotaQuestTail: boolean
-  /** measured: +4 bytes between a seer hut quest and its reward type. */
-  hotaSeerQuestTail: boolean
-  /** measured: +1 byte after a seer hut object. */
-  hotaSeerObjectTail: boolean
+  /**
+   * A string after a quest record: the message shown when its deadline passes. Measured as four
+   * zero bytes (an empty string); the meaning comes from VCMI.
+   */
+  hotaQuestTimeoutMessage: boolean
+  /**
+   * u8 "has a custom name" + the name, before the seer hut's two zero bytes. Measured as one zero
+   * byte after them; VCMI places it first, which only differs when a name is set.
+   */
+  hotaSeerName: boolean
 }
 
 /**
@@ -153,7 +160,7 @@ export function featuresFor(version: H3mVersion, subVersion: number | null): H3m
     hotaTownCountAndDifficulty: from(5),
     hotaHireDefeated: from(7),
     hotaForceVersion: from(8),
-    hotaHeaderReserved: from(9),
+    hotaCampaignVariables: from(9),
 
     hotaCountedHeroes: hota,
     hotaCountedArtifacts: hota,
@@ -191,8 +198,7 @@ export function featuresFor(version: H3mVersion, subVersion: number | null): H3m
 
     hotaScriptSection: from(9),
 
-    hotaQuestTail: from(10),
-    hotaSeerQuestTail: from(10),
-    hotaSeerObjectTail: from(10),
+    hotaQuestTimeoutMessage: from(10),
+    hotaSeerName: from(10),
   }
 }

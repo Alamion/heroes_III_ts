@@ -25,7 +25,7 @@ import { readTown } from './town.ts'
 
 const C = OBJECT_CLASS
 
-/** Abandoned mine subtype of class 53 (the other subtypes are ordinary owned mines). */
+/** First abandoned-mine subtype of class 53; the subtypes below it are ordinary owned mines. */
 const MINE_ABANDONED_SUBTYPE = 7
 /** HotA reuses these border-gate subtypes: a quest gate and a grave. */
 const BORDER_GATE_QUEST = 1000
@@ -45,7 +45,7 @@ function readHotaBody(c: H3mContext, classId: number, subclassId: number): Objec
     case C.SHIPWRECK:
       return readCreatureBank(c)
     case C.MINE:
-      return subclassId === MINE_ABANDONED_SUBTYPE ? readAbandonedMine(c) : undefined
+      return subclassId >= MINE_ABANDONED_SUBTYPE ? readAbandonedMine(c) : undefined
     case C.ABANDONED_MINE:
       return readAbandonedMine(c)
     case C.BORDER_GATE:

@@ -223,3 +223,10 @@ Research questions:
   and are uploaded every object tick, +5–9 % main-thread time per frame under 4× CPU throttling; the
   budget idle-cadence limit was relaxed by one frame instead. When optimising performance, slim the vertex
   format (per-quad data once per quad) or upload only changed quads, then consider removing the slack.
+- Qt WebEngine 6.11.2 hangs the renderer on legacy `TextDecoder` labels (0.1.6 works around it with
+  own tables; AGENTS.md "Platform Adapter Notes"). Upstream: QTBUG-149435 / QTBUG-149946 /
+  QTBUG-151127, fixed by qtwebengine-chromium change 768932 (2026-09-10, in 6.11.3 and 6.12). Fedora 44
+  still ships `qt6-qtwebengine-6.11.2-2` without it (checked 2026-10-27; rawhide is on 6.140.0); not
+  reported to Fedora (owner, 2026-10-27). When Fedora 44 updates the package: open
+  `new TextDecoder('windows-1251')` in a Plasma wallpaper page (CDP, as in AGENTS.md) and check it
+  returns. If it still hangs, open a QTBUG with that one-line reproduction.
