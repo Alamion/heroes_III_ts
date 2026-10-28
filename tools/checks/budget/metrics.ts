@@ -10,6 +10,7 @@ interface H3Page {
       status(): { state: string; diagnostics: { message: string }[] }
       setMapping(level: number, tile: { x: number; y: number }, pixel: { x: number; y: number }): void
       renderNow(anim: { step: number }): boolean
+      placeView(level: { random: number }, placement: { mode: 'random'; seed: number }): unknown
     }
     stats(): { framesPresented: number; scheduledFrames: number; pendingCallbacks: number; surface: { width: number; height: number }; gpuBytes: number; drawCalls: number; vertices: number; vertexCapacity: number; lastFrameCpuMs: number; animatedRowsInView: number; animatedObjectsInView: number; objectQuads: number; objectPages: number }
   }
@@ -70,6 +71,12 @@ export async function measureMap(opts: MetricsOptions, name: string, archive: st
   const cold = await newPage(opts)
   try {
     const coldStartMs = await loadFiles(cold.page, archive, map, dataArchive, hotaArchive)
+    // The harness places no random view, so this first draw also builds the map's coverage grid.
+    const placeMs = await cold.page.evaluate(() => {
+      const t0 = performance.now()
+      ;(globalThis as unknown as H3Page).__h3.engine.placeView({ random: 1 }, { mode: 'random', seed: 1 })
+      return performance.now() - t0
+    })
     // Warm: reload in the same context; decoded data comes from the cache.
     await cold.page.close()
     const warm = await newPage(opts, cold.context)
@@ -106,6 +113,7 @@ export async function measureMap(opts: MetricsOptions, name: string, archive: st
       idleWindowMs: Math.round(w1 - w0),
       animatedInView: s1.animatedRowsInView > 0 || s1.animatedObjectsInView > 0,
       objectAtlasBytes: s1.objectPages * 2048 * 2048,
+      placeMs: Math.round(placeMs * 100) / 100,
     }
   } finally {
     await cold.context.close()

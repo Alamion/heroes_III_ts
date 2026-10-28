@@ -18,6 +18,7 @@ export const INSPECT_COMMANDS: Record<string, CommandSpec> = {
   'map object': { help: 'one object --index N', load: async () => (await import('./map.ts')).mapObject },
   'map draw-list': { help: 'objects drawn in a region, in draw order: MAP --level Z --region x0,y0,x1,y1 (--time MS | --tick N) [--seed S]', load: async () => (await import('./objects.ts')).mapDrawList },
   'map random': { help: 'resolved random objects: MAP [--seed S] [--level Z]', load: async () => (await import('./objects.ts')).mapRandom },
+  'map place': { help: 'one random-place draw with every candidate and its coverage (spec 009): MAP [--seed S] [--level-seed L] [--level random|surface|underground] [--viewport 1920x1080] [--scale 1] [--border 8]', load: async () => (await import('./places.ts')).mapPlace },
   'map floating': { help: 'floating tiles [--level Z] [--region] [--format list|json]', load: async () => (await import('./floating.ts')).mapFloating },
   render: { help: 'render a map region headlessly: MAP --level Z --region x0,y0,x1,y1 (--time MS | --palette-step N) [--tick N] [--seed S] [--no-objects] [--draw-list] --out PATH [--archive FILE] [--rebuild]', booleanFlags: ['rebuild', 'no-objects', 'draw-list'], load: async () => (await import('./render.ts')).renderCommand },
   'map summary': { help: 'what the wallpaper reads for the folder filters: version, size, levels, title (spec 007)', load: async () => (await import('./catalogue.ts')).mapSummary },

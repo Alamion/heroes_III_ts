@@ -10,6 +10,8 @@ export const LIMITS = {
   warmStartMs: 2_000,
   memoryBytes: 300 * 1024 * 1024,
   objectAtlasBytes: 64 * 1024 * 1024,
+  /** First random place on a shown map, including the lazy coverage grid (spec 009 SC-003). */
+  placeMs: 20,
 } as const
 
 /**
@@ -53,13 +55,15 @@ export interface MapMeasurement {
   /** Palette-animated tiles or animated objects were in view. */
   animatedInView: boolean
   objectAtlasBytes?: number
+  /** First random-place draw after the map is shown (spec 009). */
+  placeMs?: number
 }
 
 export function entry(id: string, measured: number, limit: number, unit: string, map?: string, note?: string): BudgetEntry {
   return { id, measured, limit, unit, status: measured <= limit ? 'pass' : 'fail', ...(map !== undefined ? { map } : {}), ...(note !== undefined ? { note } : {}) }
 }
 
-export function evaluateMap(m: MapMeasurement, limits: { coldStartMs: number; warmStartMs: number; memoryBytes: number; objectAtlasBytes: number } = LIMITS): BudgetEntry[] {
+export function evaluateMap(m: MapMeasurement, limits: { coldStartMs: number; warmStartMs: number; memoryBytes: number; objectAtlasBytes: number; placeMs: number } = LIMITS): BudgetEntry[] {
   const maxSurface = m.display.width * m.display.dpr * m.display.height * m.display.dpr
   // Visible changes happen at palette steps and object ticks (research.md §9): one frame per change,
   // plus a frame due before the window that a late animation frame presents inside it.
@@ -73,6 +77,7 @@ export function evaluateMap(m: MapMeasurement, limits: { coldStartMs: number; wa
     entry('hidden-timers', m.hiddenPending, 0, 'callbacks', m.map),
     entry('idle-cadence', m.idleFrames, idleLimit, 'frames', m.map, `${m.idleWindowMs} ms idle, ${m.animatedInView ? 'animated content in view' : 'static view'}`),
     ...(m.objectAtlasBytes !== undefined ? [entry('object-atlas-bytes', m.objectAtlasBytes, limits.objectAtlasBytes, 'bytes', m.map)] : []),
+    ...(m.placeMs !== undefined ? [entry('place', m.placeMs, limits.placeMs, 'ms', m.map, 'first random place, coverage grid included')] : []),
   ]
 }
 

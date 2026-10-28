@@ -35,6 +35,12 @@ describe('budget evaluation', () => {
     expect(evaluateMap({ ...good, animatedInView: false, idleFrames: 2 }).find((b) => b.id === 'idle-cadence')?.status).toBe('fail')
   })
 
+  it('limits the first random place (spec 009 SC-003) when it was measured', () => {
+    expect(evaluateMap(good).some((b) => b.id === 'place')).toBe(false)
+    expect(evaluateMap({ ...good, placeMs: 4 }).find((b) => b.id === 'place')?.status).toBe('pass')
+    expect(evaluateMap({ ...good, placeMs: LIMITS.placeMs + 1 }).find((b) => b.id === 'place')?.status).toBe('fail')
+  })
+
   it('allows one late frame beyond the animation changes of an idle window', () => {
     const cadence = (idleFrames: number) => evaluateMap({ ...good, idleWindowMs: 5023, idleFrames }).find((b) => b.id === 'idle-cadence')
     expect(cadence(29)?.limit).toBe(29)

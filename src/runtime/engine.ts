@@ -12,8 +12,10 @@ import type { DrawListEntry } from '../core/render/object-plan.ts'
 import { placeView } from '../core/render/view-placement.ts'
 import type { LevelChoice, ViewPlacement } from '../core/render/view-placement.ts'
 import { ObjectIndex } from '../core/state/object-index.ts'
+import { coverageGrid } from '../core/state/coverage.ts'
+import type { CoverageGrid } from '../core/state/coverage.ts'
 import { applyEvent } from '../core/sim/events.ts'
-import type { WorldState } from '../core/state/world.ts'
+import type { ObjectId, WorldObject, WorldState } from '../core/state/world.ts'
 import type { Clock } from '../core/util/clock.ts'
 import { isSerializedFormatError } from '../core/util/errors.ts'
 import type { SerializedFormatError } from '../core/util/errors.ts'
@@ -162,6 +164,22 @@ function browserSchedulerHost(): SchedulerHost {
 
 function defaultClock(): Clock {
   return { now: () => performance.now() }
+}
+
+
+/**
+ * Coverage grids of random places (spec 009), built on the first random draw of a map. Keyed by the
+ * objects map, which `applyEvent` keeps while it replaces the world on every time step.
+ */
+const coverageGrids = new WeakMap<ReadonlyMap<ObjectId, WorldObject>, CoverageGrid>()
+
+function coverageFor(world: WorldState): CoverageGrid {
+  let grid = coverageGrids.get(world.objects)
+  if (grid === undefined) {
+    grid = coverageGrid(world)
+    coverageGrids.set(world.objects, grid)
+  }
+  return grid
 }
 
 export function createEngine(options: EngineOptions): Engine {
@@ -575,7 +593,12 @@ export function createEngine(options: EngineOptions): Engine {
     },
     placeView(level, placement) {
       if (world === undefined) return undefined
-      const r = placeView({ mapSize: world.size, levels: world.levels, level, placement, overscan: borderTiles * TILE_SIZE, width: camera.width, height: camera.height, scale: dpr * userScale })
+      const coverage = placement.mode === 'random' ? { coverage: coverageFor(world) } : {}
+      const r = placeView({ mapSize: world.size, levels: world.levels, level, placement, overscan: borderTiles * TILE_SIZE, width: camera.width, height: camera.height, scale: dpr * userScale, ...coverage })
+      if (r.choice !== undefined && !r.choice.reached) {
+        const best = r.choice.candidates[r.choice.chosen]?.coverage ?? 0
+        log.debug('PLACE_SPARSE: no random place reached the coverage threshold', { map: world.map.name, best, candidates: r.choice.candidates.length })
+      }
       camera = r.camera
       clampAndInvalidate()
       return { level: camera.level, fx: r.fx, fy: r.fy }

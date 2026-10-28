@@ -251,7 +251,8 @@ passes, and the size check reports each package's runtime size.
   (FR-003b).
 - **FR-003a**: The initial view position MUST be chosen by a mode: **random** (default), **map centre**,
   or **coordinates**. Random picks a new position on the configured level at every start and every map
-  change, from a seeded generator whose seed checks can fix. Coordinates are set with two sliders
+  change, from a seeded generator whose seed checks can fix. A random position avoids empty views (the first of several
+  candidates whose objects cover enough of the view; [spec 009](../009-view-quality/spec.md)). Coordinates are set with two sliders
   (horizontal and vertical) that express the position relative to the map size (0–100 %), so the same
   slider range fits every map size; the result is clamped so the view stays within the map border.
   Slider changes apply live (FR-003) and do not re-roll a random position; scale and viewport changes place the

@@ -124,4 +124,22 @@ describe('yarn h3 map summary | catalogue (spec 007)', () => {
     }
     expect((await h3(['map', 'catalogue', folder, '--size-min', 'huge'])).code).toBe(2)
   })
+
+  it('explains a random place draw (spec 009)', async () => {
+    const r = await h3(['map', 'place', mapPath, '--seed', '5', '--viewport', '640x480'])
+    expect(r.code).toBe(0)
+    const json = r.json as { size: number; threshold: number; chosen: number; reached: boolean; view: { cols: number }; candidates: { level: number; coverage: number; region: string }[] }
+    expect(json.threshold).toBe(0.15)
+    expect(json.candidates.length).toBeGreaterThan(0)
+    expect(json.chosen).toBeLessThan(json.candidates.length)
+    expect(json.reached).toBe((json.candidates[json.chosen]?.coverage ?? 0) >= json.threshold)
+    for (const c of json.candidates) {
+      const [x0, y0, x1, y1] = c.region.split(',').map(Number) as [number, number, number, number]
+      expect(Math.min(x0, y0)).toBeGreaterThanOrEqual(0)
+      expect(Math.max(x1, y1)).toBeLessThan(json.size)
+    }
+    expect((await h3(['map', 'place', mapPath])).json).toEqual((await h3(['map', 'place', mapPath])).json)
+    expect((await h3(['map', 'place', mapPath, '--viewport', 'wide'])).code).toBe(2)
+    expect((await h3(['map', 'place', mapPath, '--level', 'sky'])).code).toBe(2)
+  })
 })
