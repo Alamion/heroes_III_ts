@@ -7,11 +7,20 @@ text becomes the Steam Workshop and KDE Store change notes (see [docs/releasing.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-28
+
 ### Changed
 
 - A random place no longer shows an empty view such as solid black underground rock: the wallpaper
   looks at a few places and picks one with something on it, trying the other level too when the level
   is random. Most random places are the same as before
+
+### Fixed
+
+- Horn of the Abyss: water garrisons on maps made before HotA 1.8 stand where the game shows them
+  (they were drawn a tile off)
+- Horn of the Abyss maps of newer editors with quest timeouts, named seer huts or campaign scripts
+  open correctly
 
 ## [0.1.6] - 2026-10-27
 
