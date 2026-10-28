@@ -7,6 +7,12 @@ text becomes the Steam Workshop and KDE Store change notes (see [docs/releasing.
 
 ## [Unreleased]
 
+### Changed
+
+- A random place no longer shows an empty view such as solid black underground rock: the wallpaper
+  looks at a few places and picks one with something on it, trying the other level too when the level
+  is random. Most random places are the same as before
+
 ## [0.1.6] - 2026-10-27
 
 ### Fixed

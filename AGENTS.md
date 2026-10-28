@@ -21,6 +21,13 @@ repository links and the author live in `src/adapters/shared/project.ts`, the on
 check allows. The KDE Store offers an update only when the product's Version field changes. Feedback
 goes to GitHub Issues only (issue forms in `.github/ISSUE_TEMPLATE/`).
 
+Busy random places ([specs/009-view-quality/](specs/009-view-quality/)): a random place is the first
+of up to 10 candidates per level (with level "random" on a two-level map, the drawn level first, then
+the other) whose view objects cover to at least `BUSY_COVERAGE` 0.15, else the most covered; candidate 0
+is the uniform draw. Coverage is the share of view tiles that object templates mark blocked or visitable
+(`src/core/state/coverage.ts`, from the map alone, so the view never jumps when sprites arrive). Over the
+owner's 446 maps at 1920×1080, draws below 0.15 went from 14.7 % to 0.2 % (`yarn verify places`).
+
 First user feedback ([specs/008-browser-feedback/](specs/008-browser-feedback/)): a HotA map shown
 without HotA.lod raises a sticky `HOTA_ARCHIVE_NEEDED` on every host (`snapshot.hotaNeeded`; the browser
 panel repeats it at the top and at the HotA slot); the browser panel has a picker, the file name and a
@@ -229,6 +236,7 @@ yarn h3 map info|tiles|tile|objects|object|parse-all MAP [--level Z --region x0,
 yarn h3 map floating MAP [--level 0] [--region ...] [--format list|json]   # for yarn ref selfcheck --floating-tiles
 yarn h3 map draw-list MAP --level Z --region x0,y0,x1,y1 (--tick N | --time MS) [--seed S]
 yarn h3 map random MAP [--seed S] [--level Z]
+yarn h3 map place MAP [--seed S] [--level random|surface|underground] [--viewport 1920x1080] [--scale 1]   # one random-place draw: candidates, coverage, region (spec 009)
 yarn h3 map summary MAP                                   # what the folder filters read (spec 007)
 yarn h3 map catalogue DIR|ZIP [--size-min s --size-max g --underground any|two|one --hota HotA.lod]
 yarn h3 render MAP --level Z --region x0,y0,x1,y1 (--palette-step N | --time MS) [--tick N] [--seed S] [--no-objects] [--draw-list] [--scale F] [--hota HotA.lod] --out F.png
@@ -245,6 +253,7 @@ reports in git-ignored `check-reports/`):
 ```bash
 yarn verify layers
 yarn verify maps [--dir PATH]... [--all]   # every kind of map opens: one per coverage class
+yarn verify places [--seeds 50] [--viewport 1920x1080] [--only MAP]   # random places avoid empty views on every local map (spec 009)
 yarn verify determinism [--runs 10] [--rebuild]
 yarn verify fidelity --map test_map.h3m --all-regions [--kind still|clip] [--capture ID] [--exclude-objects] [--seed S]
 yarn verify fidelity --map M --level Z --region x0,y0,x1,y1

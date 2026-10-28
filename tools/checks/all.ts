@@ -1,4 +1,4 @@
-// `yarn verify all`: layers, store texts (spec 006), map coverage (spec 005), determinism, packages and host simulations
+// `yarn verify all`: layers, store texts (spec 006), map coverage (spec 005), random places (spec 009), determinism, packages and host simulations
 // (spec 004), budget, and fidelity for every map with game captures.
 
 import { loadConfig } from '../reference-env/config.ts'
@@ -12,6 +12,7 @@ import { layersCommand } from './layers.ts'
 import { storeTextsCommand } from './store-texts.ts'
 import { mapsCommand } from './maps/index.ts'
 import { packagesCommand } from './packages/index.ts'
+import { placesCommand } from './places.ts'
 
 function capturedMaps(): string[] {
   let dir: string
@@ -37,6 +38,8 @@ export async function allCommand(): Promise<CommandResult> {
   // Every kind of map the user owns opens (spec 005 FR-020).
   const maps = await mapsCommand(args({}, []))
   results.maps = outcome(maps)
+  // Random places avoid empty views (spec 009).
+  results.places = outcome(await placesCommand(args({}, [])))
   const determinism = await determinismCommand(args({ runs: '3' }, ['rebuild']))
   results.determinism = outcome(determinism)
   // Builds every package once; the checks after it reuse them.

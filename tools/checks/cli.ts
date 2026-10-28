@@ -42,6 +42,11 @@ export const VERIFY_COMMANDS: Record<string, CommandSpec> = {
     booleanFlags: ['all', 'require'],
     load: async () => (await import('./maps/index.ts')).mapsCommand,
   },
+  places: {
+    help: 'random places on every local map avoid empty views (spec 009) [--seeds 50] [--viewport 1920x1080] [--only MAP] [--require]',
+    booleanFlags: ['require'],
+    load: async () => (await import('./places.ts')).placesCommand,
+  },
   layers: {
     help: 'layer import order and platform globals',
     load: async () => (await import('./layers.ts')).layersCommand,
