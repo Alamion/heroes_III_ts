@@ -40,6 +40,8 @@ export interface RenderRequest {
   seed?: number
   tick?: number
   objects?: boolean
+  /** Exercise regional wallpaper reads; default keeps the eager oracle/override indices. */
+  objectRegions?: boolean
   objectFrames?: [number, number][]
   drawList?: boolean
   /** Device pixels per world pixel (default 1). */
@@ -109,6 +111,7 @@ export class HeadlessRenderer {
         ...(req.seed !== undefined ? { seed: req.seed } : {}),
         ...(req.tick !== undefined ? { tick: req.tick } : {}),
         ...(req.objects !== undefined ? { objects: req.objects } : {}),
+        ...(req.objectRegions !== undefined ? { objectRegions: req.objectRegions } : {}),
         ...(req.objectFrames !== undefined ? { objectFrames: req.objectFrames } : {}),
         ...(req.drawList === true ? { drawList: true } : {}),
         ...(req.scale !== undefined ? { scale: req.scale } : {}),

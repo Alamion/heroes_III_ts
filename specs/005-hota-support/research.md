@@ -20,6 +20,39 @@ copied.
 
 ## Measurements
 
+### Region-scoped object atlas: discovery checkpoint (2026-11-27)
+
+The owner authorized this follow-up after KDE issue #1. This section records the
+pre-implementation discovery snapshot; the opt-in prototype and current checkpoint
+are now tracked in [spec 010](../010-region-atlas/research.md).
+
+- Current owner: `src/runtime/decode.ts::decodeObjects` builds normalized render objects,
+  reads every distinct DEF on both levels, packs all frames, then caches the entire
+  result by archive/data/map/seed/page-size identity.
+- Reuse candidates: `src/core/state/object-index.ts::ObjectIndex.query` already selects
+  possible sprite intersections by level and tile range; `buildObjectAtlas` in
+  `src/core/render/object-atlas.ts` already accepts a subset of DEFs and preserves
+  deterministic packing. Reuse these owners rather than another spatial index/packer.
+- Coordination owners: `src/runtime/engine.ts` (`refreshObjects`, `prepareMap`,
+  `showPreparedMap`, camera/resize/level setters), `src/runtime/protocol.ts` and
+  `src/runtime/worker.ts`. Existing two-world preparation and stale-generation rejection
+  must survive; atlas layouts and object indices must swap together.
+- Real gap: region identity and asynchronous camera-dependent preparation are absent;
+  current `buildObjects` requests contain map identity and page size, but no view.
+  Filtering the packer alone would leave stale/missing sprites after movement.
+- First complete review scenario: load a dense view of `test_map_hota.h3m`, move to a
+  distant view and switch level, with correct objects/frames throughout; read back GPU
+  bytes and resident sprite count, compare both views with the existing whole-map
+  rendering/reference corpus. Extending the map with unseen sprites must not increase
+  the current view's atlas residency. Keep the old frame until the new region is ready.
+- Before implementation: specify region/prefetch margins, full-sprite intersection
+  handling (including HotA sprite extents), bounded CPU/IndexedDB caching, pending
+  replacement memory budgets and context-loss recovery. Verify on the minimum 2048
+  texture profile, not only a 4096-capable GPU.
+- Follow-up: focused Spec Kit feature and runtime/render guidance created after KDE
+  native startup acceptance. Continue from spec 010, not this discovery snapshot;
+  production default rollout is not complete.
+
 ### M1 — HotA 1.8.1 archive (`HotA.lod`, 111 378 616 bytes)
 
 - Header is the vanilla 92-byte header: magic `LOD\0`, version 200, 5232 entries. The u32 at

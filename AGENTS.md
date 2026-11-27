@@ -291,6 +291,10 @@ Every `yarn ref` command prints one JSON document on stdout; logs go to stderr.
 
 ## Workflow
 
+- KDE shell maintenance: [.claude/skills/kde-wallpaper/SKILL.md](.claude/skills/kde-wallpaper/SKILL.md).
+- Map rendering and atlas work: [.claude/skills/map-rendering/SKILL.md](.claude/skills/map-rendering/SKILL.md).
+- Release/store pages: [.claude/skills/release-publishing/SKILL.md](.claude/skills/release-publishing/SKILL.md).
+
 - Spec Kit: `/speckit-specify` → `/speckit-clarify` (optional) → `/speckit-plan` →
   `/speckit-tasks` → `/speckit-implement`. Feature specs live in `specs/`.
 - Every plan includes a Constitution Check. Every visible feature ships with a headless check
@@ -486,6 +490,10 @@ Facts measured on HotA 1.8.1 (2026-09-23, details in [005 research](specs/005-ho
 - KDE: one persistent `WebEngineProfile` singleton for all screens; lock and window-coverage detection are
   isolated behind `Loader`s, and so is the web view itself (`WebView.qml`): `main.qml` must never import
   `QtWebEngine`, so a system without it shows a message naming the package instead of failing to load. The lock screen gets a plain background (no shared GL context there).
+- The lock-screen host is identified by `Qt.application.name === "kscreenlocker_greet"`, not
+  `Plasmoid.activity`: a desktop wallpaper may have no applet activity (issue #1). The predicate and
+  all three Loader gates have regression coverage; native desktop startup was accepted on the
+  local Plasma session (004 research "Issue #1 follow-up"; CachyOS reporter check still open).
 - Actions (`ACTIONS` in `settings.ts`, e.g. "new random place now") hold no value: Wallpaper Engine gets a
   checkbox whose every toggle acts, Lively a button, KDE a counter the settings page increments, the browser a
   panel button (key `R`). They are handled by the bridges, never stored in `WallpaperSettings`.

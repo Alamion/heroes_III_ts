@@ -33,6 +33,12 @@ describe('markup subset (spec 006 research R3)', () => {
     expect(renderInline('Go to [GitHub Issues](https://github.com/x/issues), use `code`.', 'text')).toBe('Go to GitHub Issues (https://github.com/x/issues), use code.')
   })
 
+  it('keeps KDE inline code in the sentence rather than producing block code', () => {
+    expect(renderInline('Fedora — `qt6-qtwebengine`; every `N` minutes.', 'kde'))
+      .toBe('Fedora — [b]qt6-qtwebengine[/b]; every [b]N[/b] minutes.')
+    expect(renderInline('use `code`', 'steam')).toBe('use [code]code[/code]')
+  })
+
   it('rejects everything outside the subset with the line', () => {
     const bad: [string, RegExp][] = [
       ['| a | b |', /tables/],

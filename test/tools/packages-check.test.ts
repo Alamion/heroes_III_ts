@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
 import { checkClassicFlavour, checkFeedback, checkKdeWebEngineFallback, checkManifests, checkNoAffiliation, checkNoExternalUrls, checkNoGameContent, checkNoInlineScripts, checkRequired, checkRuntimeSize, MAX_FILE_BYTES } from '../../tools/checks/packages/index.ts'
 import type { PackageFiles } from '../../tools/package/build.ts'
@@ -86,5 +87,22 @@ describe('package checks (spec 004 FR-020)', () => {
     broken.delete('contents/ui/WebView.qml')
     expect(checkKdeWebEngineFallback('kde', broken).details).toContain('contents/ui/WebView.qml is missing')
     expect(checkKdeWebEngineFallback('web', files).outcome).toBe('skip')
+  })
+
+  it('excludes the KDE greeter, not desktop wallpapers without an applet activity (issue #1)', async () => {
+    const { kdePackage } = await import('../../tools/package/manifests/kde.ts')
+    const files = kdePackage(process.cwd(), { listener: undefined, main: '' })
+    const main = new TextDecoder().decode(files.get('contents/ui/main.qml'))
+    const expression = /readonly property bool onLockScreen:\s*([^\n]+)/.exec(main)?.[1]
+    expect(expression).toBeDefined()
+    // Evaluate the actual packaged predicate; missing activity is normal for WallpaperItem.
+    for (const activity of [undefined, null, 'desktop-activity']) {
+      for (const name of ['plasmashell', 'kscreenlocker_greet']) {
+        expect(runInNewContext(expression!, { Qt: { application: { name } }, Plasmoid: { activity } }))
+          .toBe(name === 'kscreenlocker_greet')
+      }
+    }
+    // The view and both watchers must share the same lock-screen exclusion.
+    expect(main.match(/active:\s*!root\.onLockScreen\b/g)).toHaveLength(3)
   })
 })

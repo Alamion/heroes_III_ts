@@ -110,6 +110,9 @@ export function createBrowserController(opts: BrowserControllerOptions): Browser
         canvas: opts.canvas,
         preserveDrawingBuffer: test,
         cache: testOptions.noCache !== true,
+        // Current wallpaper hosts are non-interactive; web dragging keeps the eager route.
+        // Future host interaction can choose a residency policy here without changing decoding.
+        objectRegions: opts.host !== 'web',
         ...(clock !== undefined ? { clock } : {}),
         ...(opts.workerFactory !== undefined ? { workerFactory: opts.workerFactory } : {}),
       })

@@ -15,6 +15,12 @@ export interface TileRangeLike {
   readonly y1: number
 }
 
+/** A single level and inclusive tile range whose intersecting sprites are needed. */
+export interface ObjectRegion {
+  readonly level: number
+  readonly range: TileRangeLike
+}
+
 export class ObjectIndex {
   readonly objects: readonly RenderObject[]
   private readonly buckets: Map<number, number[]>[]

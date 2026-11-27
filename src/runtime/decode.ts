@@ -27,6 +27,8 @@ import type { DefSprite } from '../core/formats/def/def.ts'
 import { buildRenderObjects, movedSpriteSizes } from '../core/state/render-objects.ts'
 import type { RenderObject } from '../core/state/render-objects.ts'
 import { createRng } from '../core/util/rng.ts'
+import { ObjectIndex } from '../core/state/object-index.ts'
+import type { ObjectRegion } from '../core/state/object-index.ts'
 
 /**
  * One user-supplied archive. Several of them form an ordered set (spec 005 FR-004): the HotA
@@ -144,6 +146,15 @@ export interface ObjectsResult {
   warnings: WorkerDiagnostic[]
 }
 
+/** Stable regional identity; off-map border tiles are valid, malformed ranges are not. */
+export function objectRegionKey(region: ObjectRegion): string {
+  const { level, range: { x0, y0, x1, y1 } } = region
+  if (![level, x0, y0, x1, y1].every(Number.isSafeInteger) || level < 0 || x1 < x0 || y1 < y0) {
+    throw new RangeError('invalid object region')
+  }
+  return `${level}:${x0},${y0},${x1},${y1}`
+}
+
 export async function decodeObjects(
   sprites: { files: readonly ArchiveFile[]; identity: string },
   data: { files: readonly ArchiveFile[]; identity: string },
@@ -151,12 +162,18 @@ export async function decodeObjects(
   seed: number,
   cache: DecodedCache,
   pageSize = OBJECT_PAGE_SIZE,
+  region?: ObjectRegion,
 ): Promise<ObjectsResult> {
   // The page size is part of the identity: a cached atlas was packed for one page size.
-  const identity = `${sprites.identity}:${data.identity}:${map.identity}:${seed}:${pageSize}`
-  const key = cacheKey('objects', identity)
-  const cached = await cache.get<Omit<ObjectsResult, 'fromCache' | 'identity'>>('objects', key)
-  if (cached !== undefined) {
+  const regionKey = region === undefined ? undefined : objectRegionKey(region)
+  if (region !== undefined && region.level >= map.world.levels) throw new RangeError('object region level is outside the map')
+  const base = `${sprites.identity}:${data.identity}:${map.identity}`
+  const identity = `${base}:${seed}:${pageSize}${regionKey === undefined ? '' : `:region:${regionKey}`}`
+  // One regional slot is overwritten across navigation/seeds. The exact identity in its payload
+  // prevents reusing a different view; the existing whole-map cache format stays compatible.
+  const key = cacheKey('objects', region === undefined ? identity : `${base}:${pageSize}:region-slot-v1`)
+  const cached = await cache.get<Omit<ObjectsResult, 'fromCache' | 'identity'> & { identity?: string }>('objects', key)
+  if (cached !== undefined && (region === undefined || cached.identity === identity)) {
     await cache.noteMapUse(map.identity, 'objects', key)
     return { ...cached, identity, fromCache: true }
   }
@@ -166,8 +183,12 @@ export async function decodeObjects(
   const artifactClasses = parseArtTraits(await dataLod.read('artraits.txt'))
   const pal = parseRiffPal(await dataLod.read('game.pal'), 'game.pal')
   const spriteLod = await openSet(sprites.files)
-  const spriteSizes = await movedSpriteSizes((name) => spriteLod.readOptional(name))
-  const { objects } = buildRenderObjects({ ...map.world, seed }, { templates, artifactClasses, spriteSizes }, createRng(seed))
+  const spriteSizes = await movedSpriteSizes((name) => spriteLod.readOptional(name), map.world, region)
+  const resolved = buildRenderObjects({ ...map.world, seed }, { templates, artifactClasses, spriteSizes }, createRng(seed)).objects
+  // Resolve the full map first: random outcomes and per-object animation phases must not change
+  // when a different region is requested. Pixel reads/packing below only need these candidates.
+  const objects = region === undefined ? resolved : new ObjectIndex(resolved, map.world.size, map.world.levels)
+    .query(region.level, region.range).map((i) => resolved[i] as RenderObject)
   const defs: DefSprite[] = []
   const missing: string[] = []
   const unreadable: string[] = []
@@ -225,7 +246,7 @@ export async function decodeObjects(
     return { identity, objects: [], atlas: buildObjectAtlas([], pageSize), flagColors: new Uint8Array(27), fromCache: false, warnings: [...warnings, { level: 'error', code: 'OBJECT_ATLAS_OVERFLOW', message: err.message, file: map.world.map.name }] }
   }
   const result = { objects, atlas, flagColors: flagColors({ 'game.pal': pal }, toDisplayColor), warnings }
-  await cache.put('objects', key, result)
+  await cache.put('objects', key, region === undefined ? result : { ...result, identity })
   await cache.noteMapUse(map.identity, 'objects', key)
   return { ...result, identity, fromCache: false }
 }

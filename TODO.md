@@ -4,6 +4,22 @@ Each item runs in its own chat with its own `/speckit-specify`. Read
 [.specify/memory/constitution.md](.specify/memory/constitution.md) and [AGENTS.md](AGENTS.md)
 first.
 
+## Active priorities (owner, 2026-11-27)
+
+1. **KDE issue [#1](https://github.com/Alamion/heroes_III_ts/issues/1)** — application-name
+   lock-screen guard implemented; automated checks and local native Plasma startup pass.
+   Reporter-specific CachyOS check and release remain open.
+   See [004 research](specs/004-platform-adapters/research.md#issue-1-follow-up-2026-11-27-local-native-startup-accepted).
+2. **Region-scoped object atlas** — implemented for WE/Lively/KDE;
+   real HotA views match the old renderer pixel-for-pixel with smaller GPU residency.
+   Folder preparation, initial-view binding and recovery pass; interactive web stays eager.
+   Final tests, corpus, budgets, real-file host simulations and native KDE display pass.
+   See [010 checkpoint](specs/010-region-atlas/research.md).
+3. **Store automation re-research** — investigate current KDE Store and Steam upload paths,
+   GitHub Actions and safe local fallbacks; research complete in
+   [the report](reports/Автопубликация%20обоев%20из%20GitHub.md).
+   No store writes or automation implementation authorized.
+
 ## 1. Reference environment — done
 
 Implemented in [specs/001-reference-environment/](specs/001-reference-environment/) (`yarn ref …`,

@@ -14,7 +14,9 @@ import "strings.js" as Strings
 WallpaperItem {
     id: root
 
-    readonly property bool onLockScreen: Plasmoid.activity === undefined || Plasmoid.activity === null
+    // WallpaperItem is not an applet: Plasmoid.activity may be absent on the desktop too.
+    // The greeter explicitly sets this application name (KDE kscreenlocker/greeter/main.cpp).
+    readonly property bool onLockScreen: Qt.application.name === "kscreenlocker_greet"
     readonly property bool covered: windowWatcher.item !== null && windowWatcher.item.covered
     readonly property bool locked: lockWatcher.item !== null && lockWatcher.item.locked
     readonly property bool paused: covered || locked

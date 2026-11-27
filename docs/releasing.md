@@ -1,7 +1,11 @@
 # Releasing
 
-How a version of Heroes 3 Living Map is released, and how the two stores that cannot be updated
-automatically are kept in step. The design is in [spec 006](../specs/006-release-publishing/).
+How a version of Heroes 3 Living Map is released and kept in step across both stores. Store updates
+remain manual in this repository. The design is in [spec 006](../specs/006-release-publishing/).
+
+[Store automation research (checked 2026-11-27)](../reports/Автопубликация%20обоев%20из%20GitHub.md)
+records a working community upload to Pling through undocumented web endpoints. No unattended
+production publishing path was verified for either of our listings.
 
 What happens by itself: a tag `vX.Y.Z` on `testing` starts `.github/workflows/release.yml`. It checks
 the rules below, builds and verifies everything, creates (or fills) the GitHub Release with the four
@@ -138,7 +142,7 @@ The galleries are uploaded by hand, the same files in this order:
 
 | # | File (`docs/img/`) | Caption |
 | --- | --- | --- |
-| 1 | `web-version.jpg` | The browser version with its settings panel, on the Wasteland of a HotA map |
+| 1 | `web-version.jpg` | The browser version with its current file controls, on a HotA map (704 px wide to fit KDE's description) |
 | 2 | `animation.gif` | Animated water, a whirlpool and a hero's flag |
 | 3 | `snow-town.png` | A snow town with heroes, mines and a windmill |
 | 4 | `underground.png` | An underground cave of Shadow Valleys |

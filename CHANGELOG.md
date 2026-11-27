@@ -7,6 +7,18 @@ text becomes the Steam Workshop and KDE Store change notes (see [docs/releasing.
 
 ## [Unreleased]
 
+### Changed
+
+- Wallpaper Engine, Lively and KDE Plasma load object graphics only for the current view,
+  reducing graphics memory use while keeping all animation frames
+
+### Fixed
+
+- KDE Plasma: fixed a black desktop when the wallpaper mistook a missing applet activity for the
+  lock screen; the lock screen still uses a plain background without starting WebEngine
+- KDE Store description: package names stay within their sentences; the browser screenshot
+  fits the description width and shows the current file controls
+
 ## [0.2.0] - 2026-10-28
 
 ### Changed

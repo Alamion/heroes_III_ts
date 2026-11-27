@@ -24,3 +24,9 @@ release tag on raw.githubusercontent.com). Placeholders on their own line are fi
 
 Both languages together must stay within 8000 bytes of BBCode (Russian takes two bytes a letter);
 `yarn verify store-texts` prints the headroom.
+
+KDE's `[code]` creates a block, so the KDE profile renders inline code as bold;
+Steam keeps its code tags. Keep shared description images at a bounded width:
+the first screenshot is 704 px wide because KDE clips oversized images instead
+of shrinking them. Regenerate descriptions for the new release tag before pasting;
+old tags still serve their old screenshots.

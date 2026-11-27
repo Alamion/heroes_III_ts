@@ -1,4 +1,4 @@
-![The browser version with its settings panel, on the Wasteland of a Horn of the Abyss map](../img/web-version.jpg)
+![The browser version with its current file controls, on a Horn of the Abyss map](../img/web-version.jpg)
 
 {en}
 

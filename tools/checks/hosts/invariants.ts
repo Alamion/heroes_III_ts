@@ -124,7 +124,7 @@ interface Snapshot {
   engine: { scheduledFrames: number; pendingCallbacks: number; gpuBytes?: number; preparedMaps?: number; surface: { width: number; height: number }; camera: { level: number; offsetX: number; offsetY: number; scale: number; width: number; height: number }; visible: boolean; paused: boolean } | null
 }
 
-type Wallpaper = { __h3wallpaper: { controller: { state(): Snapshot; idle(): Promise<void> }; engine(): { renderNow(a: { step: number }): boolean; setPaused(p: boolean): void } | undefined; clock: { advance(ms: number): void } | undefined }; __cspViolations: string[] }
+type Wallpaper = { __h3wallpaper: { controller: { state(): Snapshot; idle(): Promise<void> }; engine(): { renderNow(a: { step: number }): boolean; whenViewReady(): Promise<boolean>; setPaused(p: boolean): void } | undefined; clock: { advance(ms: number): void } | undefined }; __cspViolations: string[] }
 
 const SEED = 20260917
 const CLOCK_START = 1_000_000
@@ -147,12 +147,12 @@ async function waitMessage(page: Page, code: string, timeoutMs: number): Promise
 
 /** Draws a fixed animation step with the host page's engine and reads it back (rows top first). */
 async function pageFrame(page: Page): Promise<{ width: number; height: number; rgba: Uint8Array; camera: NonNullable<Snapshot['engine']>['camera'] }> {
-  const r = await page.evaluate(() => {
+  const r = await page.evaluate(async () => {
     const w = (window as unknown as Wallpaper).__h3wallpaper
     const engine = w.engine()
     if (engine === undefined) throw new Error('no engine')
     engine.setPaused(true)
-    engine.renderNow({ step: 3 })
+    if (!(await engine.whenViewReady()) || !engine.renderNow({ step: 3 })) throw new Error('object view not ready')
     const canvas = document.getElementById('map') as HTMLCanvasElement
     const gl = canvas.getContext('webgl') as WebGLRenderingContext
     const px = new Uint8Array(canvas.width * canvas.height * 4)

@@ -4,14 +4,15 @@
 
 import { TILE_SIZE } from '../core/data/terrain.ts'
 import type { Atlas } from '../core/render/atlas.ts'
-import { centeredCamera, clampCamera } from '../core/render/camera.ts'
+import { centeredCamera, clampCamera, rangeContains, visibleRange } from '../core/render/camera.ts'
 import type { Camera } from '../core/render/camera.ts'
 import { TerrainRenderer } from '../core/render/webgl-renderer.ts'
 import type { FrameAnimation, ObjectLayer, RendererStats } from '../core/render/webgl-renderer.ts'
 import type { DrawListEntry } from '../core/render/object-plan.ts'
 import { placeView } from '../core/render/view-placement.ts'
-import type { LevelChoice, ViewPlacement } from '../core/render/view-placement.ts'
+import type { LevelChoice, PlacementResult, ViewPlacement } from '../core/render/view-placement.ts'
 import { ObjectIndex } from '../core/state/object-index.ts'
+import type { ObjectRegion } from '../core/state/object-index.ts'
 import { coverageGrid } from '../core/state/coverage.ts'
 import type { CoverageGrid } from '../core/state/coverage.ts'
 import { applyEvent } from '../core/sim/events.ts'
@@ -23,8 +24,8 @@ import { log } from '../core/util/log.ts'
 import type { Logger } from './logger.ts'
 import { installLogger } from './logger.ts'
 import { openCache } from './cache.ts'
-import { objectPageSize } from '../core/render/object-atlas.ts'
-import { checkDataArchive, decodeArchive, decodeMap, decodeObjects } from './decode.ts'
+import { objectAtlasGpuBytes, objectPageSize, OBJECT_PAGE_SIZE } from '../core/render/object-atlas.ts'
+import { checkDataArchive, decodeArchive, decodeMap, decodeObjects, objectRegionKey } from './decode.ts'
 import type { ArchiveFileMsg, WorkerDiagnostic, WorkerRequest, WorkerResponse } from './protocol.ts'
 import { FrameScheduler } from './scheduler.ts'
 import type { SchedulerHost } from './scheduler.ts'
@@ -45,6 +46,8 @@ export interface EngineOptions {
   seed?: number
   /** false: draw terrain only. */
   objects?: boolean
+  /** View-scoped object reads for non-interactive wallpapers; false/default keeps the eager route. */
+  objectRegions?: boolean
   /** Creates the decode worker. Default: module worker via import.meta.url (ESM builds only). */
   workerFactory?: () => Worker
 }
@@ -55,7 +58,7 @@ export type UserScale = 1 | 2 | 3
 export type Diagnostic = WorkerDiagnostic
 
 export type LoadResult =
-  | { ok: true; identity: string; fromCache: boolean; warnings: Diagnostic[] }
+  | { ok: true; identity: string; fromCache: boolean; warnings: Diagnostic[]; view?: { level: number; fx: number; fy: number } }
   | { ok: false; error: SerializedFormatError | Diagnostic }
 
 /** Error code of a load whose result was dropped because a newer load of the same slot started. */
@@ -81,6 +84,12 @@ export interface PreparedMap {
 
 export type PrepareResult = { ok: true; prepared: PreparedMap; fromCache: boolean; warnings: Diagnostic[] } | Extract<LoadResult, { ok: false }>
 
+/** The view of an off-screen map, chosen before its regional graphics are read. */
+export interface PreparedView {
+  level: LevelChoice
+  placement: ViewPlacement
+}
+
 export interface EngineStats extends RendererStats {
   /** Prepared maps not yet shown or discarded (spec 007; 0 or 1 in normal use). */
   preparedMaps: number
@@ -92,6 +101,12 @@ export interface EngineStats extends RendererStats {
   paused: boolean
   /** Time of the next visible change after the last frame (palette step or object tick), or null. */
   nextChangeMs: number | null
+  /** Developer regional-path readback; absent on the production whole-map route. */
+  requestedCamera?: Camera
+  objectRegion?: ObjectRegion
+  objectRegionPending?: boolean
+  objectSpriteCount?: number
+  objectAtlasBytes?: number
 }
 
 export interface Engine {
@@ -102,12 +117,15 @@ export interface Engine {
    * already loaded, so the order the host calls the loaders in does not matter.
    */
   loadHotaArchive(file: Blob, name?: string): Promise<LoadResult>
-  loadMap(file: Blob, name?: string): Promise<LoadResult>
+  /** Optional initial view avoids decoding unused centre graphics before wallpaper placement. */
+  loadMap(file: Blob, name?: string, view?: PreparedView): Promise<LoadResult>
   /**
    * Spec 007: parses a map and builds its object layer without touching what is shown; the current map
    * keeps rendering. A newer prepareMap or an archive change supersedes it (error code SUPERSEDED).
+   * Regional callers supply the intended view (default: surface centre). showPreparedMap refuses
+   * a changed view/viewport that the prepared region does not cover, so callers can prepare again.
    */
-  prepareMap(file: Blob, name?: string): Promise<PrepareResult>
+  prepareMap(file: Blob, name?: string, view?: PreparedView): Promise<PrepareResult>
   /**
    * Shows a prepared map in one step: terrain, objects and camera change before the next frame and the
    * previous map is released. Undefined when the handle is stale (superseded, archives changed, shown).
@@ -143,6 +161,8 @@ export interface Engine {
   setPaused(paused: boolean): void
   /** Draws one frame now at a given palette step (checks); returns false if not ready. */
   renderNow(anim: FrameAnimation): boolean
+  /** Waits for the latest requested object view, including work queued during the wait. */
+  whenViewReady(): Promise<boolean>
   onStatus(listener: (s: EngineStatus) => void): () => void
   status(): EngineStatus
   stats(): EngineStats
@@ -218,6 +238,12 @@ export function createEngine(options: EngineOptions): Engine {
   let objectsBuild: Promise<void> | undefined
   let dataMissingReported = false
   let camera: Camera = { level: 0, offsetX: 0, offsetY: 0, width: canvas.width, height: canvas.height, scale: 1 }
+  let displayedCamera = camera
+  let residentRegion: ObjectRegion | undefined
+  let residentObjectsKey: string | undefined
+  let residentSpriteCount = 0
+  let residentAtlasBytes = 0
+  let disposed = false
   let dpr = 1
   let userScale: UserScale = 1
   /** Load generation per slot: a result is applied only if no newer load of that slot started. */
@@ -225,7 +251,7 @@ export function createEngine(options: EngineOptions): Engine {
   /** Worlds by identity for decoding on the main thread (the worker keeps its own, spec 007). */
   const localWorlds = new Map<string, WorldState>()
   /** Maps prepared off-screen (spec 007), with what showPreparedMap needs. */
-  const preparedMaps = new Map<PreparedMap, { world: WorldState; objects: ObjectLayer | undefined; objectsKey: string | undefined; generation: number }>()
+  const preparedMaps = new Map<PreparedMap, { world: WorldState; objects: ObjectLayer | undefined; objectsKey: string | undefined; region?: ObjectRegion; sources: string; generation: number }>()
   let visible = true
   let paused = false
   let contextLost = false
@@ -257,7 +283,7 @@ export function createEngine(options: EngineOptions): Engine {
     draw: (timeMs) => {
       if (world === undefined || contextLost) return null
       world = applyEvent(world, { kind: 'setTime', timeMs })
-      renderer.render(camera, { timeMs: world.animationTimeMs })
+      renderer.render(options.objectRegions === true ? displayedCamera : camera, { timeMs: world.animationTimeMs })
       return renderer.nextChangeMs(world.animationTimeMs)
     },
   })
@@ -270,6 +296,7 @@ export function createEngine(options: EngineOptions): Engine {
 
   const clampAndInvalidate = (): void => {
     if (world !== undefined) camera = clampCamera(camera, world.size, borderTiles)
+    updateObjectRegion()
     scheduler.invalidate()
   }
 
@@ -287,7 +314,7 @@ export function createEngine(options: EngineOptions): Engine {
         if (req.kind === 'buildObjects') {
           const w = localWorlds.get(req.mapIdentity) ?? world
           if (w === undefined) throw new Error('no map loaded')
-          const r = await decodeObjects(req.sprites, req.data, { world: w, identity: req.mapIdentity }, req.seed, cache, req.pageSize)
+          const r = await decodeObjects(req.sprites, req.data, { world: w, identity: req.mapIdentity }, req.seed, cache, req.pageSize, req.region)
           return { id: 0, kind: 'objectsReady', ...r }
         }
         if (req.kind === 'dropMap') {
@@ -328,13 +355,21 @@ export function createEngine(options: EngineOptions): Engine {
   /** Identity of an object layer; undefined while either archive is missing. */
   const objectsKeyFor = (identity: string, pageSize: number): string | undefined =>
     spriteFile === undefined || dataFile === undefined ? undefined : `${spriteFile.identity}:${dataFile.identity}:${identity}:${seed}:${pageSize}`
+  const sourceVersion = (): string => `${generations.archive}:${generations.data}:${spriteFile?.identity ?? ''}|${dataFile?.identity ?? ''}|${hotaFile?.name ?? ''}`
+  const coversCamera = (region: ObjectRegion, target: Camera = camera): boolean =>
+    region.level === target.level && rangeContains(region.range, visibleRange(target, 1))
+  // Two plan tiles provide a small reusable margin; sprite reach is added by ObjectIndex.query.
+  const requestedRegion = (target: Camera = camera): ObjectRegion => ({ level: target.level, range: visibleRange(target, 2) })
+  const regionPending = (): boolean => options.objectRegions === true && options.objects !== false &&
+    world !== undefined && mapIdentity !== undefined && spriteFile !== undefined && dataFile !== undefined &&
+    (residentRegion === undefined || !coversCamera(residentRegion) || residentObjectsKey !== objectsKeyFor(mapIdentity, OBJECT_PAGE_SIZE))
   const dropWorld = (identity: string): void => {
     void run({ kind: 'dropMap', identity }).catch((err: unknown) => log.warn('could not drop a decoded map', String(err)))
   }
 
   /** Builds the object layer once sprite archive, data archive and map are loaded. */
   const refreshObjects = async (): Promise<void> => {
-    if (options.objects === false || world === undefined || spriteFile === undefined || mapIdentity === undefined) return
+    if (disposed || options.objects === false || world === undefined || spriteFile === undefined || mapIdentity === undefined) return
     if (dataFile !== undefined && dataMissingReported) {
       // The archive arrived after the warning; drop it so the report shows the current state.
       dataMissingReported = false
@@ -349,26 +384,64 @@ export function createEngine(options: EngineOptions): Engine {
       }
       return
     }
-    const pageSize = objectPageSize(renderer.maxTextureSize())
-    const key = objectsKeyFor(mapIdentity, pageSize) as string
+    const regional = options.objectRegions === true
+    const pageSize = regional ? OBJECT_PAGE_SIZE : objectPageSize(renderer.maxTextureSize())
+    const baseKey = objectsKeyFor(mapIdentity, pageSize) as string
+    const region = regional ? requestedRegion() : undefined
+    if (regional && !regionPending()) {
+      displayedCamera = camera
+      return
+    }
+    const key = `${baseKey}${region === undefined ? '' : `:region:${objectRegionKey(region)}`}`
     if (key === objectsKey) return
     objectsKey = key
-    renderer.setObjects(undefined)
-    const r = await run({ kind: 'buildObjects', sprites: spriteFile, data: dataFile, mapIdentity, seed, pageSize, useCache: options.cache !== false })
+    if (!regional) renderer.setObjects(undefined)
+    const r = await run({ kind: 'buildObjects', sprites: spriteFile, data: dataFile, mapIdentity, seed, pageSize, useCache: options.cache !== false, ...(region === undefined ? {} : { region }) })
     if (key !== objectsKey || world === undefined) return
+    // Another camera request can arrive while a worker is building this region. Keep the old
+    // complete scene; the queued refresh will build the latest requested view instead.
+    if (region !== undefined && (!coversCamera(region) || baseKey !== objectsKeyFor(mapIdentity as string, pageSize))) {
+      objectsKey = undefined
+      return
+    }
     if (r.kind === 'failed') {
+      objectsKey = undefined
       failure(r.error, dataFile.name)
       return
     }
     if (r.kind !== 'objectsReady') return
     r.warnings.forEach(diagnose)
+    if (regional && r.warnings.some((w) => w.level === 'error')) {
+      objectsKey = undefined
+      emit()
+      return
+    }
     renderer.setObjects({ index: new ObjectIndex(r.objects, world.size, world.levels), atlas: r.atlas, flagColors: r.flagColors })
+    if (region !== undefined) {
+      residentRegion = region
+      residentObjectsKey = baseKey
+      residentSpriteCount = r.atlas.layout.rowCount
+      residentAtlasBytes = objectAtlasGpuBytes(r.atlas.layout)
+      displayedCamera = camera
+    }
     emit()
     scheduler.invalidate()
   }
   const scheduleObjects = (): Promise<void> => {
     objectsBuild = (objectsBuild ?? Promise.resolve()).then(refreshObjects).catch((err: unknown) => log.error('object layer failed', String(err)))
     return objectsBuild
+  }
+  const updateObjectRegion = (): void => {
+    if (options.objectRegions !== true) return
+    if (residentRegion === undefined) displayedCamera = camera
+    if (regionPending()) void scheduleObjects()
+    else displayedCamera = camera
+  }
+  /** The same placement rules for the shown world and an off-screen folder candidate. */
+  const placementFor = (target: WorldState, level: LevelChoice, placement: ViewPlacement): PlacementResult => {
+    const coverage = placement.mode === 'random' ? { coverage: coverageFor(target) } : {}
+    const result = placeView({ mapSize: target.size, levels: target.levels, level, placement, overscan: borderTiles * TILE_SIZE, width: camera.width, height: camera.height, scale: dpr * userScale, ...coverage })
+    return { ...result, camera: clampCamera(result.camera, target.size, borderTiles) }
   }
 
   const engine: Engine = {
@@ -411,7 +484,7 @@ export function createEngine(options: EngineOptions): Engine {
       }
       return { ok: true, identity: n, fromCache: false, warnings: [] }
     },
-    async loadMap(file, name) {
+    async loadMap(file, name, view) {
       const n = fileName(file, name)
       const gen = ++generations.map
       status.state = 'loading'
@@ -424,24 +497,29 @@ export function createEngine(options: EngineOptions): Engine {
       renderer.setTerrain(r.world)
       status.map = n
       camera = centeredCamera(0, (world.size * TILE_SIZE) / 2, (world.size * TILE_SIZE) / 2, camera.width, camera.height, dpr * userScale)
+      const placed = view === undefined ? undefined : placementFor(world, view.level, view.placement)
+      if (placed !== undefined) camera = placed.camera
       mapIdentity = r.identity
       renderer.setObjects(undefined)
       objectsKey = undefined
+      residentRegion = undefined
+      residentObjectsKey = undefined
+      residentSpriteCount = 0
+      residentAtlasBytes = 0
       r.warnings.forEach(diagnose)
       clampAndInvalidate()
       refreshReady()
       await scheduleObjects()
-      return { ok: true, identity: r.identity, fromCache: r.fromCache, warnings: r.warnings }
+      return { ok: true, identity: r.identity, fromCache: r.fromCache, warnings: r.warnings, ...(placed === undefined ? {} : { view: { level: placed.camera.level, fx: placed.fx, fy: placed.fy } }) }
     },
-    async prepareMap(file, name) {
+    async prepareMap(file, name, view = { level: 0, placement: { mode: 'centre' } }) {
       const n = fileName(file, name)
       const gen = ++generations.prepare
-      const archivesAtStart = `${spriteFile?.identity ?? ''}|${dataFile?.identity ?? ''}|${hotaFile?.name ?? ''}`
-      const archivesNow = (): string => `${spriteFile?.identity ?? ''}|${dataFile?.identity ?? ''}|${hotaFile?.name ?? ''}`
+      const archivesAtStart = sourceVersion()
       const r = await run({ kind: 'openMap', file, name: n, useCache: options.cache !== false, keep: 'add' })
       if (r.kind === 'failed') return { ok: false, error: r.error }
       if (r.kind !== 'mapReady') return { ok: false, error: { level: 'error', code: 'PROTOCOL', message: 'unexpected worker reply' } }
-      const stale = (): boolean => gen !== generations.prepare || archivesNow() !== archivesAtStart
+      const stale = (): boolean => disposed || gen !== generations.prepare || sourceVersion() !== archivesAtStart
       const giveUp = (): Extract<LoadResult, { ok: false }> => {
         if (r.identity !== mapIdentity) dropWorld(r.identity)
         return superseded(n) as Extract<LoadResult, { ok: false }>
@@ -449,10 +527,11 @@ export function createEngine(options: EngineOptions): Engine {
       if (stale()) return giveUp()
       const warnings = [...r.warnings]
       let objects: ObjectLayer | undefined
-      const pageSize = objectPageSize(renderer.maxTextureSize())
+      const region = options.objectRegions === true ? requestedRegion(placementFor(r.world, view.level, view.placement).camera) : undefined
+      const pageSize = region === undefined ? objectPageSize(renderer.maxTextureSize()) : OBJECT_PAGE_SIZE
       const objectsKey = objectsKeyFor(r.identity, pageSize)
       if (options.objects !== false && objectsKey !== undefined && spriteFile !== undefined && dataFile !== undefined) {
-        const o = await run({ kind: 'buildObjects', sprites: spriteFile, data: dataFile, mapIdentity: r.identity, seed, pageSize, useCache: options.cache !== false })
+        const o = await run({ kind: 'buildObjects', sprites: spriteFile, data: dataFile, mapIdentity: r.identity, seed, pageSize, useCache: options.cache !== false, ...(region === undefined ? {} : { region }) })
         if (stale()) return giveUp()
         if (o.kind === 'failed') {
           if (r.identity !== mapIdentity) dropWorld(r.identity)
@@ -460,6 +539,11 @@ export function createEngine(options: EngineOptions): Engine {
         }
         if (o.kind !== 'objectsReady') return giveUp()
         warnings.push(...o.warnings)
+        const error = region === undefined ? undefined : o.warnings.find((w) => w.level === 'error')
+        if (error !== undefined) {
+          if (r.identity !== mapIdentity) dropWorld(r.identity)
+          return { ok: false, error }
+        }
         objects = { index: new ObjectIndex(o.objects, r.world.size, r.world.levels), atlas: o.atlas, flagColors: o.flagColors }
       }
       // A newer prepare replaces an older one that was never shown.
@@ -468,17 +552,26 @@ export function createEngine(options: EngineOptions): Engine {
         if (older.identity !== r.identity && older.identity !== mapIdentity) dropWorld(older.identity)
       }
       const handle: PreparedMap = { name: n, identity: r.identity, size: r.world.size, levels: r.world.levels }
-      preparedMaps.set(handle, { world: r.world, objects, objectsKey: objects === undefined ? undefined : objectsKey, generation: gen })
+      preparedMaps.set(handle, { world: r.world, objects, objectsKey: objects === undefined ? undefined : objectsKey, ...(region === undefined ? {} : { region }), sources: archivesAtStart, generation: gen })
       return { ok: true, prepared: handle, fromCache: r.fromCache, warnings }
     },
     showPreparedMap(handle, level, placement) {
       const p = preparedMaps.get(handle)
       if (p === undefined) return undefined
       preparedMaps.delete(handle)
-      const pageSize = objectPageSize(renderer.maxTextureSize())
+      if (p.sources !== sourceVersion()) {
+        if (handle.identity !== mapIdentity) dropWorld(handle.identity)
+        return undefined
+      }
+      const pageSize = p.region === undefined ? objectPageSize(renderer.maxTextureSize()) : OBJECT_PAGE_SIZE
       const keyNow = objectsKeyFor(handle.identity, pageSize)
       // Archives changed since the objects were built: the caller prepares again.
       if (p.objects !== undefined && p.objectsKey !== keyNow) {
+        if (handle.identity !== mapIdentity) dropWorld(handle.identity)
+        return undefined
+      }
+      const placed = placementFor(p.world, level, placement)
+      if (p.objects !== undefined && p.region !== undefined && !coversCamera(p.region, placed.camera)) {
         if (handle.identity !== mapIdentity) dropWorld(handle.identity)
         return undefined
       }
@@ -489,13 +582,18 @@ export function createEngine(options: EngineOptions): Engine {
       renderer.replaceMap(p.world, p.objects)
       status.map = handle.name
       mapIdentity = handle.identity
-      objectsKey = p.objectsKey
-      const placed = engine.placeView(level, placement)
+      camera = placed.camera
+      displayedCamera = camera
+      residentRegion = p.objects === undefined ? undefined : p.region
+      residentObjectsKey = p.objectsKey
+      residentSpriteCount = p.objects?.atlas.layout.rowCount ?? 0
+      residentAtlasBytes = p.objects === undefined ? 0 : objectAtlasGpuBytes(p.objects.atlas.layout)
+      objectsKey = p.objectsKey === undefined ? undefined : `${p.objectsKey}${p.region === undefined ? '' : `:region:${objectRegionKey(p.region)}`}`
       if (previous !== undefined && previous !== handle.identity) dropWorld(previous)
       refreshReady()
       // Without objects (no data archive yet) the usual path reports or builds them.
       if (p.objects === undefined) void scheduleObjects()
-      return placed
+      return { level: camera.level, fx: placed.fx, fy: placed.fy }
     },
     discardPreparedMap(handle) {
       if (!preparedMaps.delete(handle)) return
@@ -524,7 +622,12 @@ export function createEngine(options: EngineOptions): Engine {
       primaryData = undefined
       status.dataArchive = null
       objectsKey = undefined
+      residentRegion = undefined
+      residentObjectsKey = undefined
+      residentSpriteCount = 0
+      residentAtlasBytes = 0
       renderer.setObjects(undefined)
+      displayedCamera = camera
       emit()
       scheduler.invalidate()
     },
@@ -551,6 +654,7 @@ export function createEngine(options: EngineOptions): Engine {
     setLevel(level) {
       if (world === undefined || level < 0 || level >= world.levels || level === camera.level) return
       camera = { ...camera, level }
+      updateObjectRegion()
       scheduler.invalidate()
     },
     toggleLevel() {
@@ -566,6 +670,7 @@ export function createEngine(options: EngineOptions): Engine {
     },
     setMapping(level, tile, pixel, scale = 1) {
       camera = { ...camera, level, scale, offsetX: tile.x * TILE_SIZE - pixel.x / scale, offsetY: tile.y * TILE_SIZE - pixel.y / scale }
+      updateObjectRegion()
       scheduler.invalidate()
     },
     resize(cssWidth, cssHeight, deviceRatio) {
@@ -575,8 +680,15 @@ export function createEngine(options: EngineOptions): Engine {
       const maxH = Math.round(screen.height * deviceRatio)
       const width = Math.max(1, Math.min(Math.round(cssWidth * deviceRatio), maxW))
       const height = Math.max(1, Math.min(Math.round(cssHeight * deviceRatio), maxH))
-      canvas.width = width
-      canvas.height = height
+      if (options.objectRegions === true && residentRegion !== undefined && (width !== displayedCamera.width || height !== displayedCamera.height)) {
+        // Until the resized region arrives, fill the new surface using a cropped/scaled part of
+        // the old complete view, never a larger uncovered world rectangle or an extra surface.
+        const old = displayedCamera
+        const scale = old.scale * Math.max(width / old.width, height / old.height)
+        displayedCamera = centeredCamera(old.level, old.offsetX + old.width / old.scale / 2, old.offsetY + old.height / old.scale / 2, width, height, scale)
+      }
+      if (canvas.width !== width) canvas.width = width
+      if (canvas.height !== height) canvas.height = height
       // Keep the world pixel at the view centre in place across resizes and scale changes.
       const cx = camera.offsetX + camera.width / camera.scale / 2
       const cy = camera.offsetY + camera.height / camera.scale / 2
@@ -593,8 +705,7 @@ export function createEngine(options: EngineOptions): Engine {
     },
     placeView(level, placement) {
       if (world === undefined) return undefined
-      const coverage = placement.mode === 'random' ? { coverage: coverageFor(world) } : {}
-      const r = placeView({ mapSize: world.size, levels: world.levels, level, placement, overscan: borderTiles * TILE_SIZE, width: camera.width, height: camera.height, scale: dpr * userScale, ...coverage })
+      const r = placementFor(world, level, placement)
       if (r.choice !== undefined && !r.choice.reached) {
         const best = r.choice.candidates[r.choice.chosen]?.coverage ?? 0
         log.debug('PLACE_SPARSE: no random place reached the coverage threshold', { map: world.map.name, best, candidates: r.choice.candidates.length })
@@ -616,8 +727,18 @@ export function createEngine(options: EngineOptions): Engine {
       scheduler.setPaused(p)
     },
     renderNow(anim) {
-      if (world === undefined || contextLost) return false
+      if (world === undefined || contextLost || regionPending()) return false
       return renderer.render(camera, anim)
+    },
+    async whenViewReady() {
+      if (disposed || world === undefined || contextLost) return false
+      await scheduleObjects()
+      let tail: Promise<void> | undefined
+      do {
+        tail = objectsBuild
+        await tail
+      } while (!disposed && tail !== objectsBuild)
+      return !disposed && !contextLost && !regionPending()
     },
     onStatus(listener) {
       listeners.add(listener)
@@ -630,16 +751,29 @@ export function createEngine(options: EngineOptions): Engine {
       scheduledFrames: scheduler.frames,
       pendingCallbacks: scheduler.pending,
       surface: { width: canvas.width, height: canvas.height },
-      camera: { ...camera },
+      camera: { ...(options.objectRegions === true ? displayedCamera : camera) },
+      ...(options.objectRegions !== true ? {} : {
+        requestedCamera: { ...camera },
+        ...(residentRegion === undefined ? {} : { objectRegion: { level: residentRegion.level, range: { ...residentRegion.range } } }),
+        objectRegionPending: regionPending(),
+        objectSpriteCount: residentSpriteCount,
+        objectAtlasBytes: residentAtlasBytes,
+      }),
       visible,
       paused,
       nextChangeMs: renderer.nextChangeMs(world?.animationTimeMs ?? 0),
     }),
     world: () => world,
     dispose() {
+      disposed = true
+      objectsKey = undefined
       scheduler.dispose()
       renderer.dispose()
       worker?.terminate()
+      for (const [id, resolve] of pending) resolve({ id, kind: 'failed', error: { level: 'warn', code: SUPERSEDED, message: 'engine disposed' } })
+      pending.clear()
+      localWorlds.clear()
+      preparedMaps.clear()
       listeners.clear()
     },
   }

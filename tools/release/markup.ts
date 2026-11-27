@@ -139,7 +139,8 @@ export function renderInline(text: string, profile: Profile): string {
     out.push(text.slice(last, m.index))
     last = (m.index as number) + m[0].length
     const [, code, bold, italic, label, url] = m
-    if (code !== undefined) out.push(profile === 'text' ? code : `[code]${code}[/code]`)
+    // KDE's [code] is a block, not an inline span. Bold keeps package names in their sentence.
+    if (code !== undefined) out.push(profile === 'text' ? code : profile === 'kde' ? `[b]${code}[/b]` : `[code]${code}[/code]`)
     else if (bold !== undefined) out.push(profile === 'text' ? renderInline(bold, profile) : `[b]${renderInline(bold, profile)}[/b]`)
     else if (italic !== undefined) out.push(profile === 'text' ? renderInline(italic, profile) : `[i]${renderInline(italic, profile)}[/i]`)
     else if (profile === 'text') out.push(`${label} (${url})`)

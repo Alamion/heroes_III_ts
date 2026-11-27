@@ -3,7 +3,7 @@
 
 import { FormatError } from '../core/util/errors.ts'
 import { openCache } from './cache.ts'
-import { checkDataArchive, decodeArchive, decodeMap, decodeObjects } from './decode.ts'
+import { checkDataArchive, decodeArchive, decodeMap, decodeObjects, objectRegionKey } from './decode.ts'
 import type { WorldState } from '../core/state/world.ts'
 import type { WorkerRequest, WorkerResponse } from './protocol.ts'
 
@@ -70,8 +70,9 @@ scope.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     } else {
       const world = worlds.get(req.mapIdentity)
       if (world === undefined) throw new Error(`map ${req.mapIdentity} is not loaded in the worker`)
-      const r = await withDecodeLock(`objects:${req.sprites.identity}:${req.data.identity}:${req.mapIdentity}:${req.seed}:${req.pageSize}`, () =>
-        decodeObjects(req.sprites, req.data, { world, identity: req.mapIdentity }, req.seed, cacheFor(req.useCache), req.pageSize),
+      const regionKey = req.region === undefined ? '' : `:${objectRegionKey(req.region)}`
+      const r = await withDecodeLock(`objects:${req.sprites.identity}:${req.data.identity}:${req.mapIdentity}:${req.seed}:${req.pageSize}${regionKey}`, () =>
+        decodeObjects(req.sprites, req.data, { world, identity: req.mapIdentity }, req.seed, cacheFor(req.useCache), req.pageSize, req.region),
       )
       // The cache stored its own structured clone (or this is a fresh clone read from it), so the
       // buffers can be transferred without copying 16 MB of pages.

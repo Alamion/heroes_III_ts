@@ -13,6 +13,8 @@ import { hashInts } from '../util/rng.ts'
 import { pickHeroType, resolveRandomObjects, usedHeroTypes } from './random.ts'
 import type { GameTables, RandomOutcome, SpriteSize } from './random.ts'
 import type { ObjectId, WorldObject, WorldState } from './world.ts'
+import { MAX_SPRITE_EXTENT } from './object-index.ts'
+import type { ObjectRegion } from './object-index.ts'
 
 export type RenderObjectKind = 'object' | 'heroBody' | 'heroFlag'
 
@@ -127,9 +129,21 @@ function tintOn(state: WorldState, soil: number): { shadowTint?: ShadowTint } {
  * Full frame sizes of the `HOTA_MOVED_SPRITES` the sprite archives hold, for `GameTables.spriteSizes`.
  * `read` returns a sprite's bytes, or undefined when no archive has it.
  */
-export async function movedSpriteSizes(read: (name: string) => Promise<Uint8Array | undefined>): Promise<Map<string, SpriteSize>> {
+export async function movedSpriteSizes(read: (name: string) => Promise<Uint8Array | undefined>, world?: WorldState, region?: ObjectRegion): Promise<Map<string, SpriteSize>> {
   const out = new Map<string, SpriteSize>()
+  if (world !== undefined && world.map.version !== 'HotA') return out
   for (const m of HOTA_MOVED_SPRITES) {
+    if (world !== undefined && ![...world.objects.values()].some((o) => {
+      if (world.removed.has(o.id) || o.template.defName.toLowerCase() !== m.def) return false
+      if (region === undefined) return true
+      if (o.z !== region.level) return false
+      const shifted = movedAnchor(o, m)
+      const intersects = (x: number, y: number): boolean =>
+        x >= region.range.x0 && x <= region.range.x1 + MAX_SPRITE_EXTENT.left &&
+        y >= region.range.y0 && y <= region.range.y1 + MAX_SPRITE_EXTENT.up
+      // Either archive edition may be loaded. Probe only if one possible anchor can reach the view.
+      return intersects(o.x, o.y) || intersects(shifted.x, shifted.y)
+    })) continue
     const bytes = await read(resolveSpriteName(m.def))
     if (bytes === undefined) continue
     try {
@@ -143,6 +157,12 @@ export async function movedSpriteSizes(read: (name: string) => Promise<Uint8Arra
 }
 
 const visitOffset = (active: Uint8Array): { dx: number; dy: number } => maskOffsets(active)[0] ?? { dx: 0, dy: 0 }
+
+function movedAnchor(o: WorldObject, target: (typeof HOTA_MOVED_SPRITES)[number]): { x: number; y: number } {
+  const from = visitOffset(o.template.active)
+  const to = visitOffset(target.active)
+  return { x: o.x + from.dx - to.dx, y: o.y + from.dy - to.dy }
+}
 
 function heroEntries(base: { id: ObjectId; x: number; y: number; z: number; owner: number | null; order: number; random: RandomOutcome | null; floating: boolean }, type: number, state: WorldState): Omit<RenderObject, 'phase'>[] {
   const heroClass = heroClassOfType(type)
@@ -210,9 +230,8 @@ export function buildRenderObjects(state: WorldState, tables: GameTables, rng: R
     }
     const redrawn = hota && visitable ? moved.get(def) : undefined
     if (redrawn !== undefined) {
-      const from = visitOffset(o.template.active)
-      const to = visitOffset(redrawn.active)
-      if (from.dx !== to.dx || from.dy !== to.dy) Object.assign(entry, { x: o.x + from.dx - to.dx, y: o.y + from.dy - to.dy, passable: redrawn.passable })
+      const anchor = movedAnchor(o, redrawn)
+      if (anchor.x !== o.x || anchor.y !== o.y) Object.assign(entry, { ...anchor, passable: redrawn.passable })
     }
     if (hota) {
       const stand = standingTile(o.template.passable, o.template.active)

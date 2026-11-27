@@ -1,5 +1,45 @@
 # Research: Releases and Publishing
 
+**Follow-up (2026-11-27):** The findings below are historical. See the
+[store automation report](../../reports/Автопубликация%20обоев%20из%20GitHub.md) for current evidence
+and proposed proofs of concept.
+
+## Live page review (2026-11-27)
+
+Inspected the actual KDE product 2374098 and Steam Workshop item 3808342201 through
+the maintainer's connected browser. Both sessions were public/not signed in.
+
+- KDE advertises 0.1.4 and its October 1 changelog; Steam's item was last modified
+  October 1 and its public update notes are likewise old. Do not infer subscriber
+  package bytes from notes alone.
+- KDE's first `docs/img/web-version.jpg` was 1280 px wide inside an approximately
+  800 px description; the image was clipped. Steam shrinks it to about 630 px.
+  Replaced the shared documentation image locally with a personally inspected
+  704×480 current browser screenshot (per-file controls, HotA highland view).
+  This is only the project's output; no owner desktop or original-game capture.
+- KDE's rendered inline `[code]` is `<pre><code>…</code></pre>`. The six package-name
+  spans (English/Russian) broke their sentences into blocks. The existing KDE
+  `renderInline` profile now emits `[b]` for inline code; Steam is unchanged.
+  Regression tests cover both profiles. A temporary client-only preview using
+  ordinary bold text in the real KDE page was visually inspected; original DOM
+  was restored. Nothing was submitted to the store, and this is not evidence
+  that an authenticated save/new published description has been verified.
+- KDE icon/main preview and images of unrelated listings failed from the Pling
+  image CDN in this browser session. GitHub-hosted description screenshots loaded.
+  Treat this as a CDN/access issue pending recheck, not proof our source is corrupt.
+- Steam title/metadata and English/Russian setup text are readable; the primary
+  gallery currently shows procedural artwork. Actual map images load farther down
+  in the description. Adding the existing documentation screenshots to the gallery
+  remains a maintainer/manual store step per the constitution.
+- Both descriptions still link images at v0.1.0. New text must be generated/pasted
+  only after the chosen new tag and its documentation images are public; do not
+  paste unpublished image URLs or move an existing release tag.
+
+Local candidate evidence: `check-reports/store-review/web-current.jpg`;
+scratch capture uses the existing web host driver in `tmp/store-screenshot.ts`.
+Browser viewport was about 1080 px for live pages. Live text, version and image
+changes remain pending an authenticated owner session and the release decision.
+
 Pre-spec research, 2026-09-24 (web sources; the store sites store.kde.org / pling.com sit behind an
 anti-bot wall and could not be read directly — points marked *unverified* come from secondary
 sources). `/speckit-plan` extends this file with design decisions.
@@ -336,4 +376,3 @@ report, a `warn` line for each wait that ends by its timeout):
 - KDE without Qt WebEngine on the owner's session: the message shows (owner, 2026-09-26). The first
   `accept --simulate-missing-webengine` run missed the journal line because the Loader fails during
   creation; fixed in `main.qml` (the message reports itself) and in the journal window.
-

@@ -29,6 +29,8 @@ export interface RenderParams {
   tick?: number
   /** false: terrain only. */
   objects?: boolean
+  /** Check the non-interactive wallpaper residency strategy. */
+  objectRegions?: boolean
   /** Frame overrides as [render-object index, frame] pairs (fidelity state search). */
   objectFrames?: [number, number][]
   drawList?: boolean
@@ -59,6 +61,7 @@ const canvas = document.getElementById('map') as HTMLCanvasElement
 let engine: Engine | undefined
 let loaded: { archive: string; map: string; data: string | undefined; hota: string | undefined } | undefined
 let engineSeed: number | undefined
+let engineRegions: boolean | undefined
 
 function toBase64(bytes: Uint8Array): string {
   let s = ''
@@ -78,13 +81,14 @@ window.__h3render = {
     canvas.style.width = `${p.width}px`
     canvas.style.height = `${p.height}px`
     const seed = p.seed ?? 1
-    if (engine !== undefined && engineSeed !== seed) {
+    if (engine !== undefined && (engineSeed !== seed || engineRegions !== (p.objectRegions === true))) {
       engine.dispose()
       engine = undefined
       loaded = undefined
     }
     if (engine === undefined) {
       engineSeed = seed
+      engineRegions = p.objectRegions === true
       // A manual scheduler host: checks draw explicitly with renderNow.
       engine = createEngine({
         canvas,
@@ -93,6 +97,7 @@ window.__h3render = {
         cache: p.cache ?? false,
         logger: { level: 'warn' },
         seed,
+        objectRegions: p.objectRegions === true,
         schedulerHost: { requestFrame: () => 0, cancelFrame: () => {}, setTimer: () => 0, clearTimer: () => {} },
       })
     }
@@ -117,6 +122,7 @@ window.__h3render = {
     loaded = { archive: p.archiveUrl, map: p.mapUrl, data: p.dataArchiveUrl, hota: p.hotaArchiveUrl }
     e.setObjectsVisible(p.objects !== false)
     e.setMapping(p.level, p.originTile, p.originPixel, p.scale ?? 1)
+    if (!(await e.whenViewReady())) return { ok: false, error: 'object view not ready' }
     const anim =
       p.step !== undefined
         ? { step: p.step, ...(p.tick !== undefined ? { tick: p.tick } : {}), ...(p.objectFrames !== undefined ? { objectFrames: new Map(p.objectFrames) } : {}) }

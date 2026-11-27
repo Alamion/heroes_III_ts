@@ -52,6 +52,7 @@ export type ControllerEngine = Pick<
   | 'forgetCache'
   | 'onStatus'
   | 'stats'
+  | 'whenViewReady'
 >
 
 export interface RememberedFile {
@@ -450,6 +451,7 @@ export function createController(deps: ControllerDeps): WallpaperController {
     else level = reroll || levelChanged || view === null ? { random: nextSeed() } : view.level
     return { level, placement, drawPlace }
   }
+  const placementSettingsKey = (): string => [settings.level, settings.viewmode, settings.viewx, settings.viewy, settings.scale].join(':')
 
   const commitView = (r: { fx: number; fy: number; level: number } | undefined, drawPlace: boolean): void => {
     if (r === undefined) return
@@ -489,6 +491,8 @@ export function createController(deps: ControllerDeps): WallpaperController {
     if (engine === undefined) return false
     slots[slot] = { status: 'loading', name, identity: null }
     refresh()
+    const requestedView = slot === 'map' ? choosePlacement(true, false) : undefined
+    const requestedSettings = placementSettingsKey()
     const r =
       slot === 'spriteArchive'
         ? await engine.loadArchive(blob, name)
@@ -496,7 +500,7 @@ export function createController(deps: ControllerDeps): WallpaperController {
           ? await engine.loadDataArchive(blob, name)
           : slot === 'hotaArchive'
             ? await engine.loadHotaArchive(blob, name)
-            : await engine.loadMap(blob, name)
+             : await engine.loadMap(blob, name, requestedView)
     if (gen !== generation[slot]) return false
     if (!r.ok) {
       if (r.error.code === 'SUPERSEDED') return false
@@ -517,7 +521,8 @@ export function createController(deps: ControllerDeps): WallpaperController {
       )
       if (gen !== generation[slot]) return false
       singleNeedsHota = needsHota
-      applyView(true)
+      if (r.view !== undefined && requestedView !== undefined && requestedSettings === placementSettingsKey()) commitView(r.view, requestedView.drawPlace)
+      else applyView(true)
     }
     // HotA maps of the folder that were waiting for the archive become eligible (spec 007 edge case).
     // Only once the archives they are decoded against have settled: when HotA and the other files
@@ -700,7 +705,9 @@ export function createController(deps: ControllerDeps): WallpaperController {
           f.summaries.set(id, summary)
         }
         if (!eligible(f)(id)) continue
-        const r = await e.prepareMap(blob, name)
+        const c = choosePlacement(true, false)
+        const placementSettings = placementSettingsKey()
+        const r = await e.prepareMap(blob, name, c)
         if (f !== folder) {
           if (r.ok) e.discardPreparedMap(r.prepared)
           return
@@ -715,7 +722,12 @@ export function createController(deps: ControllerDeps): WallpaperController {
           e.discardPreparedMap(r.prepared)
           continue
         }
-        const c = choosePlacement(true, false)
+        // A settings edit during decode must not show a region built for the previous selection.
+        if (placementSettings !== placementSettingsKey()) {
+          e.discardPreparedMap(r.prepared)
+          retry = id
+          continue
+        }
         const placed = e.showPreparedMap(r.prepared, c.level, c.placement)
         if (placed === undefined) {
           retry = id
@@ -1059,6 +1071,7 @@ export function createController(deps: ControllerDeps): WallpaperController {
         if (flushTimer !== undefined) await flush()
         await Promise.all([...work])
       }
+      await engine?.whenViewReady()
     },
     onChange(listener) {
       listeners.add(listener)

@@ -53,6 +53,53 @@ Lively facts marked "Windows question" are verified in the follow-up Windows ses
 
 ### KDE Plasma 6
 
+#### Issue #1 follow-up (2026-11-27; local native startup accepted)
+
+- Report: Plasma 6.6.4 on CachyOS shows black, with no QtWebEngine process or page logs.
+- Reproduced with the actual packaged `WallpaperItem` in an isolated PySide6/Qt 6.11.2
+  QQuickView: application name `plasmashell`, undefined `Plasmoid.activity`,
+  `root.onLockScreen=true`, all three Loaders inactive. This is not evidence of a greeter.
+- Reuse decision: keep the existing `root.onLockScreen` gate and all three Loaders;
+  distinguish the host by `Qt.application.name`. Upstream Plasma 6.6 sources explicitly
+  set `kscreenlocker_greet` in `KDE/kscreenlocker/greeter/main.cpp` and `plasmashell`
+  in `KDE/plasma-workspace/shell/main.cpp`. No upstream code is copied.
+- Acceptance: desktop loads the real page even without an applet activity, greeter
+  creates neither WebEngine nor watchers, missing-WebEngine fallback remains readable.
+  Use an isolated Qt/Plasma host, not a restart of the user's working desktop.
+- Implemented: `Qt.application.name === "kscreenlocker_greet"` in the existing gate.
+  After the change, the same host reports `onLockScreen=false`, all Loaders active,
+  view Ready and pageReady=true. Under greeter identity they all stay inactive.
+- Checks: `yarn build`; `yarn test` (80 files passed, 2 skipped; 554 tests passed,
+  11 skipped); targeted package tests (9 passed); `yarn verify packages --host kde
+  --no-build` (all checks pass; runtime 95,407 gzip bytes). Regression test evaluates
+  the actual packaged predicate with both application names and three activity values.
+- Visual evidence (local-only): `check-reports/kde-before.png` (black),
+  `check-reports/kde-greeter.png` (black by design),
+  `check-reports/kde-webengine-map.png` (actual QtWebEngine CDP capture, map visible,
+  personally inspected). `check-reports/kde-probe.log` records the ready page,
+  loaded slots and frames presented. Scratch repros: `tmp/kde-probe.py`,
+  `tmp/kde-cdp.mjs`; isolated host: `tmp/kde-isolated.py`.
+- Missing-module visual regression: a copied package whose `WebView.qml` imports an
+  unavailable module shows the existing readable fallback in the native Qt window.
+  Personally inspected `check-reports/kde-missing-en.png` (960×540, English) and
+  `check-reports/kde-missing-ru.png` (480×540, Russian): no clipped text or overflow.
+  The greeter/plain background has no controls or theme-specific styles.
+- Limitation: both QQuickView native snapshots and the isolated plasmashell/Xvfb
+  desktop remain black while the QtWebEngine CDP capture contains the map. This
+  does not establish successful native composition on the reporter's system.
+  No changes were installed into the working desktop and it was not restarted.
+- After the maintainer explicitly authorized live acceptance, `yarn accept kde --apply`
+  upgraded the local package, restarted through `plasma-plasmashell.service`, applied
+  test files, captured and restored the previous wallpaper/settings successfully.
+  Personally inspected `check-reports/accept/2026-11-27T11-01-04-010Z/kde-desktop.png`:
+  terrain, water and objects are visible around the existing app windows; no black
+  wallpaper. The capture is private/local-only (contains the owner's desktop).
+- Checkpoint: fix, automated checks and local native startup accepted. Reporter-specific
+  CachyOS verification remains open; no issue comment/closure, remote write or release
+  was authorized. Settings interactions, actual lock/pause transitions and second-screen
+  checks remain manual, not claimed as tested. Next: region-atlas specification and
+  representative scenario; store research synthesis proceeds independently.
+
 - Installed on the development machine: plasmashell 6.7.5, Qt WebEngine / WebChannel 6.10.3,
   kf6-kpackage 6.30, `kpackagetool6`, `plasmawindowed` (applets only; no wallpaper viewer).
 - Package: `metadata.json` (`KPackageStructure: "Plasma/Wallpaper"`, `X-Plasma-API-Minimum-Version:
@@ -62,7 +109,8 @@ Lively facts marked "Windows question" are verified in the follow-up Windows ses
   installing into a temporary root. Store archive: `.tar.gz`.
 - `WebEngineView` works inside plasmashell (it sets `AA_ShareOpenGLContexts`). The lock-screen greeter
   does not, so a web view there may render black → the plugin shows a plain dark background on the lock
-  screen (detected by `Plasmoid.activity` being undefined).
+  screen (originally detected by `Plasmoid.activity` being undefined; superseded by the
+  application-name check in the issue #1 follow-up above).
 - A `file://` page with `localContentCanAccessFileUrls: true` (default) may read `file://` URLs with
   `XMLHttpRequest`; `fetch` of `file:` is unsupported. Module scripts/workers from `file://` are
   uncertain → same classic build as WE (R3).

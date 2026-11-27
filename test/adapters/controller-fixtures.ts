@@ -4,7 +4,7 @@ import { createController } from '../../src/adapters/shared/controller.ts'
 import type { ControllerDeps, ControllerEngine, RememberedFile, Timers } from '../../src/adapters/shared/controller.ts'
 import { UserFileError } from '../../src/adapters/shared/file-url.ts'
 import type { OverlayState } from '../../src/adapters/shared/overlay.ts'
-import type { EngineStats, EngineStatus, LoadResult, PrepareResult, PreparedMap } from '../../src/runtime/engine.ts'
+import type { EngineStats, EngineStatus, LoadResult, PrepareResult, PreparedMap, PreparedView } from '../../src/runtime/engine.ts'
 import { summarizeMapFile } from '../../src/runtime/file-kind.ts'
 import type { FileKind } from '../../src/runtime/file-kind.ts'
 import type { MapSummary } from '../../src/core/formats/h3m/summary.ts'
@@ -37,7 +37,10 @@ export class FakeEngine implements ControllerEngine {
   loadArchive = (_b: Blob, n?: string) => this.load('archive', n ?? '')
   loadDataArchive = (_b: Blob, n?: string) => this.load('data', n ?? '')
   loadHotaArchive = (_b: Blob, n?: string) => this.load('hota', n ?? '')
-  loadMap = (_b: Blob, n?: string) => this.load('map', n ?? '')
+  loadMap = async (_b: Blob, n?: string, view?: PreparedView): Promise<LoadResult> => {
+    const result = await this.load('map', n ?? '')
+    return result.ok && view !== undefined ? { ...result, view: this.placeView(view.level, view.placement) } : result
+  }
   unloadDataArchive = () => void this.calls.push('unload:data')
   unloadHotaArchive = async (): Promise<LoadResult> => {
     this.calls.push('unload:hota')
@@ -78,6 +81,7 @@ export class FakeEngine implements ControllerEngine {
   setPaused = (p: boolean) => void (this.paused = p)
   setFrameLimit = (fps: number) => void (this.frameLimit = fps)
   forgetCache = async () => void this.forgot++
+  whenViewReady = async () => true
   onStatus = (l: (s: EngineStatus) => void) => ((this.statusListener = l), () => true)
   emitDiagnostic(code: string) {
     this.statusListener?.({ state: 'ready', archive: null, dataArchive: null, hotaArchive: null, map: null, diagnostics: [{ level: 'warn', code, message: code }] })
@@ -154,4 +158,3 @@ export function setup(extra: Partial<ControllerDeps> = {}) {
   const c = createController(deps)
   return { c, engine, timers, overlay, remembered, setNow: (t: number) => (now = t) }
 }
-

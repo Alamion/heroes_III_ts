@@ -5,6 +5,7 @@ import type { ObjectAtlas } from '../core/render/object-atlas.ts'
 import type { RenderObject } from '../core/state/render-objects.ts'
 import type { WorldState } from '../core/state/world.ts'
 import type { SerializedFormatError } from '../core/util/errors.ts'
+import type { ObjectRegion } from '../core/state/object-index.ts'
 
 /**
  * One archive of an ordered set (spec 005 FR-004). The last member is the base archive of its
@@ -35,6 +36,8 @@ export type WorkerRequest =
       seed: number
       /** Object atlas page size the renderer's GPU supports (spec 005). */
       pageSize: number
+      /** Developer regional path: only pack sprites intersecting this level/range. */
+      region?: ObjectRegion
       useCache: boolean
     }
 
