@@ -7,6 +7,8 @@ text becomes the Steam Workshop and KDE Store change notes (see [docs/releasing.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-27
+
 ### Changed
 
 - Wallpaper Engine, Lively and KDE Plasma load object graphics only for the current view,

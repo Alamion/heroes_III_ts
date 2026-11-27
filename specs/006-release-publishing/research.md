@@ -14,6 +14,14 @@ After fetching origin, all 13 local short-lived branches and three remote featur
 branches had zero unique commits against testing; there were no open PRs or other
 worktrees. Removed them without force, preserving main/testing and all tags.
 
+Migration commit `69ec1f7` is pushed on main; GitHub default branch and local
+origin/HEAD are main. No branch protection/ruleset policy was silently introduced.
+Build and full suite pass (571 tests, 11 skipped), including origin/main default
+ancestry and rejection of testing-only release tags. Pages environment already
+allows tag pattern v*, so no environment permission change was required.
+0.2.1 release assets were built locally; reproducible package, store-text and layer
+checks pass. CI publication is the next gate; manual store updates remain separate.
+
 ## Live page review (2026-11-27)
 
 Inspected the actual KDE product 2374098 and Steam Workshop item 3808342201 through

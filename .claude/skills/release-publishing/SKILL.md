@@ -37,6 +37,9 @@ Read `docs/releasing.md`, the constitution and the affected tooling before editi
   changes back into testing, remove merged short-lived branches after ancestry checks.
   No parallel release script or force-push is needed.
   `docs/releasing.md` owns current branch procedures; historical specs remain history.
+  Migration verified with strict build and 571 passing tests (11 skipped), including
+  default origin/main ancestry and testing-only tag refusal. GitHub default and
+  local origin/HEAD are main. Pages environment permits v* tags unchanged.
 - Store text generation already supports separate `steam`/`kde` inline profiles.
   KDE renders `[code]` as block content, breaking package names out of a sentence.
   The KDE inline renderer now uses supported bold text; Steam keeps code.
