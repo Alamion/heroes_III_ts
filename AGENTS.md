@@ -13,7 +13,9 @@ Read it first. If this file conflicts with it, the constitution wins — fix thi
 
 Releases ([specs/006-release-publishing/](specs/006-release-publishing/)): SemVer with `package.json` as
 the only source of the version and a hand-written `CHANGELOG.md` (a Markdown subset, because the same
-text becomes the store change notes). A tag `vX.Y.Z` on `testing` runs `.github/workflows/release.yml`
+text becomes the store change notes). `main` is the default/stable/release branch; `testing` is
+secondary integration, with CI on both. Promote tested changes to main and merge release changes
+back to testing; delete merged short-lived branches. A tag `vX.Y.Z` on `main` runs `.github/workflows/release.yml`
 (rules → build → checks → GitHub Release with four archives, store texts, `SHA256SUMS` → Pages for
 final versions); `ci.yml` only checks. The Steam Workshop item (`3808342201`) and the KDE Store product
 (`2374098`) are updated by hand following [docs/releasing.md](docs/releasing.md); their ids, the

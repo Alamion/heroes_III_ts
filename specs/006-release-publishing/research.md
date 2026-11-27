@@ -4,6 +4,16 @@
 [store automation report](../../reports/Автопубликация%20обоев%20из%20GitHub.md) for current evidence
 and proposed proofs of concept.
 
+## Branch migration (2026-11-27)
+
+Maintainer authorized main as the default/stable/release branch, retaining testing
+as secondary integration. Reused `tools/release/tags.ts`, its existing tests and
+the CI/release workflows; current procedures are in `docs/releasing.md`.
+Historical testing-based contracts below describe releases through 0.2.0.
+After fetching origin, all 13 local short-lived branches and three remote feature
+branches had zero unique commits against testing; there were no open PRs or other
+worktrees. Removed them without force, preserving main/testing and all tags.
+
 ## Live page review (2026-11-27)
 
 Inspected the actual KDE product 2374098 and Steam Workshop item 3808342201 through

@@ -1,4 +1,4 @@
-# Checks on every push and pull request to `testing` (spec 006 FR-007): type-check, tests, all
+# Checks on every push and pull request to `main` or `testing`: type-check, tests, all
 # packages, package checks, the browser host simulation, store texts and layers. Nothing is deployed
 # here — GitHub Pages is deployed by release.yml from final releases only (supersedes spec 004
 # FR-013a). No game files exist in CI; real-file tests skip.
@@ -6,9 +6,9 @@ name: ci
 
 on:
   push:
-    branches: [testing]
+    branches: [main, testing]
   pull_request:
-    branches: [testing]
+    branches: [main, testing]
   workflow_dispatch:
 
 permissions:

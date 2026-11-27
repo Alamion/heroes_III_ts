@@ -13,6 +13,7 @@ function repo() {
   dirs.push(dir)
   const g = (...args: string[]) => execFileSync('git', args, { cwd: dir, env: ENV, encoding: 'utf8' }).trim()
   g('init', '-q', '-b', 'testing')
+  // Explicit branch overrides remain supported; defaults must use main.
   const commit = (version: string, changelog: string) => {
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ version }))
     writeFileSync(join(dir, 'CHANGELOG.md'), changelog)
@@ -57,8 +58,8 @@ describe('release tag rules (spec 006 FR-003)', () => {
     r.g('checkout', '-q', '-b', 'side')
     r.commit('0.2.0', log(['0.2.0', 'Side.']))
     r.g('tag', 'v0.2.0')
-    expect(checkRelease({ tag: 'v0.2.0', repoRoot: r.dir, branch: 'testing' }).failure?.code).toBe('NOT_ON_TESTING')
-    expect(checkRelease({ tag: 'v0.2.0', repoRoot: r.dir, branch: 'origin/testing' }).failure?.code).toBe('NOT_ON_TESTING')
+    expect(checkRelease({ tag: 'v0.2.0', repoRoot: r.dir, branch: 'testing' }).failure?.code).toBe('NOT_ON_MAIN')
+    expect(checkRelease({ tag: 'v0.2.0', repoRoot: r.dir, branch: 'origin/testing' }).failure?.code).toBe('NOT_ON_MAIN')
   })
 
   it('requires a final version higher than every released final, but allows pre-releases', () => {
@@ -94,9 +95,10 @@ describe('release tag rules (spec 006 FR-003)', () => {
     expect(checkRelease({ tag: 'v0.1.0', repoRoot: r.dir, branch: 'testing' }).ok).toBe(true)
   })
 
-  it('checks before tagging with --local (HEAD, working tree, local testing)', () => {
+  it('checks before tagging with --local (HEAD, working tree, local main)', () => {
     const r = repo()
     r.commit('0.1.0', log(['0.1.0', 'First.']))
+    r.g('branch', 'main')
     expect(checkRelease({ tag: 'v0.1.0', repoRoot: r.dir, local: true })).toMatchObject({ ok: true })
     r.g('tag', 'v0.1.0')
     r.commit('0.1.0', log(['0.1.0', 'First, reworded.']))
@@ -106,9 +108,23 @@ describe('release tag rules (spec 006 FR-003)', () => {
   it('runs the extra changelog rule', () => {
     const r = repo()
     r.commit('0.1.0', log(['0.1.0', '| a | b |']))
+    r.g('branch', 'main')
     const validateChangelog = () => {
       throw Object.assign(new Error('table'), { code: 'MARKUP_UNSUPPORTED' })
     }
     expect(checkRelease({ tag: 'v0.1.0', repoRoot: r.dir, local: true, validateChangelog }).failure?.code).toBe('MARKUP_UNSUPPORTED')
+  })
+
+  it('defaults to origin/main and refuses testing-only tags', () => {
+    const r = repo()
+    const stable = r.commit('0.1.0', log(['0.1.0', 'Stable.']))
+    r.g('branch', 'main')
+    r.g('update-ref', 'refs/remotes/origin/main', stable)
+    r.g('tag', 'v0.1.0')
+    expect(checkRelease({ tag: 'v0.1.0', repoRoot: r.dir }).ok).toBe(true)
+    r.commit('0.2.0', log(['0.2.0', 'Testing only.']))
+    r.g('tag', 'v0.2.0')
+    expect(checkRelease({ tag: 'v0.2.0', repoRoot: r.dir }).failure?.code).toBe('NOT_ON_MAIN')
+    expect(checkRelease({ tag: 'v0.2.0', repoRoot: r.dir, local: true }).failure?.code).toBe('NOT_ON_MAIN')
   })
 })

@@ -12,7 +12,7 @@ export type ReleaseFailureCode =
   | 'TAG_FORMAT'
   | 'TAG_MISSING'
   | 'VERSION_MISMATCH'
-  | 'NOT_ON_TESTING'
+  | 'NOT_ON_MAIN'
   | 'VERSION_NOT_HIGHER'
   | 'TAG_TAKEN'
   | 'CHANGELOG_MISSING'
@@ -38,7 +38,7 @@ export interface CheckOptions {
   repoRoot: string
   /** Before tagging: the tag need not exist, the commit is HEAD, files come from the working tree. */
   local?: boolean
-  /** Branch the commit must be on (default: `testing` locally, `origin/testing` otherwise). */
+  /** Branch the commit must be on (default: `main` locally, `origin/main` otherwise). */
   branch?: string
   /** Extra rule for the changelog body (spec 006 US3: the markup subset); throws with `code`. */
   validateChangelog?: (body: string, line: number) => void
@@ -83,9 +83,9 @@ export function checkRelease(opts: CheckOptions): ReleaseCheck {
   const pkgVersion = pkgText === undefined ? undefined : (JSON.parse(pkgText) as { version?: string }).version
   if (pkgVersion !== v) return fail('VERSION_MISMATCH', `tag ${tag} but package.json says ${pkgVersion ?? '(none)'}`, { ...base, commit })
 
-  const branch = opts.branch ?? (local ? 'testing' : 'origin/testing')
-  if (!refExists(repoRoot, branch)) return fail('NOT_ON_TESTING', `branch ${branch} is not available (fetch it first)`, { ...base, commit })
-  if (!isAncestor(repoRoot, commit, branch)) return fail('NOT_ON_TESTING', `commit ${commit.slice(0, 10)} is not on ${branch}`, { ...base, commit })
+  const branch = opts.branch ?? (local ? 'main' : 'origin/main')
+  if (!refExists(repoRoot, branch)) return fail('NOT_ON_MAIN', `branch ${branch} is not available (fetch it first)`, { ...base, commit })
+  if (!isAncestor(repoRoot, commit, branch)) return fail('NOT_ON_MAIN', `commit ${commit.slice(0, 10)} is not on ${branch}`, { ...base, commit })
 
   if (kind === 'final') {
     for (const other of listTags(repoRoot)) {

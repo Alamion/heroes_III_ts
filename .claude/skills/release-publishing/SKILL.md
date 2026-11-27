@@ -29,6 +29,14 @@ Read `docs/releasing.md`, the constitution and the affected tooling before editi
 
 ## Verified reuse decision and pitfalls (2026-11-27)
 
+- Branch migration reuses `tools/release/tags.ts` as the release-policy owner,
+  `test/tools/release-tags.test.ts` for ancestry/default-ref coverage, and the existing
+  `.github/workflows/{ci,release}.yml`. Release defaults are `main` locally and
+  `origin/main` in CI (`NOT_ON_MAIN` on failure); CI runs on main and testing.
+  main is default/stable; testing remains integration. Promote by PR, merge release
+  changes back into testing, remove merged short-lived branches after ancestry checks.
+  No parallel release script or force-push is needed.
+  `docs/releasing.md` owns current branch procedures; historical specs remain history.
 - Store text generation already supports separate `steam`/`kde` inline profiles.
   KDE renders `[code]` as block content, breaking package names out of a sentence.
   The KDE inline renderer now uses supported bold text; Steam keeps code.

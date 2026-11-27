@@ -7,13 +7,25 @@ remain manual in this repository. The design is in [spec 006](../specs/006-relea
 records a working community upload to Pling through undocumented web endpoints. No unattended
 production publishing path was verified for either of our listings.
 
-What happens by itself: a tag `vX.Y.Z` on `testing` starts `.github/workflows/release.yml`. It checks
+What happens by itself: a tag `vX.Y.Z` on `main` starts `.github/workflows/release.yml`. It checks
 the rules below, builds and verifies everything, creates (or fills) the GitHub Release with the four
 host archives, the store texts and `SHA256SUMS`, and — for a final version — redeploys GitHub Pages.
 Nothing is published if any check fails.
 
 What is done by hand: the Steam Workshop item and the KDE Store product. Lively has no store; its
 archive on the release is the download.
+
+## Branch policy
+
+- `main` is the default, stable and release branch. Create release tags only on commits
+  reachable from `main`; release rules check `origin/main` in CI.
+- `testing` is the secondary integration branch. Feature/fix branches normally target
+  it, then tested changes are promoted to `main` through a PR. CI checks both branches.
+- After a release, merge `main` back into `testing` so version/release tooling changes
+  are retained. Prefer fast-forward where possible; never reset shared history.
+- Delete merged short-lived branches locally and remotely after checking ancestry and
+  open PRs/worktrees. Keep `main` and `testing`. No force-push is needed.
+- Releases before 0.2.1 used `testing`; their tags and history are unchanged.
 
 ## 1. Prepare the version
 
@@ -35,7 +47,7 @@ archive on the release is the download.
    the check.
 3. Raise `version` in `package.json` (SemVer: fixes → patch, new features → minor). Minor and patch
    must stay below 100 (Lively's integer version is `major·10000 + minor·100 + patch`).
-4. Check before tagging, on `testing` with the changes committed:
+4. Check before tagging, on `main` with the changes committed:
    ```bash
    yarn release check --tag v0.2.0 --local
    yarn release assets --build       # optional: look at dist/release/0.2.0/ (notes, store texts)
@@ -46,7 +58,8 @@ archive on the release is the download.
 Either from a clone:
 
 ```bash
-git checkout testing && git pull
+git switch main
+git pull --ff-only
 git tag v0.2.0
 git push origin v0.2.0
 ```
@@ -54,7 +67,7 @@ git push origin v0.2.0
 or with the GitHub CLI (the release is created first; the workflow fills it and keeps its notes):
 
 ```bash
-gh release create v0.2.0 --target testing --title "Heroes 3 Living Map 0.2.0" --notes-file notes.md
+gh release create v0.2.0 --target main --title "Heroes 3 Living Map 0.2.0" --notes-file notes.md
 ```
 
 A pre-release tag (`v0.2.0-rc.1`, `-beta.1`) makes a GitHub pre-release and leaves GitHub Pages alone.
@@ -68,7 +81,7 @@ Actions → **release**. The first step prints the rule check; a failure names i
 | --- | --- | --- |
 | `TAG_FORMAT` | the tag is not `v` + SemVer | delete the tag, push the right one |
 | `VERSION_MISMATCH` | the tag and `package.json` differ | tag the commit that has the version |
-| `NOT_ON_TESTING` | the commit is not on `testing` | merge first, then tag |
+| `NOT_ON_MAIN` | the commit is not on `main` | merge first, then tag |
 | `VERSION_NOT_HIGHER` | a final version not above the last final release | raise the version |
 | `CHANGELOG_MISSING` / `CHANGELOG_EMPTY` / `CHANGELOG_FORMAT` | no usable section | write it, commit, move the tag |
 | `MARKUP_UNSUPPORTED` | the section uses Markdown outside the subset | simplify it |

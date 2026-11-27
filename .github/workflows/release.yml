@@ -1,4 +1,4 @@
-# Releases (spec 006 US1, contracts/release-workflow.md): a tag vX.Y.Z on a commit of `testing` —
+# Releases: a tag vX.Y.Z on a commit of `main` —
 # pushed from a clone or created with `gh release create` — is checked, built and verified, then the
 # GitHub Release gets the four host archives, the store texts and SHA256SUMS, and a final (not
 # pre-release) version redeploys GitHub Pages from the same build. Nothing is published before every
@@ -35,7 +35,7 @@ jobs:
         with:
           ref: refs/tags/${{ env.TAG }}
           fetch-depth: 0
-      - run: git fetch --no-tags origin testing:refs/remotes/origin/testing
+      - run: git fetch --no-tags origin main:refs/remotes/origin/main
       - uses: actions/setup-node@v4
         with:
           node-version: 22
